@@ -1,8 +1,11 @@
 {
-  "name": "Longlight One",
-  "seed": 1201,
-  "startDate": "2041-06-14T06:00:00Z",
-  "orbit": { "altitudeKm": 420, "betaDeg": 0, "startPhaseDeg": 70 },
+  "id": "kittiwake",
+  "name": "Kittiwake Outpost",
+  "blurb": "A research outpost with a lab already aboard and a grant review in six days. The institute wants six contracts delivered, and it is not known for extensions.",
+  "goal": { "kind": "contracts", "count": 6, "days": 6 },
+  "seed": 3407,
+  "startDate": "2042-02-03T14:00:00Z",
+  "orbit": { "altitudeKm": 400, "betaDeg": 50, "startPhaseDeg": 20 },
   "power": {
     "initialChargeFraction": 0.8,
     "thresholds": {
@@ -51,11 +54,11 @@
     "repairFactor": 2,
     "repairTeams": 1,
     "worn": { "above": 0.6, "below": 0.4 },
-    "initialWear": { "array-1": 0.3, "battery-1": 0.35, "habitat-1": 0.2, "radiator-1": 0.45, "life-support-1": 0.62 }
+    "initialWear": { "array-1": 0.15, "battery-1": 0.55, "habitat-1": 0.3, "radiator-1": 0.25, "life-support-1": 0.35, "research-lab-1": 0.2 }
   },
   "economy": {
-    "startCash": 40,
-    "loan": { "principal": 60, "ratePerQuarter": 0.03 },
+    "startCash": 25,
+    "loan": { "principal": 20, "ratePerQuarter": 0.03 },
     "quarterDays": 1,
     "guestPerDay": 1.5,
     "operationsPerDay": 1.8,
@@ -141,6 +144,7 @@
     { "id": "battery-1", "module": "battery-pack", "attach": { "to": "core-1", "port": "nadir", "via": "top" } },
     { "id": "habitat-1", "module": "habitat", "attach": { "to": "core-1", "port": "fore", "via": "aft" } },
     { "id": "radiator-1", "module": "radiator", "attach": { "to": "core-1", "port": "port", "via": "base" } },
-    { "id": "life-support-1", "module": "life-support", "attach": { "to": "core-1", "port": "aft", "via": "fore" } }
+    { "id": "life-support-1", "module": "life-support", "attach": { "to": "core-1", "port": "aft", "via": "fore" } },
+    { "id": "research-lab-1", "module": "research-lab", "attach": { "to": "habitat-1", "port": "fore", "via": "fore" } }
   ]
 }

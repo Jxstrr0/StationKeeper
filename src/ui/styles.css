@@ -1331,6 +1331,60 @@ dd.worn .wear-text {
   gap: 8px;
 }
 
+/* Scenario picker: above the end sheet, since it opens from it. */
+#ui > .picker-scrim {
+  z-index: 6;
+}
+
+.picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.picker-card {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.picker-name {
+  margin: 0 0 4px;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.picker-blurb {
+  margin: 0 0 8px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.picker-goal {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: var(--lilac);
+}
+
+.picker-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.picker-terms {
+  font-size: 13px;
+  color: var(--dim);
+}
+
+.picker-start {
+  min-width: 96px;
+  height: 40px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .report-scrim,
   .report-sheet {

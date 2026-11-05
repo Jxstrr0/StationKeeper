@@ -57,7 +57,7 @@ import {
   type ThermalState,
 } from './systems/thermal';
 import { MINUTE_MS } from './time';
-import type { EndingSnapshot, LayoutEntry, Ledger, ModuleDef, ModuleSnapshot, Outcome, ScenarioDef, SimSnapshot } from './types';
+import type { EndingSnapshot, GoalSnapshot, LayoutEntry, Ledger, ModuleDef, ModuleSnapshot, Outcome, ScenarioDef, SimSnapshot } from './types';
 import { diagnose } from './warnings';
 
 export type SimCommand =
@@ -82,7 +82,7 @@ interface Delivery {
 }
 
 /** Bump when the save's shape changes; older saves are then discarded rather than misread. */
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 /** How the game stands: lost, goal reached, or how close the bank is. */
 interface EndingState {
@@ -91,6 +91,8 @@ interface EndingState {
   goalAt: number | null;
   /** Quarters closed overdrawn in a row. */
   overdrawnCloses: number;
+  /** Contracts delivered over the whole game, for a contracts goal. */
+  contractsDone: number;
 }
 
 /** A system's state with its per-module map stored as a plain object, so it survives JSON. */
@@ -99,8 +101,8 @@ type Saved<T, V> = Omit<T, 'modules'> & { modules: Record<string, V> };
 /** Everything needed to rebuild a sim exactly as it was. Plain JSON, so it can go in localStorage. */
 export interface SimSave {
   version: typeof SAVE_VERSION;
-  /** The scenario's seed, as a check that the save belongs to this scenario. */
-  seed: number;
+  /** The scenario this save belongs to. */
+  scenarioId: string;
   minutes: number;
   rng: number;
   layout: LayoutEntry[];
@@ -158,7 +160,7 @@ export class Simulation {
   private reliability: ReliabilityState;
   private economy: EconomyState;
   private deliveries: Delivery[] = [];
-  private ending: EndingState = { outcome: null, endedAt: null, goalAt: null, overdrawnCloses: 0 };
+  private ending: EndingState = { outcome: null, endedAt: null, goalAt: null, overdrawnCloses: 0, contractsDone: 0 };
   private readonly failures: boolean;
 
   /** `layout` defaults to the scenario's starting layout; forks pass the current one. */
@@ -188,6 +190,7 @@ export class Simulation {
     });
     this.events.on('repairDone', ({ moduleId }) => delete this.economy.partsOnJob[moduleId]);
     this.events.on('moduleFailed', () => this.economy.stats.failures++);
+    this.events.on('contractCompleted', () => this.ending.contractsDone++);
     this.events.on('quarterReport', ({ report }) => {
       this.ending.overdrawnCloses = report.cash < 0 ? this.ending.overdrawnCloses + 1 : 0;
     });
@@ -220,12 +223,14 @@ export class Simulation {
     const e = this.ending;
     if (e.outcome) return;
     const cfg = this.scenario.endings;
-    if (e.goalAt === null && this.economy.loan <= 0) {
+    const goal = this.goalSnapshot();
+    if (e.goalAt === null && goal.progress >= 1) {
       e.goalAt = this.minutes;
       this.events.emit('goalReached', { minutes: this.minutes });
     }
     let outcome: Outcome | null = null;
     if (this.life.health < cfg.evacuateBelow) outcome = 'evacuated';
+    else if (e.goalAt === null && goal.deadlineAtMinutes !== null && this.minutes >= goal.deadlineAtMinutes) outcome = 'replaced';
     else if (this.economy.cash < -cfg.overdraftLimit || e.overdrawnCloses >= cfg.overdrawnQuarters) outcome = 'bankrupt';
     if (outcome) {
       e.outcome = outcome;
@@ -377,7 +382,7 @@ export class Simulation {
     });
     return {
       version: SAVE_VERSION,
-      seed: this.scenario.seed,
+      scenarioId: this.scenario.id,
       minutes: this.minutes,
       rng: this.rng.getState(),
       layout: this.layout(),
@@ -397,7 +402,7 @@ export class Simulation {
    */
   static fromSave(defs: readonly ModuleDef[], scenario: ScenarioDef, saved: SimSave, options: SimOptions = {}): Simulation {
     if (saved.version !== SAVE_VERSION) throw new Error(`Save is version ${String(saved.version)}, expected ${SAVE_VERSION}`);
-    if (saved.seed !== scenario.seed) throw new Error('Save is from a different scenario');
+    if (saved.scenarioId !== scenario.id) throw new Error(`Save is from scenario "${saved.scenarioId}", not "${scenario.id}"`);
     const s = structuredClone(saved);
     const sim = new Simulation(defs, scenario, s.layout, options);
     const ids = sim.station.modules.map((m) => m.id);
@@ -508,12 +513,30 @@ export class Simulation {
     return this.economy.lifetime;
   }
 
+  private goalSnapshot(): GoalSnapshot {
+    const g = this.scenario.goal;
+    const deadlineAtMinutes = g.days === undefined ? null : Math.round(g.days * 1440);
+    const clamp = (v: number) => Math.min(1, Math.max(0, v));
+    switch (g.kind) {
+      case 'repayLoan': {
+        const principal = this.scenario.economy.loan.principal;
+        const left = this.economy.loan;
+        return { kind: g.kind, current: left, target: 0, progress: principal > 0 ? clamp(1 - left / principal) : 1, deadlineAtMinutes };
+      }
+      case 'cash':
+        return { kind: g.kind, current: this.economy.cash, target: g.amount, progress: clamp(this.economy.cash / g.amount), deadlineAtMinutes };
+      case 'contracts':
+        return { kind: g.kind, current: this.ending.contractsDone, target: g.count, progress: clamp(this.ending.contractsDone / g.count), deadlineAtMinutes };
+    }
+  }
+
   private endingSnapshot(): EndingSnapshot {
     const cfg = this.scenario.endings;
     return {
       outcome: this.ending.outcome,
       endedAtMinutes: this.ending.endedAt,
       goalAtMinutes: this.ending.goalAt,
+      goal: this.goalSnapshot(),
       overdrawnCloses: this.ending.overdrawnCloses,
       overdrawnQuarters: cfg.overdrawnQuarters,
       overdraftLimit: cfg.overdraftLimit,
