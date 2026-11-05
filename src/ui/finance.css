@@ -546,6 +546,21 @@
   color: var(--muted);
 }
 
+.crew-who .crew-readings {
+  font-size: 12px;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.crew-who .crew-readings:empty {
+  display: none;
+}
+
+.crew-who .crew-where.bad,
+.crew-who .crew-readings.bad {
+  color: var(--clay);
+}
+
 .crew-dismiss {
   flex: none;
   min-width: 112px;
