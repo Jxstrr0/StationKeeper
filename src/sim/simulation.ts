@@ -352,6 +352,9 @@ export class Simulation {
       lastReport: e.lastReport ? structuredClone(e.lastReport) : null,
       ...contractSnapshots(e, this.station, this.power, cfg, this.minutes, this.scenario.thermal.throttleFactor),
       labs: labCount(this.station),
+      guestIncomePerDay: Object.fromEntries(
+        this.station.modules.filter((m) => m.def.cabin?.guests).map((m) => [m.id, (m.def.cabin?.guests ?? 0) * cfg.guestPerDay]),
+      ),
       deliveries: this.deliveries.map((d) => ({
         moduleId: d.moduleId,
         defId: d.defId,

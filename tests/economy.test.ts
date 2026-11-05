@@ -264,7 +264,10 @@ describe('money warnings', () => {
   it('a habitat down means guests not paying, traced to why it is down', () => {
     const sim = makeSim();
     sim.command({ type: 'setModuleEnabled', moduleId: 'habitat-1', enabled: false });
-    expect(sim.snapshot().warnings.find((w) => w.key === 'guestsIdle:habitat-1')?.causes).toEqual(['off:habitat-1']);
+    const idle = sim.snapshot().warnings.find((w) => w.key === 'guestsIdle:habitat-1');
+    expect(idle?.causes).toEqual(['off:habitat-1']);
+    // The warning carries what the guests would be paying.
+    expect(idle?.value).toBeCloseTo(4 * baseScenario.economy.guestPerDay, 9);
   });
 
   it('a lab shed at eclipse with the battery still charged is blamed on the battery power limit', () => {

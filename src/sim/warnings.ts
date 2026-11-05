@@ -89,7 +89,8 @@ export function diagnose(s: DiagnosisInput): StationWarning[] {
   // Money: guests only pay while their habitat runs, and contracts need their lab.
   for (const m of s.modules) {
     if (m.kind !== 'habitat' || running(m)) continue;
-    add({ key: `guestsIdle:${m.id}`, kind: 'guestsIdle', severity: 'warn', moduleId: m.id, causes: keys([whyDown(m)]) });
+    const value = s.economy.guestIncomePerDay[m.id] ?? 0;
+    add({ key: `guestsIdle:${m.id}`, kind: 'guestsIdle', severity: 'warn', moduleId: m.id, value, causes: keys([whyDown(m)]) });
   }
   const labs = s.modules.filter((m) => m.kind === 'lab');
   for (const c of s.economy.active) {
