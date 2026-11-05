@@ -12,6 +12,8 @@ import {
   type ModuleKind,
   type PortDef,
   type PowerSpec,
+  type ReliabilityConfig,
+  type ReliabilitySpec,
   type ScenarioDef,
   type ThermalConfig,
   type ThermalSpec,
@@ -143,6 +145,15 @@ function lifeSupportSpec(v: unknown, path: string): LifeSupportSpec {
   };
 }
 
+function reliabilitySpec(v: unknown, path: string): ReliabilitySpec {
+  const o = obj(v, path);
+  return {
+    wearDays: positive(o.wearDays, `${path}.wearDays`),
+    failPerDay: positive(o.failPerDay, `${path}.failPerDay`),
+    serviceHours: positive(o.serviceHours, `${path}.serviceHours`),
+  };
+}
+
 function greybox(v: unknown, path: string): GreyboxSpec {
   const o = obj(v, path);
   const spec: GreyboxSpec = { shape: str(o.shape, `${path}.shape`), light: vec3(o.light, `${path}.light`) };
@@ -177,6 +188,7 @@ export function parseModuleDefs(raw: unknown): ModuleDef[] {
     if (o.model !== undefined) def.model = str(o.model, `${path}.model`);
     if (o.cabin !== undefined) def.cabin = cabin(o.cabin, `${path}.cabin`);
     if (o.lifeSupport !== undefined) def.lifeSupport = lifeSupportSpec(o.lifeSupport, `${path}.lifeSupport`);
+    if (o.reliability !== undefined) def.reliability = reliabilitySpec(o.reliability, `${path}.reliability`);
     const gimbalAxis = optVec3(o.gimbalAxis, `${path}.gimbalAxis`);
     const panelNormal = optVec3(o.panelNormal, `${path}.panelNormal`);
     if (gimbalAxis) def.gimbalAxis = gimbalAxis;
@@ -249,6 +261,26 @@ function lifeSupportConfig(v: unknown): LifeSupportConfig {
   };
 }
 
+function reliabilityConfig(v: unknown): ReliabilityConfig {
+  const o = obj(v, 'reliability');
+  const initial = obj(o.initialWear, 'reliability.initialWear');
+  const teams = num(o.repairTeams, 'reliability.repairTeams');
+  if (!Number.isInteger(teams) || teams < 1) fail('reliability.repairTeams', 'expected a whole number of at least 1');
+  const initialWear: Record<string, number> = {};
+  for (const [id, w] of Object.entries(initial)) initialWear[id] = fraction(w, `reliability.initialWear.${id}`);
+  const worn = band(o.worn, 'reliability.worn');
+  if (worn.above > 1 || worn.below < 0) fail('reliability.worn', 'expected wear fractions 0..1');
+  return {
+    ratedC: num(o.ratedC, 'reliability.ratedC'),
+    doublingC: positive(o.doublingC, 'reliability.doublingC'),
+    newFailShare: fraction(o.newFailShare, 'reliability.newFailShare'),
+    repairFactor: positive(o.repairFactor, 'reliability.repairFactor'),
+    repairTeams: teams,
+    worn,
+    initialWear,
+  };
+}
+
 function attachment(v: unknown, path: string): Attachment {
   const o = obj(v, path);
   return { to: str(o.to, `${path}.to`), port: str(o.port, `${path}.port`), via: str(o.via, `${path}.via`) };
@@ -266,6 +298,10 @@ export function parseScenario(raw: unknown): ScenarioDef {
     if (eo.attach !== undefined) entry.attach = attachment(eo.attach, `${path}.attach`);
     return entry;
   });
+  const reliability = reliabilityConfig(o.reliability);
+  for (const id of Object.keys(reliability.initialWear)) {
+    if (!layout.some((e) => e.id === id)) fail(`reliability.initialWear.${id}`, 'no module with that id in the layout');
+  }
   return {
     name: str(o.name, 'name'),
     seed: num(o.seed, 'seed'),
@@ -285,6 +321,7 @@ export function parseScenario(raw: unknown): ScenarioDef {
     },
     thermal: thermalConfig(o.thermal),
     lifeSupport: lifeSupportConfig(o.lifeSupport),
+    reliability,
     layout,
   };
 }
