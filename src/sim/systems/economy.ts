@@ -5,6 +5,7 @@
 import type { EventBus, SimEvents } from '../events';
 import type { Rng } from '../rng';
 import { labRates } from './crew';
+import { bookedGuests } from './guests';
 import type { Station } from '../station';
 import type { ContractDef, ContractSnapshot, EconomyConfig, Ledger, LedgerCategory, ModuleStatus, QuarterReport } from '../types';
 import type { PowerState } from './power';
@@ -168,6 +169,8 @@ export interface EconomyStepOptions {
   staff: Staffing;
   /** What every guest's fare is multiplied by: comforts and reputation together. */
   fareFactor: number;
+  /** Share of guest places booked. */
+  occupancy: number;
   events?: EventBus<SimEvents>;
 }
 
@@ -178,8 +181,8 @@ export function stepEconomy(state: EconomyState, station: Station, power: PowerS
 
   // Guests pay while their habitat runs.
   for (const m of station.modules) {
-    const guests = m.def.cabin?.guests ?? 0;
-    if (guests <= 0) continue;
+    if ((m.def.cabin?.guests ?? 0) <= 0) continue;
+    const guests = bookedGuests(m.def.cabin?.guests ?? 0, opts.occupancy);
     state.stats.guestMinutesPossible += 1;
     if (running(power.modules.get(m.id)?.status)) {
       book(state, 'guests', guests * cfg.guestPerDay * opts.fareFactor * dtDays);
@@ -249,9 +252,9 @@ export function fareLift(running: readonly { name: string; guestFare: number }[]
 }
 
 /** Running income minus running costs right now, per day. */
-export function netPerDay(station: Station, power: PowerState, state: EconomyState, cfg: EconomyConfig, staff: Staffing, fareFactor: number): number {
+export function netPerDay(station: Station, power: PowerState, state: EconomyState, cfg: EconomyConfig, staff: Staffing, fareFactor: number, occupancy: number): number {
   let guests = 0;
-  for (const m of station.modules) if (running(power.modules.get(m.id)?.status)) guests += m.def.cabin?.guests ?? 0;
+  for (const m of station.modules) if (running(power.modules.get(m.id)?.status)) guests += bookedGuests(m.def.cabin?.guests ?? 0, occupancy);
   return guests * cfg.guestPerDay * fareFactor - staff.wagesPerDay - cfg.operationsPerDay - (state.loan * cfg.loan.ratePerQuarter) / cfg.quarterDays;
 }
 

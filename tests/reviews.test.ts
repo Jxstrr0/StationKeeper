@@ -62,10 +62,10 @@ describe('guest reputation', () => {
   it('posts reviews naming the complaint that lasted longest, then starts the tally again', () => {
     const g = createGuestState(cfg);
     const posted: SimEvents['guestReviews'][] = [];
-    const bus = { emit: (_: 'guestReviews', e: SimEvents['guestReviews']) => posted.push(e) } as unknown as Parameters<typeof postReviews>[1];
+    const bus = { emit: (_: 'guestReviews', e: SimEvents['guestReviews']) => posted.push(e) } as unknown as Parameters<typeof postReviews>[2];
     for (let i = 0; i < 80; i++) stepGuests(g, cfg, calm, 1 / 60);
     for (let i = 0; i < 20; i++) stepGuests(g, cfg, { ...calm, hot: true }, 1 / 60);
-    postReviews(g, bus);
+    postReviews(g, cfg, bus);
     expect(posted).toHaveLength(1);
     expect(posted[0]!.complaint).toBe('hot');
     expect(posted[0]!.stars).toBe(stars(posted[0]!.reputation));
@@ -74,11 +74,11 @@ describe('guest reputation', () => {
     // A complaint that applied for under a tenth of the quarter isn't worth mentioning.
     for (let i = 0; i < 95; i++) stepGuests(g, cfg, calm, 1 / 60);
     for (let i = 0; i < 5; i++) stepGuests(g, cfg, { ...calm, badAir: true }, 1 / 60);
-    postReviews(g, bus);
+    postReviews(g, cfg, bus);
     expect(posted[1]!.complaint).toBeNull();
 
     // Nothing to say about a quarter with no guests.
-    postReviews(g, bus);
+    postReviews(g, cfg, bus);
     expect(posted).toHaveLength(2);
   });
 
@@ -133,6 +133,7 @@ describe('guest reviews on the station', () => {
       const sim = makeSim((s) => {
         startAt(rep)(s);
         s.guests.perHour = 0; // hold reputation still
+        s.guests.bookings = { emptyAt: -1, fullAt: 0 }; // and every place booked
       });
       sim.run(12 * HOUR);
       return sim.snapshot().economy.ledger.guests;
