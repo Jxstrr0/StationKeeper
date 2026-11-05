@@ -1,7 +1,11 @@
 // What guests think of the place. The station has one reputation, 0 (dreadful) to 1 (glowing), that drifts towards
 // where the guests' stay is putting it: a hot station, stale air, or a habitat gone dark all pull it down. It sets
 // what new guests will pay: fares scale between `fare.worst` and `fare.best` with it. At each quarter's close the
-// guests post reviews, scored from the quarter's average and naming what bothered them most.
+// guests post reviews, scored from the quarter's average and naming what bothered them most, and the reviews set how
+// many places are booked for the quarter ahead.
+//
+// Reputation is the station's, not the guests': it moves with how the station is run even while few are aboard, so
+// a station with empty places can still win its guests back.
 import type { EventBus, SimEvents } from '../events';
 import type { GuestComplaint, GuestConfig, GuestReview } from '../types';
 
@@ -9,6 +13,8 @@ export interface GuestState {
   reputation: number;
   /** Reviews are poor: on below `poor.below`, off again above `poor.above`. */
   poor: boolean;
+  /** Share of guest places booked this quarter, 0..1, set at each quarter's close. */
+  occupancy: number;
   /** This quarter so far: reputation summed per minute, minutes counted, and minutes each complaint applied. */
   quarter: { sum: number; minutes: number; complaints: Record<GuestComplaint, number> };
 }
@@ -16,7 +22,23 @@ export interface GuestState {
 const noComplaints = (): Record<GuestComplaint, number> => ({ hot: 0, badAir: 0, dark: 0 });
 
 export function createGuestState(cfg: GuestConfig): GuestState {
-  return { reputation: cfg.start, poor: cfg.start < cfg.poor.below, quarter: { sum: 0, minutes: 0, complaints: noComplaints() } };
+  return {
+    reputation: cfg.start,
+    poor: cfg.start < cfg.poor.below,
+    occupancy: occupancy(cfg.start, cfg),
+    quarter: { sum: 0, minutes: 0, complaints: noComplaints() },
+  };
+}
+
+/** Share of guest places that get booked at this reputation. */
+export function occupancy(reputation: number, cfg: GuestConfig): number {
+  const { emptyAt, fullAt } = cfg.bookings;
+  return Math.min(1, Math.max(0, (reputation - emptyAt) / (fullAt - emptyAt)));
+}
+
+/** Guests aboard a module with `places` guest places, at this occupancy. Whole guests only. */
+export function bookedGuests(places: number, occupancy: number): number {
+  return Math.round(places * occupancy);
 }
 
 /** What the guests are living with this minute. */
@@ -72,15 +94,19 @@ export function stepGuests(state: GuestState, cfg: GuestConfig, inputs: GuestInp
   for (const c of complaints(inputs)) q.complaints[c] += 1;
 }
 
-/** The quarter has closed: guests post their reviews, and the tally starts again. Nothing is posted with no guests. */
-export function postReviews(state: GuestState, events?: EventBus<SimEvents>): GuestReview | null {
+/**
+ * The quarter has closed: guests post their reviews, the reviews set the bookings for the quarter ahead, and the tally
+ * starts again. Nothing is posted, and bookings stand, with no guests.
+ */
+export function postReviews(state: GuestState, cfg: GuestConfig, events?: EventBus<SimEvents>): GuestReview | null {
   const q = state.quarter;
   let review: GuestReview | null = null;
   if (q.minutes > 0) {
     const average = q.sum / q.minutes;
     // The complaint that applied longest, if it applied for at least a tenth of the quarter.
     const worst = (Object.entries(q.complaints) as [GuestComplaint, number][]).sort((a, b) => b[1] - a[1])[0]!;
-    review = { stars: stars(average), reputation: average, complaint: worst[1] >= q.minutes * 0.1 ? worst[0] : null };
+    state.occupancy = occupancy(average, cfg);
+    review = { stars: stars(average), reputation: average, complaint: worst[1] >= q.minutes * 0.1 ? worst[0] : null, occupancy: state.occupancy };
     events?.emit('guestReviews', review);
   }
   state.quarter = { sum: 0, minutes: 0, complaints: noComplaints() };

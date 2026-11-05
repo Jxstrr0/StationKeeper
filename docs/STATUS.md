@@ -881,7 +881,6 @@ Traced on four seeds per line:
 
 ### Known gaps
 
-- Guests don't arrive or leave. Places are always full when the habitat runs.
 
 ## Session 18: reviews in the quarter report
 
@@ -902,11 +901,47 @@ Traced on four seeds per line:
 
 - **The report holds the quote, not a toast,** so it's read while the game is paused, next to the money it explains.
 
+## Session 19: bookings follow the reviews
+
+### What was built
+
+- **Bookings** (`occupancy` and `bookedGuests` in `src/sim/systems/guests.ts`). Each quarter's reviews set the share of guest places booked for the quarter ahead.
+  - No one books at a reputation of `guests.bookings.emptyAt` (0.05) or below.
+  - Every place is booked from `fullAt` (0.35), a little over two stars, upwards.
+  - In between, the share rises in a straight line, in whole guests per habitat.
+  - A station starts with every place booked.
+- **Fewer guests pay and fewer breathe.** Income, the running net, each habitat's income, and the life support load all count booked guests, not places.
+- **Reputation still moves while places are empty.** It comes from how the station is run, so a neglected station can win its guests back with one good quarter.
+- **UI:**
+  - The quarter report adds "Booked next quarter: 1 of 4 places", in clay when short.
+  - The finance Reviews line adds "· 1 of 4 places booked" when places are empty.
+  - The HUD's head count follows bookings, and says "1 guest", not "1 guests".
+- **Data:** each scenario's `guests` block has `bookings`.
+- **Save:** now version 8, since the save carries the bookings. A version 7 save starts fresh.
+- **Tests:** 206, up from 200. They cover the booking curve and whole guests, starting full, a dark quarter booking fewer guests (fewer paying, fewer breathing), a good quarter filling the places again, the save, and data validation. `flatFares` in the test helpers now also keeps every place booked.
+
+### Balance (by design)
+
+- **Every played line traced in session 17 comes out identical.** A station run with any care stays above two stars, so the places stay full.
+- **Bookings bite only after a one-star or low two-star quarter.** For example, an idle Halyard loses about $0.4M over ten days.
+- Bookings are a penalty for neglect, not a second bonus for care. The fares already reward care.
+
+### How to test on a phone
+
+1. Longlight: switch the habitat off and run at 20× for two or three quarters. On its own, a dark habitat settles reputation near 0.25, which is two stars.
+2. At a close, the report shows "Booked next quarter: 3 of 4 places", and the HUD counts 3 guests. Getting to one star and a single booking also takes heat or stale air.
+3. Switch the habitat back on: after a good quarter, the places fill again.
+
+### Choices made
+
+- **Bookings change only at a quarter's close.** Guests book ahead on the reviews they read, not on the minute.
+- **Rounding is per habitat,** so 4 places at 30% books 1 guest, never 1.2.
+
 ## Next
 
 The planned slices are done. Candidates for what's next, roughly in order of value:
 
 1. **Play-testing on a real phone**, to tune pace, readability, the first ten minutes, and now how often illness and exhaustion bite.
 2. **More scenarios**, perhaps with their own modules or prices.
-3. **Guest bookings** that rise and fall with the reviews.
+3. **More for guests to want**: perhaps a choice of fare level, or guest-only modules.
 4. **Art**: Blender models replacing the grey-boxes (the loader already prefers them).

@@ -457,6 +457,7 @@ function guestConfig(raw: unknown): GuestConfig {
   const o = obj(raw, 'guests');
   const p = obj(o.penalties, 'guests.penalties');
   const f = obj(o.fare, 'guests.fare');
+  const b = obj(o.bookings, 'guests.bookings');
   const cfg: GuestConfig = {
     start: fraction(o.start, 'guests.start'),
     base: fraction(o.base, 'guests.base'),
@@ -464,8 +465,10 @@ function guestConfig(raw: unknown): GuestConfig {
     penalties: { hot: fraction(p.hot, 'guests.penalties.hot'), badAir: fraction(p.badAir, 'guests.penalties.badAir'), dark: fraction(p.dark, 'guests.penalties.dark') },
     fare: { worst: nonNegative(f.worst, 'guests.fare.worst'), best: positive(f.best, 'guests.fare.best') },
     poor: band(o.poor, 'guests.poor'),
+    bookings: { emptyAt: fraction(b.emptyAt, 'guests.bookings.emptyAt'), fullAt: fraction(b.fullAt, 'guests.bookings.fullAt') },
   };
   if (cfg.fare.worst > cfg.fare.best) fail('guests.fare', '"worst" must not be higher than "best"');
+  if (cfg.bookings.emptyAt >= cfg.bookings.fullAt) fail('guests.bookings', '"emptyAt" must be lower than "fullAt"');
   return cfg;
 }
 

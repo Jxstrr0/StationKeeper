@@ -28,9 +28,10 @@ export function flatPace(s: ScenarioDef): void {
   s.crew.needs.morale.pace = { ...s.crew.needs.morale.pace, floor: 1, best: 1 };
 }
 
-/** Fares stay at the base rate whatever the reviews: for tests that count guest income. Reviews have their own tests. */
+/** Every place booked at the base fare whatever the reviews: for tests that count guest income. Reviews have their own tests. */
 export function flatFares(s: ScenarioDef): void {
   s.guests.fare = { worst: 1, best: 1 };
+  s.guests.bookings = { emptyAt: -1, fullAt: 0 };
 }
 
 /** Tick until the predicate holds, failing after `limit` ticks. */

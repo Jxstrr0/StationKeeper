@@ -110,7 +110,8 @@
     "perHour": 0.03,
     "penalties": { "hot": 0.2, "badAir": 0.3, "dark": 0.5 },
     "fare": { "worst": 0.75, "best": 1.25 },
-    "poor": { "above": 0.4, "below": 0.3 }
+    "poor": { "above": 0.4, "below": 0.3 },
+    "bookings": { "emptyAt": 0.05, "fullAt": 0.35 }
   },
   "layout": [
     { "id": "core-1", "module": "core" },

@@ -77,6 +77,7 @@ import {
   type ThermalState,
 } from './systems/thermal';
 import {
+  bookedGuests,
   complaints,
   createGuestState,
   fareFactor,
@@ -119,7 +120,7 @@ interface Delivery {
 }
 
 /** Bump when the save's shape changes; older saves are then discarded rather than misread. */
-export const SAVE_VERSION = 7;
+export const SAVE_VERSION = 8;
 
 /** How the game stands: lost, goal reached, or how close the bank is. */
 interface EndingState {
@@ -230,7 +231,7 @@ export class Simulation {
     this.thermal = createThermalState(this.station, scenario.thermal);
     this.crew = createCrewState(scenario.crew);
     this.guests = createGuestState(scenario.guests);
-    this.lifePlant = lifeSupportPlant(this.station, scenario.lifeSupport, countAboard(this.crew, 0));
+    this.lifePlant = lifeSupportPlant(this.station, scenario.lifeSupport, countAboard(this.crew, 0), this.guests.occupancy);
     this.life = createLifeSupportState(this.lifePlant, scenario.lifeSupport);
     this.reliability = createReliabilityState(this.station, this.rcfg);
     this.economy = createEconomyState(scenario.economy, this.rng);
@@ -247,8 +248,15 @@ export class Simulation {
     this.events.on('quarterReport', ({ report }) => {
       this.ending.overdrawnCloses = report.cash < 0 ? this.ending.overdrawnCloses + 1 : 0;
       // The sim hears the close before the UI does, so the report carries the reviews by the time anyone shows it.
-      const reviews = postReviews(this.guests, this.events);
-      if (reviews) report.reviews = reviews;
+      const was = this.guests.occupancy;
+      const reviews = postReviews(this.guests, this.scenario.guests, this.events);
+      // New bookings: a different number of guests breathing the air.
+      if (this.guests.occupancy !== was) this.refreshPlant();
+      if (reviews) {
+        const g = this.guestSnapshot();
+        report.reviews = reviews;
+        report.bookings = { booked: g.booked, places: g.places };
+      }
     });
     this.solve(false);
   }
@@ -304,7 +312,7 @@ export class Simulation {
 
   /** Cabins, tanks, and people aboard changed: rebuild the life support plant. The air and tanks keep what they hold. */
   private refreshPlant(): void {
-    this.lifePlant = lifeSupportPlant(this.station, this.scenario.lifeSupport, countAboard(this.crew, this.minutes));
+    this.lifePlant = lifeSupportPlant(this.station, this.scenario.lifeSupport, countAboard(this.crew, this.minutes), this.guests.occupancy);
   }
 
   /** True once the game is lost. The sim no longer ticks. */
@@ -668,6 +676,7 @@ export class Simulation {
         throttleFactor: this.scenario.thermal.throttleFactor,
         staff: this.staffing(),
         fareFactor: this.fareFactor(),
+        occupancy: this.guests.occupancy,
         events: this.events,
       });
     }
@@ -685,6 +694,8 @@ export class Simulation {
       fareFactor: fareFactor(r, cfg),
       complaints: complaints(inputs),
       poor: this.guests.poor,
+      places: inputs.places,
+      booked: this.station.modules.reduce((n, m) => n + bookedGuests(m.def.cabin?.guests ?? 0, this.guests.occupancy), 0),
     };
   }
 
@@ -701,12 +712,14 @@ export class Simulation {
       quarter: e.quarter,
       quarterProgress: (this.minutes % quarterMinutes) / quarterMinutes,
       ledger: { ...e.ledger },
-      netPerDay: netPerDay(this.station, this.power, e, cfg, this.staffing(), factor),
+      netPerDay: netPerDay(this.station, this.power, e, cfg, this.staffing(), factor, this.guests.occupancy),
       lastReport: e.lastReport ? structuredClone(e.lastReport) : null,
       ...contractSnapshots(e, this.station, this.power, cfg, this.minutes, this.scenario.thermal.throttleFactor, this.staffing()),
       labs: labCount(this.station),
       guestIncomePerDay: Object.fromEntries(
-        this.station.modules.filter((m) => m.def.cabin?.guests).map((m) => [m.id, (m.def.cabin?.guests ?? 0) * cfg.guestPerDay * factor]),
+        this.station.modules
+          .filter((m) => m.def.cabin?.guests)
+          .map((m) => [m.id, bookedGuests(m.def.cabin?.guests ?? 0, this.guests.occupancy) * cfg.guestPerDay * factor]),
       ),
       fareLift: fare,
       fareFactor: factor,
