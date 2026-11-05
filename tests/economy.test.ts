@@ -51,8 +51,9 @@ describe('money', () => {
     const l = sim.snapshot().economy.ledger;
     expect(l.guests).toBeCloseTo((guestMinutes * 4 * econ.guestPerDay) / 1440, 9);
     expect(l.operations).toBeCloseTo((-180 * econ.operationsPerDay) / 1440, 9);
+    expect(l.wages).toBeCloseTo((-180 * baseScenario.crew.roster.length * baseScenario.crew.wagePerDay) / 1440, 9);
     expect(l.interest).toBeCloseTo((-180 * econ.loan.principal * econ.loan.ratePerQuarter) / (1440 * econ.quarterDays), 9);
-    expect(cash(sim)).toBeCloseTo(econ.startCash + l.guests + l.operations + l.interest, 9);
+    expect(cash(sim)).toBeCloseTo(econ.startCash + l.guests + l.wages + l.operations + l.interest, 9);
   });
 
   it('guests stop paying while the habitat is switched off', () => {
@@ -60,7 +61,8 @@ describe('money', () => {
     sim.command({ type: 'setModuleEnabled', moduleId: 'habitat-1', enabled: false });
     sim.run(60);
     expect(sim.snapshot().economy.ledger.guests).toBe(0);
-    expect(sim.snapshot().economy.netPerDay).toBeCloseTo(-econ.operationsPerDay - econ.loan.principal * econ.loan.ratePerQuarter);
+    const wages = baseScenario.crew.roster.length * baseScenario.crew.wagePerDay;
+    expect(sim.snapshot().economy.netPerDay).toBeCloseTo(-econ.operationsPerDay - wages - econ.loan.principal * econ.loan.ratePerQuarter);
   });
 
   it('closes the books each quarter with a report, then starts afresh', () => {

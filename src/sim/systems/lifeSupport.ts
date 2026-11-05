@@ -43,14 +43,13 @@ export interface LifeSupportPlant {
   mmHgPerKg: number;
 }
 
-export function lifeSupportPlant(station: Station, cfg: LifeSupportConfig): LifeSupportPlant {
-  let crew = 0;
+/** `crew` is how many crew are aboard; guests, air volume, and tanks come from the modules. */
+export function lifeSupportPlant(station: Station, cfg: LifeSupportConfig, crew: number): LifeSupportPlant {
   let guests = 0;
   let volumeM3 = 0;
   let o2CapacityKg = 0;
   let waterCapacityKg = 0;
   for (const m of station.modules) {
-    crew += m.def.cabin?.crew ?? 0;
     guests += m.def.cabin?.guests ?? 0;
     volumeM3 += m.def.cabin?.volumeM3 ?? 0;
     o2CapacityKg += m.def.lifeSupport?.o2TankKg ?? 0;

@@ -5,6 +5,7 @@ import { acceptBlocked, hoursText, ledgerRows, offerTerms, progressLine } from '
 const ledger = (over: Partial<Ledger> = {}): Ledger => ({
   guests: 0,
   contracts: 0,
+  wages: 0,
   operations: 0,
   interest: 0,
   construction: 0,

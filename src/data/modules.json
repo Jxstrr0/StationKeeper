@@ -4,10 +4,10 @@
       "id": "core",
       "name": "Core Module",
       "kind": "core",
-      "description": "Command deck, avionics, and crew quarters for three. If this goes dark, so does everyone.",
+      "description": "Command deck, avionics, and bunks for four. If this goes dark, so does everyone.",
       "power": { "drawKw": 3.0, "tier": "critical" },
       "thermal": { "riseCPerKw": 0.9 },
-      "cabin": { "volumeM3": 70, "crew": 3 },
+      "cabin": { "volumeM3": 70, "bunks": 4 },
       "ports": [
         { "id": "fore", "position": [4, 0, 0], "direction": [1, 0, 0] },
         { "id": "aft", "position": [-4, 0, 0], "direction": [-1, 0, 0] },
@@ -59,6 +59,22 @@
         { "id": "fore", "position": [7, 0, 0], "direction": [1, 0, 0] }
       ],
       "greybox": { "shape": "habitat", "length": 7, "radius": 2.4, "light": [3.5, 2.55, 0] }
+    },
+    {
+      "id": "crew-quarters",
+      "name": "Crew Quarters",
+      "kind": "quarters",
+      "description": "Four bunks, four lockers, and a rota for the shower. Room to hire more hands; each one still has to breathe.",
+      "power": { "drawKw": 1.5, "tier": "essential" },
+      "thermal": { "riseCPerKw": 0.9 },
+      "reliability": { "wearDays": 7, "failPerDay": 0.6, "serviceHours": 2 },
+      "price": 10,
+      "cabin": { "volumeM3": 45, "bunks": 4 },
+      "ports": [
+        { "id": "aft", "position": [0, 0, 0], "direction": [-1, 0, 0] },
+        { "id": "fore", "position": [5, 0, 0], "direction": [1, 0, 0] }
+      ],
+      "greybox": { "shape": "habitat", "length": 5, "radius": 2.0, "light": [2.5, 2.15, 0] }
     },
     {
       "id": "radiator",

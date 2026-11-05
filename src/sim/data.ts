@@ -5,6 +5,8 @@ import {
   type Band,
   type CabinSpec,
   type ContractDef,
+  type CrewConfig,
+  type CrewRole,
   type EconomyConfig,
   type EndingsConfig,
   type GoalDef,
@@ -16,7 +18,6 @@ import {
   type ModuleKind,
   type PortDef,
   type PowerSpec,
-  type ReliabilityConfig,
   type ReliabilitySpec,
   type ScenarioDef,
   type ThermalConfig,
@@ -72,7 +73,7 @@ function tier(v: unknown, path: string): Tier {
   return s as Tier;
 }
 
-const KINDS: readonly ModuleKind[] = ['core', 'solar', 'battery', 'habitat', 'radiator', 'lifesupport', 'lab', 'node'];
+const KINDS: readonly ModuleKind[] = ['core', 'solar', 'battery', 'habitat', 'radiator', 'lifesupport', 'lab', 'node', 'quarters'];
 
 function kind(v: unknown, path: string): ModuleKind {
   const s = str(v, path);
@@ -131,9 +132,10 @@ function positive(v: unknown, path: string): number {
 function cabin(v: unknown, path: string): CabinSpec {
   const o = obj(v, path);
   const spec: CabinSpec = { volumeM3: positive(o.volumeM3, `${path}.volumeM3`) };
-  const crew = optNum(o.crew, `${path}.crew`);
+  if (o.crew !== undefined) fail(`${path}.crew`, 'crew come from the scenario roster now; give the module bunks instead');
+  const bunks = optNum(o.bunks, `${path}.bunks`);
   const guests = optNum(o.guests, `${path}.guests`);
-  if (crew !== undefined) spec.crew = crew;
+  if (bunks !== undefined) spec.bunks = bunks;
   if (guests !== undefined) spec.guests = guests;
   return spec;
 }
@@ -266,11 +268,10 @@ function lifeSupportConfig(v: unknown): LifeSupportConfig {
   };
 }
 
-function reliabilityConfig(v: unknown): ReliabilityConfig {
+function reliabilityConfig(v: unknown): ScenarioDef['reliability'] {
   const o = obj(v, 'reliability');
   const initial = obj(o.initialWear, 'reliability.initialWear');
-  const teams = num(o.repairTeams, 'reliability.repairTeams');
-  if (!Number.isInteger(teams) || teams < 1) fail('reliability.repairTeams', 'expected a whole number of at least 1');
+  if (o.repairTeams !== undefined) fail('reliability.repairTeams', 'repair teams come from the engineers in the crew roster now');
   const initialWear: Record<string, number> = {};
   for (const [id, w] of Object.entries(initial)) initialWear[id] = fraction(w, `reliability.initialWear.${id}`);
   const worn = band(o.worn, 'reliability.worn');
@@ -280,7 +281,6 @@ function reliabilityConfig(v: unknown): ReliabilityConfig {
     doublingC: positive(o.doublingC, 'reliability.doublingC'),
     newFailShare: fraction(o.newFailShare, 'reliability.newFailShare'),
     repairFactor: positive(o.repairFactor, 'reliability.repairFactor'),
-    repairTeams: teams,
     worn,
     initialWear,
   };
@@ -364,6 +364,33 @@ function endingsConfig(raw: unknown): EndingsConfig {
   return cfg;
 }
 
+const ROLES: readonly CrewRole[] = ['engineer', 'scientist'];
+
+function role(v: unknown, path: string): CrewRole {
+  const s = str(v, path);
+  if (!(ROLES as readonly string[]).includes(s)) fail(path, `unknown crew role "${s}" (engineer or scientist)`);
+  return s as CrewRole;
+}
+
+function crewConfig(raw: unknown): CrewConfig {
+  const o = obj(raw, 'crew');
+  const roster = arr(o.roster, 'crew.roster').map((r, i) => {
+    const ro = obj(r, `crew.roster[${i}]`);
+    return { name: str(ro.name, `crew.roster[${i}].name`), role: role(ro.role, `crew.roster[${i}].role`) };
+  });
+  if (roster.length === 0) fail('crew.roster', 'needs at least one person');
+  const names = arr(o.names, 'crew.names').map((n, i) => str(n, `crew.names[${i}]`));
+  if (names.length === 0) fail('crew.names', 'needs at least one name for new hires');
+  return {
+    roster,
+    names,
+    signingFee: nonNegative(o.signingFee, 'crew.signingFee'),
+    wagePerDay: nonNegative(o.wagePerDay, 'crew.wagePerDay'),
+    arrivalHours: nonNegative(o.arrivalHours, 'crew.arrivalHours'),
+    unstaffedLabFactor: fraction(o.unstaffedLabFactor, 'crew.unstaffedLabFactor'),
+  };
+}
+
 function goalDef(raw: unknown): GoalDef {
   const o = obj(raw, 'goal');
   const kind = str(o.kind, 'goal.kind');
@@ -432,6 +459,7 @@ export function parseScenario(raw: unknown): ScenarioDef {
     reliability,
     economy: economyConfig(o.economy),
     endings: endingsConfig(o.endings),
+    crew: crewConfig(o.crew),
     layout,
   };
 }

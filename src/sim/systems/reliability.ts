@@ -6,7 +6,7 @@ import { bandHigh } from '../band';
 import type { EventBus, SimEvents } from '../events';
 import type { Rng } from '../rng';
 import type { Station } from '../station';
-import type { ModuleDef, ModuleStatus, ReliabilityConfig, RepairSnapshot } from '../types';
+import type { ModuleDef, ModuleStatus, ReliabilityConfig, ReliabilityData, RepairSnapshot } from '../types';
 import type { PowerState } from './power';
 import type { ThermalState } from './thermal';
 
@@ -37,7 +37,7 @@ export interface ReliabilityState {
   exposure: number;
 }
 
-export function createReliabilityState(station: Station, cfg: ReliabilityConfig): ReliabilityState {
+export function createReliabilityState(station: Station, cfg: ReliabilityData): ReliabilityState {
   const modules = new Map<string, ReliabilityModuleState>();
   for (const m of station.modules) {
     const wear = m.def.reliability ? (cfg.initialWear[m.id] ?? 0) : 0;
@@ -58,12 +58,12 @@ function moduleState(state: ReliabilityState, id: string): ReliabilityModuleStat
 }
 
 /** How much faster a module wears and fails at `tempC` than at its rated temperature. */
-export function heatFactor(tempC: number, cfg: ReliabilityConfig): number {
+export function heatFactor(tempC: number, cfg: ReliabilityData): number {
   return 2 ** (Math.max(0, tempC - cfg.ratedC) / cfg.doublingC);
 }
 
 /** Failure rate per day for a module of `def` at `wear` and `tempC`. Zero for modules that never fail. */
-export function hazardPerDay(def: ModuleDef, wear: number, tempC: number, cfg: ReliabilityConfig): number {
+export function hazardPerDay(def: ModuleDef, wear: number, tempC: number, cfg: ReliabilityData): number {
   const r = def.reliability;
   if (!r) return 0;
   return r.failPerDay * (cfg.newFailShare + (1 - cfg.newFailShare) * wear * wear) * heatFactor(tempC, cfg);

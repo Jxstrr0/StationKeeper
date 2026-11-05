@@ -99,6 +99,14 @@ export function diagnose(s: DiagnosisInput): StationWarning[] {
     const why = labs.filter((m) => !running(m) || (c.stable && m.status === 'throttled')).map((m) => (running(m) ? 'loopHot' : whyDown(m)));
     add({ key: `risk:${c.uid}`, kind: 'contractAtRisk', severity: 'warn', contractId: c.uid, label: c.title, value: c.hoursLeft, causes: keys(why) });
   }
+  // No engineers: nobody can start a repair, and any failed module stays failed.
+  const needsHands = s.modules.some((m) => m.status === 'failed' || m.repair !== null);
+  if (s.crew.engineers === 0 && needsHands) add({ key: 'noEngineers', kind: 'noEngineers', severity: 'alarm', causes: [] });
+  // More labs at work than scientists to run them: the rest work at a reduced pace.
+  const labsAtWork = labs.filter(running).length;
+  if (s.economy.active.length > 0 && labsAtWork > s.crew.scientists) {
+    add({ key: 'labUnstaffed', kind: 'labUnstaffed', severity: 'warn', value: labsAtWork - s.crew.scientists, causes: [] });
+  }
   if (s.economy.cash < 0) {
     const final = s.ending.overdrawnCloses >= s.ending.overdrawnQuarters - 1;
     add({ key: 'overdrawn', kind: 'overdrawn', severity: 'alarm', value: s.economy.cash, limit: s.ending.overdraftLimit, final, causes: [] });
