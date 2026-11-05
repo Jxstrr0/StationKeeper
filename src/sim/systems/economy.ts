@@ -233,6 +233,7 @@ export function contractSnapshots(state: EconomyState, station: Station, power: 
     sponsor: def.sponsor,
     description: def.description,
     labHours: def.labHours,
+    deadlineHours: def.deadlineHours,
     reward: def.reward,
     penalty: def.penalty,
     stable: def.stable ?? false,

@@ -1,5 +1,6 @@
 // Wires the sim, the 3D view, and the HTML overlay together, and runs the frame loop.
 import './ui/styles.css';
+import './ui/finance.css';
 import * as THREE from 'three';
 import modulesJson from './data/modules.json';
 import scenarioJson from './data/scenario.json';
@@ -11,8 +12,11 @@ import { indexDefs, mountPort } from './sim/station';
 import { Clock, SPEEDS, type Speed } from './sim/time';
 import { BuildPanel, previewRows } from './ui/buildPanel';
 import { connectEventFeed } from './ui/eventFeed';
+import { FinancePanel } from './ui/financePanel';
+import { money } from './ui/format';
 import { Hud } from './ui/hud';
 import { ModuleSheet } from './ui/moduleSheet';
+import { ReportSheet } from './ui/reportSheet';
 import { Toasts } from './ui/toasts';
 import { WarningsPanel } from './ui/warningsPanel';
 import { BuildView, type PortRef } from './view/buildView';
@@ -66,6 +70,7 @@ async function start(): Promise<void> {
     if (id) {
       sheet.open(id);
       warnings.close();
+      finance.close();
     } else sheet.close();
     sheet.update(snap);
   };
@@ -92,11 +97,13 @@ async function start(): Promise<void> {
     toasts,
     (id) => moduleSnap(id)?.name ?? id,
     (id) => moduleSnap(id)?.kind ?? 'core',
+    (defId) => defsById.get(defId)?.name ?? defId,
   );
   const warnings = new WarningsPanel(ui, defsById, scenario.reliability.repairFactor, {
     onOpen: () => {
       exitBuild();
       select(null);
+      finance.close();
       warnings.open();
       warnings.update(snap);
     },
@@ -110,6 +117,31 @@ async function start(): Promise<void> {
     onCancelRepair: (moduleId) => send({ type: 'cancelRepair', moduleId }),
     onSwitchOn: (moduleId) => send({ type: 'setModuleEnabled', moduleId, enabled: true }),
   });
+  const finance = new FinancePanel(ui, {
+    onOpen: () => {
+      exitBuild();
+      select(null);
+      warnings.close();
+      finance.open();
+      finance.update(snap);
+    },
+    onClose: () => finance.close(),
+    onAccept: (uid) => send({ type: 'acceptContract', uid }),
+    onAbandon: (uid) => send({ type: 'abandonContract', uid }),
+    onRepay: (amount) => send({ type: 'repayLoan', amount }),
+  });
+
+  // The books close each quarter: pause on the report until the player carries on.
+  const report = new ReportSheet(ui);
+  sim.events.on('quarterReport', ({ report: r }) => {
+    const resume = clock.speed;
+    clock.setSpeed(0);
+    finance.close();
+    report.show(r, () => clock.setSpeed(resume));
+  });
+  // A module docks on a later tick than it was ordered, so the 3D view catches up in the frame loop.
+  let needsSync = false;
+  sim.events.on('moduleAdded', () => (needsSync = true));
 
   // ---- Build mode: tray → tap a port → preview → build ----
   const PREVIEW_MINUTES = Math.ceil(sim.orbit.periodMinutes * 2);
@@ -139,21 +171,26 @@ async function start(): Promise<void> {
     const blocker = await buildView.showGhost(def, current.via, ref);
     if (build !== current || current.target !== ref) return;
     const portName = `${stationView.moduleName(ref.moduleId)}, ${ref.portId} port`;
-    const blockedBy = blocker ? stationView.moduleName(blocker) : null;
-    buildPanel.showPreview(def.name, `On the ${portName}. Over the next two orbits:`, null, blockedBy);
+    const problem = sim.buildProblem(current.defId, ref.moduleId, ref.portId);
+    const blocked = blocker ? `Blocked: it would run into the ${stationView.moduleName(blocker)}.` : problem ? `${problem}.` : null;
+    const hours = scenario.economy.deliveryHours;
+    const sub = `${money(def.price ?? 0)}, docks on the ${portName} in ${hours} h. Over the next two orbits after that:`;
+    buildPanel.showPreview(def.name, sub, blocked ? [] : null, blocked);
+    if (blocked) return;
     // Let the panel paint, then run the two forecasts (fast: the sim is headless).
     setTimeout(() => {
       if (build !== current || current.target !== ref) return;
       const base = forecast(sim, PREVIEW_MINUTES);
       const next = forecast(sim, PREVIEW_MINUTES, { type: 'addModule', defId: current.defId, to: ref.moduleId, port: ref.portId });
-      if (!base || !next) return buildPanel.showPreview(def.name, 'That port is no longer free.', [], 'station');
-      buildPanel.showPreview(def.name, `On the ${portName}. Over the next two orbits:`, previewRows(base, next), blockedBy);
+      if (!base || !next) return buildPanel.showPreview(def.name, sub, [], 'That port is no longer free.');
+      buildPanel.showPreview(def.name, sub, previewRows(base, next), null);
     }, 30);
   };
   const buildPanel = new BuildPanel(ui, defs, {
     onOpen: () => {
       select(null);
       warnings.close();
+      finance.close();
       buildPanel.showTray();
     },
     onClose: exitBuild,
@@ -176,16 +213,11 @@ async function start(): Promise<void> {
       const { defId, target } = build;
       const result = sim.command({ type: 'addModule', defId, to: target.moduleId, port: target.portId });
       if (!result.ok) {
-        toasts.show(`Can't build there: ${result.reason}.`, 'warn');
+        toasts.show(`Can't order that: ${result.reason}.`, 'warn');
         return;
       }
       snap = sim.snapshot();
       exitBuild();
-      void stationView.sync(snap).then(() => {
-        const b = stationView.bounds();
-        cam.focus(b.center, Math.max(cam.distance, b.radius * (env.camera.aspect < 0.8 ? 3.4 : 2.4)));
-      });
-      toasts.show(`${defsById.get(defId)!.name} built on the ${stationView.moduleName(target.moduleId)}.`, 'ok');
     },
   });
 
@@ -202,12 +234,18 @@ async function start(): Promise<void> {
   };
 
   window.addEventListener('keydown', (e) => {
+    if (report.isOpen) {
+      // Only Escape (Continue) while the report is up: don't unpause behind it.
+      if (e.key === 'Escape' || e.key === 'Enter') report.close();
+      return;
+    }
     if (e.key === ' ') {
       e.preventDefault();
       clock.togglePause();
     } else if (e.key === 'Escape') {
       if (build || buildPanel.isOpen) exitBuild();
       else if (warnings.isOpen) warnings.close();
+      else if (finance.isOpen) finance.close();
       else select(null);
     } else if (/^[1-4]$/.test(e.key)) {
       clock.setSpeed(SPEEDS[Number(e.key) - 1] as Speed);
@@ -224,8 +262,16 @@ async function start(): Promise<void> {
 
     const ticks = clock.advance(realDt);
     if (ticks > 0) {
-      for (let i = 0; i < ticks; i++) sim.tick();
+      // Stop early if a tick paused the game (the quarterly report does).
+      for (let i = 0; i < ticks && clock.speed !== 0; i++) sim.tick();
       snap = sim.snapshot();
+    }
+    if (needsSync) {
+      needsSync = false;
+      void stationView.sync(snap).then(() => {
+        const b = stationView.bounds();
+        cam.focus(b.center, Math.max(cam.distance, b.radius * (env.camera.aspect < 0.8 ? 3.4 : 2.4)));
+      });
     }
 
     // Interpolate the orbit between ticks so the light and Earth move smoothly.
@@ -237,9 +283,11 @@ async function start(): Promise<void> {
     stationView.update(snap, env.sunDir, dt);
     buildView.update(dt, env.camera);
     cam.update(dt);
-    hud.update(snap, clock.speed);
+    hud.update(snap, report.isOpen ? 0 : clock.speed);
     sheet.update(snap);
     warnings.update(snap);
+    finance.update(snap);
+    buildPanel.setCash(snap.economy.cash);
     env.render();
     env.adapt(dt);
     requestAnimationFrame(loop);

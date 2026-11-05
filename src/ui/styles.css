@@ -1066,6 +1066,20 @@ dd.worn .wear-text {
   font-weight: 600;
 }
 
+.build-card-price {
+  margin-top: auto;
+  padding-top: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--lilac);
+  font-variant-numeric: tabular-nums;
+}
+
+.build-card-price.short {
+  color: var(--dim);
+  text-decoration: line-through;
+}
+
 .build-preview {
   padding: 0 18px;
 }
@@ -1184,5 +1198,101 @@ dd.worn .wear-text {
 
   .warn-fab.alarm {
     animation: none;
+  }
+}
+
+/* ---------- Quarterly report ---------- */
+
+.report-sheet {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(420px, calc(100% - 32px));
+  max-height: calc(100% - 48px);
+  overflow-y: auto;
+  padding: 18px 18px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  transform: translate(-50%, -46%) scale(0.98);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+  z-index: 4;
+}
+
+.report-sheet.open {
+  opacity: 1;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+}
+
+.report-kicker {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+  font-weight: 600;
+}
+
+.report-net {
+  margin: 0;
+  font-size: 34px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.report-verdict {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.report-rows {
+  border-top: 1px solid var(--line);
+}
+
+.report-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+}
+
+.report-row span {
+  color: var(--muted);
+}
+
+.report-row b {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.report-row.in b {
+  color: var(--lilac);
+}
+
+.report-row.out b {
+  color: var(--clay);
+}
+
+.report-continue {
+  height: 44px;
+  font-size: 15px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .report-sheet {
+    transition: none;
   }
 }

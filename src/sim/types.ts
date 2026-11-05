@@ -251,6 +251,8 @@ export interface ContractSnapshot {
   sponsor: string;
   description: string;
   labHours: number;
+  /** Hours allowed from signing to delivery. */
+  deadlineHours: number;
   progressHours: number;
   reward: number;
   penalty: number;

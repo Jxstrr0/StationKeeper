@@ -3,7 +3,7 @@
 import type { Forecast } from '../sim/forecast';
 import type { ModuleDef } from '../sim/types';
 import { el, setClass, setText } from './dom';
-import { KIND_LABEL, TIER_LABEL, kw } from './format';
+import { KIND_LABEL, TIER_LABEL, kw, money } from './format';
 
 export interface BuildPanelHandlers {
   onOpen(): void;
@@ -26,6 +26,7 @@ export function moduleHighlights(def: ModuleDef): string[] {
   if (def.lifeSupport) out.push(`O₂ ${def.lifeSupport.o2KgPerDay} kg/day · CO₂ ${def.lifeSupport.co2KgPerDay} kg/day`);
   const people = [def.cabin?.crew && `${def.cabin.crew} crew`, def.cabin?.guests && `${def.cabin.guests} guests`].filter(Boolean);
   if (people.length) out.push(people.join(', '));
+  if (def.kind === 'lab') out.push('Runs research contracts');
   if (p.drawKw > 0) out.push(`Draws ${kw(p.drawKw)} kW · ${TIER_LABEL[p.tier]}`);
   return out;
 }
@@ -56,6 +57,12 @@ export function previewRows(base: Forecast, next: Forecast): PreviewRow[] {
       before: `${base.highestCo2MmHg.toFixed(1)} mmHg`,
       after: `${next.highestCo2MmHg.toFixed(1)} mmHg`,
       tone: tone(base.highestCo2MmHg, next.highestCo2MmHg, false, 0.05),
+    },
+    {
+      label: 'Income, less running costs',
+      before: money(base.netIncome),
+      after: money(next.netIncome),
+      tone: tone(base.netIncome, next.netIncome, true, 0.05),
     },
     {
       label: 'Chance of a failure',
@@ -89,6 +96,7 @@ export class BuildPanel {
   private readonly blocked = el('p', 'build-blocked');
   private readonly confirm = el('button', 'build-confirm');
   private mode: Mode = 'closed';
+  private readonly prices = new Map<string, { node: HTMLElement; price: number }>();
 
   constructor(parent: HTMLElement, defs: readonly ModuleDef[], handlers: BuildPanelHandlers) {
     this.button.type = 'button';
@@ -101,11 +109,16 @@ export class BuildPanel {
     close.setAttribute('aria-label', 'Close build mode');
     close.addEventListener('click', () => handlers.onClose());
 
+    // Only modules with a price can be ordered.
     for (const def of defs) {
+      if (def.price === undefined) continue;
+      const price = el('span', 'build-card-price', [money(def.price)]);
+      this.prices.set(def.id, { node: price, price: def.price });
       const card = el('button', 'build-card', [
         el('span', 'build-card-kind', [KIND_LABEL[def.kind]]),
         el('span', 'build-card-name', [def.name]),
         ...moduleHighlights(def).map((h) => el('span', 'build-card-line', [h])),
+        price,
       ]);
       card.type = 'button';
       card.addEventListener('click', () => handlers.onPick(def.id));
@@ -120,7 +133,7 @@ export class BuildPanel {
     };
     this.hint.append(this.hintText, back('Back'));
     this.confirm.type = 'button';
-    this.confirm.textContent = 'Build';
+    this.confirm.textContent = 'Order';
     this.confirm.addEventListener('click', () => handlers.onConfirm());
     this.preview.append(
       this.previewTitle,
@@ -166,8 +179,13 @@ export class BuildPanel {
     this.setMode('placing');
   }
 
-  /** Preview step. `rows` is null while the forecast is still being worked out. */
-  showPreview(title: string, sub: string, rows: PreviewRow[] | null, blockedBy: string | null): void {
+  /** Grey out prices the station can't afford right now. */
+  setCash(cash: number): void {
+    for (const { node, price } of this.prices.values()) setClass(node, 'short', price > cash);
+  }
+
+  /** Preview step. `rows` is null while the forecast is still being worked out. `blocked` says why it can't be built. */
+  showPreview(title: string, sub: string, rows: PreviewRow[] | null, blocked: string | null): void {
     setText(this.previewTitle, title);
     setText(this.previewSub, sub);
     this.previewRowsEl.replaceChildren(
@@ -175,9 +193,9 @@ export class BuildPanel {
         el('div', `build-row ${r.tone}`, [el('dt', '', [r.label]), el('dd', '', [r.before, el('span', 'arrow', [' → ']), el('b', '', [r.after])])]),
       ),
     );
-    setText(this.blocked, blockedBy ? `Blocked: it would run into the ${blockedBy}.` : '');
-    setClass(this.blocked, 'hidden', !blockedBy);
-    this.confirm.disabled = !!blockedBy || rows === null;
+    setText(this.blocked, blocked ?? '');
+    setClass(this.blocked, 'hidden', !blocked);
+    this.confirm.disabled = !!blocked || rows === null;
     this.setMode('preview');
   }
 
