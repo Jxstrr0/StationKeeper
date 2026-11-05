@@ -83,7 +83,7 @@ export function diagnose(s: DiagnosisInput): StationWarning[] {
   }
   if (ls.alarms.healthLow) {
     const why = [ls.alarms.co2Danger ? 'co2' : null, ls.alarms.o2Out ? 'o2' : null, ls.alarms.waterOut ? 'water' : null];
-    add({ key: 'crew', kind: 'crewCondition', severity: 'alarm', value: ls.health, causes: keys(why) });
+    add({ key: 'crew', kind: 'crewCondition', severity: 'alarm', value: ls.health, limit: s.ending.evacuateBelow, causes: keys(why) });
   }
 
   // Money: guests only pay while their habitat runs, and contracts need their lab.
@@ -99,7 +99,10 @@ export function diagnose(s: DiagnosisInput): StationWarning[] {
     const why = labs.filter((m) => !running(m) || (c.stable && m.status === 'throttled')).map((m) => (running(m) ? 'loopHot' : whyDown(m)));
     add({ key: `risk:${c.uid}`, kind: 'contractAtRisk', severity: 'warn', contractId: c.uid, label: c.title, value: c.hoursLeft, causes: keys(why) });
   }
-  if (s.economy.cash < 0) add({ key: 'overdrawn', kind: 'overdrawn', severity: 'alarm', value: s.economy.cash, causes: [] });
+  if (s.economy.cash < 0) {
+    const final = s.ending.overdrawnCloses >= s.ending.overdrawnQuarters - 1;
+    add({ key: 'overdrawn', kind: 'overdrawn', severity: 'alarm', value: s.economy.cash, limit: s.ending.overdraftLimit, final, causes: [] });
+  }
 
   // Keep only links to warnings that exist (a status and its tier flag can disagree for a tick).
   const list = [...out.values()];

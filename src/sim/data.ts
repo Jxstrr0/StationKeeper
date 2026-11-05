@@ -6,6 +6,7 @@ import {
   type CabinSpec,
   type ContractDef,
   type EconomyConfig,
+  type EndingsConfig,
   type LifeSupportConfig,
   type LifeSupportSpec,
   type GreyboxSpec,
@@ -349,6 +350,19 @@ function attachment(v: unknown, path: string): Attachment {
   return { to: str(o.to, `${path}.to`), port: str(o.port, `${path}.port`), via: str(o.via, `${path}.via`) };
 }
 
+function endingsConfig(raw: unknown): EndingsConfig {
+  const o = obj(raw, 'endings');
+  const cfg: EndingsConfig = {
+    overdraftLimit: num(o.overdraftLimit, 'endings.overdraftLimit'),
+    overdrawnQuarters: num(o.overdrawnQuarters, 'endings.overdrawnQuarters'),
+    evacuateBelow: num(o.evacuateBelow, 'endings.evacuateBelow'),
+  };
+  if (cfg.overdraftLimit < 0) fail('endings.overdraftLimit', 'must be zero or more');
+  if (!Number.isInteger(cfg.overdrawnQuarters) || cfg.overdrawnQuarters < 1) fail('endings.overdrawnQuarters', 'must be a whole number, 1 or more');
+  if (cfg.evacuateBelow < 0 || cfg.evacuateBelow >= 1) fail('endings.evacuateBelow', 'must be from 0 to below 1');
+  return cfg;
+}
+
 export function parseScenario(raw: unknown): ScenarioDef {
   const o = obj(raw, 'scenario');
   const orbit = obj(o.orbit, 'orbit');
@@ -386,6 +400,7 @@ export function parseScenario(raw: unknown): ScenarioDef {
     lifeSupport: lifeSupportConfig(o.lifeSupport),
     reliability,
     economy: economyConfig(o.economy),
+    endings: endingsConfig(o.endings),
     layout,
   };
 }
