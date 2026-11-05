@@ -6,7 +6,7 @@ export type Vec3 = readonly [number, number, number];
 export type Tier = 'critical' | 'essential' | 'commercial';
 export const TIERS: readonly Tier[] = ['critical', 'essential', 'commercial'];
 
-export type ModuleKind = 'core' | 'solar' | 'battery' | 'habitat' | 'radiator' | 'lifesupport' | 'lab' | 'node' | 'quarters' | 'galley' | 'cupola';
+export type ModuleKind = 'core' | 'solar' | 'battery' | 'habitat' | 'radiator' | 'lifesupport' | 'lab' | 'node' | 'quarters' | 'galley' | 'cupola' | 'lounge';
 
 export interface PortDef {
   id: string;
@@ -89,6 +89,8 @@ export interface ModuleDef {
   lifeSupport?: LifeSupportSpec;
   reliability?: ReliabilitySpec;
   comfort?: ComfortSpec;
+  /** Something for guests only: lifts where their reputation settles while it runs. */
+  amenity?: AmenitySpec;
   /** Cost to build, launch included, in $ millions. Modules without a price can't be ordered. */
   price?: number;
   ports: PortDef[];
@@ -108,6 +110,12 @@ export interface ComfortSpec {
   seats: number;
   /** Share added to every guest's fare while it runs (guests pay for the view, seat or no seat). Default 0. */
   guestFare?: number;
+}
+
+/** A guest amenity. Crew get nothing from it. */
+export interface AmenitySpec {
+  /** Added to where guest reputation settles, 0..1. */
+  reputation: number;
 }
 
 export interface Attachment {

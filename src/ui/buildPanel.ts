@@ -28,6 +28,8 @@ export function moduleHighlights(def: ModuleDef): string[] {
   if (people.length) out.push(people.join(', '));
   if (def.comfort) out.push(`+${Math.round(def.comfort.morale * 100)}% crew morale, seats ${def.comfort.seats}`);
   if (def.comfort?.guestFare) out.push(`+${Math.round(def.comfort.guestFare * 100)}% guest fares`);
+  // Reputation runs 0..1 over four steps of star, so this is the lift in stars.
+  if (def.amenity) out.push(`Guest reviews +${+(def.amenity.reputation * 4).toFixed(1)}★, guests only`);
   if (def.kind === 'lab') out.push('Runs research contracts');
   // Ports beyond the one it docks by are room to grow.
   if (def.kind === 'node') out.push(`Adds ${def.ports.length - 1} docking ports`);

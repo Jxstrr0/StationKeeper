@@ -12,7 +12,7 @@ import { baseScenario, defs, makeSim } from './helpers';
 
 const cfg = baseScenario.guests;
 const HOUR = 60;
-const calm: GuestInputs = { places: 4, served: 4, hot: false, badAir: false };
+const calm: GuestInputs = { places: 4, served: 4, hot: false, badAir: false, lift: 0 };
 
 /** A station whose guests start at `rep` and whose crew stay well, so nothing else moves. */
 const startAt = (rep: number) => (s: ScenarioDef) => {
@@ -27,9 +27,9 @@ describe('guest reputation', () => {
     expect(reputationTarget({ ...calm, badAir: true }, cfg)).toBeCloseTo(cfg.base - cfg.penalties.badAir);
     // A dark habitat counts by the share of guest places it holds.
     expect(reputationTarget({ ...calm, places: 8, served: 4 }, cfg)).toBeCloseTo(cfg.base - cfg.penalties.dark / 2);
-    expect(reputationTarget({ places: 4, served: 0, hot: true, badAir: true }, cfg)).toBe(0);
-    expect(complaints({ places: 4, served: 0, hot: true, badAir: true })).toEqual(['hot', 'badAir', 'dark']);
-    expect(complaints({ places: 0, served: 0, hot: true, badAir: true })).toEqual([]);
+    expect(reputationTarget({ places: 4, served: 0, hot: true, badAir: true, lift: 0 }, cfg)).toBe(0);
+    expect(complaints({ places: 4, served: 0, hot: true, badAir: true, lift: 0 })).toEqual(['hot', 'badAir', 'dark']);
+    expect(complaints({ places: 0, served: 0, hot: true, badAir: true, lift: 0 })).toEqual([]);
   });
 
   it('sets fares between the worst and best rate, and stars from one to five', () => {
@@ -84,7 +84,7 @@ describe('guest reputation', () => {
 
   it('stays put on a station with no guest places', () => {
     const g = createGuestState(cfg);
-    stepGuests(g, cfg, { places: 0, served: 0, hot: true, badAir: true }, 10);
+    stepGuests(g, cfg, { places: 0, served: 0, hot: true, badAir: true, lift: 0 }, 10);
     expect(g.reputation).toBe(cfg.start);
     expect(g.quarter.minutes).toBe(0);
   });
