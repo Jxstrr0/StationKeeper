@@ -52,7 +52,7 @@ describe('save and load', () => {
   it('refuses saves from another version, another scenario, or with missing modules', () => {
     const save = roundTrip(makeSim().save());
     expect(() => Simulation.fromSave(defs, baseScenario, { ...save, version: (SAVE_VERSION + 1) as typeof SAVE_VERSION })).toThrow(/version/);
-    expect(() => Simulation.fromSave(defs, baseScenario, { ...save, seed: save.seed + 1 })).toThrow(/scenario/);
+    expect(() => Simulation.fromSave(defs, baseScenario, { ...save, scenarioId: 'somewhere-else' })).toThrow(/scenario/);
     const noThermal = roundTrip(save);
     delete noThermal.thermal.modules['core-1'];
     expect(() => Simulation.fromSave(defs, baseScenario, noThermal)).toThrow(/thermal/);

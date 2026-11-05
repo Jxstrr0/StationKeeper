@@ -7,6 +7,7 @@ import {
   type ContractDef,
   type EconomyConfig,
   type EndingsConfig,
+  type GoalDef,
   type LifeSupportConfig,
   type LifeSupportSpec,
   type GreyboxSpec,
@@ -363,6 +364,33 @@ function endingsConfig(raw: unknown): EndingsConfig {
   return cfg;
 }
 
+function goalDef(raw: unknown): GoalDef {
+  const o = obj(raw, 'goal');
+  const kind = str(o.kind, 'goal.kind');
+  let days: number | undefined;
+  if (o.days !== undefined) {
+    days = num(o.days, 'goal.days');
+    if (!(days > 0)) fail('goal.days', 'must be more than 0');
+  }
+  const withDays = <T extends object>(g: T) => (days === undefined ? g : { ...g, days });
+  switch (kind) {
+    case 'repayLoan':
+      return withDays({ kind });
+    case 'cash': {
+      const amount = num(o.amount, 'goal.amount');
+      if (!(amount > 0)) fail('goal.amount', 'must be more than 0');
+      return withDays({ kind, amount });
+    }
+    case 'contracts': {
+      const count = num(o.count, 'goal.count');
+      if (!Number.isInteger(count) || count < 1) fail('goal.count', 'must be a whole number, 1 or more');
+      return withDays({ kind, count });
+    }
+    default:
+      return fail('goal.kind', `unknown goal "${kind}" (repayLoan, cash or contracts)`);
+  }
+}
+
 export function parseScenario(raw: unknown): ScenarioDef {
   const o = obj(raw, 'scenario');
   const orbit = obj(o.orbit, 'orbit');
@@ -380,7 +408,10 @@ export function parseScenario(raw: unknown): ScenarioDef {
     if (!layout.some((e) => e.id === id)) fail(`reliability.initialWear.${id}`, 'no module with that id in the layout');
   }
   return {
+    id: str(o.id, 'id'),
     name: str(o.name, 'name'),
+    blurb: str(o.blurb, 'blurb'),
+    goal: goalDef(o.goal),
     seed: num(o.seed, 'seed'),
     startDate: str(o.startDate, 'startDate'),
     orbit: {

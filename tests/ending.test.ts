@@ -90,4 +90,61 @@ describe('endings', () => {
     expect(loaded.ended).toBe(true);
     expect(loaded.snapshot().ending).toEqual(sim.snapshot().ending);
   });
+
+  it('a cash goal is reached when cash gets there', () => {
+    const sim = makeSim((s) => {
+      s.goal = { kind: 'cash', amount: 41 };
+      s.economy.guestPerDay = 40;
+    });
+    const { goals } = watch(sim);
+    expect(sim.snapshot().ending.goal).toMatchObject({ kind: 'cash', target: 41, deadlineAtMinutes: null });
+    runUntil(sim, () => goals.length > 0, DAY);
+    expect(sim.snapshot().economy.cash).toBeGreaterThanOrEqual(41);
+    expect(sim.snapshot().ending.goal.progress).toBe(1);
+  });
+
+  it('a contracts goal counts deliveries over the whole game, across quarters', () => {
+    const sim = makeSim((s) => {
+      s.goal = { kind: 'contracts', count: 2 };
+      s.economy.deliveryHours = 0;
+      s.economy.startCash = 500;
+      for (const c of s.economy.contracts.pool) {
+        c.labHours = 1;
+        c.deadlineHours = 12;
+        delete c.stable;
+      }
+    });
+    const { goals } = watch(sim);
+    const port = sim.snapshot().freePorts.find((p) => sim.buildProblem('research-lab', p.moduleId, p.portId) === null)!;
+    expect(sim.command({ type: 'addModule', defId: 'research-lab', to: port.moduleId, port: port.portId }).ok).toBe(true);
+    runUntil(
+      sim,
+      () => {
+        const e = sim.snapshot().economy;
+        if (e.active.length === 0 && e.offers[0]) sim.command({ type: 'acceptContract', uid: e.offers[0].uid });
+        return goals.length > 0;
+      },
+      3 * DAY,
+    );
+    expect(sim.snapshot().ending.goal).toMatchObject({ kind: 'contracts', current: 2, target: 2, progress: 1 });
+  });
+
+  it('the board replaces you if the goal is not met by its deadline', () => {
+    const sim = makeSim((s) => (s.goal = { kind: 'cash', amount: 1000, days: 0.5 }));
+    const { over } = watch(sim);
+    expect(sim.snapshot().ending.goal.deadlineAtMinutes).toBe(DAY / 2);
+    sim.run(DAY);
+    expect(over).toEqual([{ outcome: 'replaced', minutes: DAY / 2 }]);
+  });
+
+  it('a goal met in time keeps the board happy past the deadline', () => {
+    const sim = makeSim((s) => {
+      s.goal = { kind: 'repayLoan', days: 0.5 };
+      s.economy.startCash = 100;
+    });
+    sim.command({ type: 'repayLoan', amount: 1000 });
+    sim.run(DAY);
+    expect(sim.ended).toBe(false);
+    expect(sim.snapshot().ending.goalAtMinutes).toBe(0);
+  });
 });
