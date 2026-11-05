@@ -501,3 +501,114 @@
 .fin-sub.neg {
   color: var(--clay);
 }
+
+/* Crew sheet (shares the finance sheet's frame) */
+
+.crew-summary {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.crew-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.crew-member {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.crew-member:last-child {
+  border-bottom: 0;
+}
+
+.crew-who {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.crew-who b {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.crew-who span {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.crew-dismiss {
+  flex: none;
+  min-width: 112px;
+  color: var(--muted);
+}
+
+.crew-dismiss.armed {
+  border-color: var(--clay);
+  color: var(--clay);
+}
+
+.crew-hire-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+}
+
+.crew-hire-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.crew-hire-text b {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ivory);
+}
+
+.crew-hire {
+  flex: none;
+  min-width: 132px;
+}
+
+.crew-hire:disabled {
+  opacity: 0.45;
+}
+
+.crew-blocked {
+  color: var(--clay);
+}
+
+.crew-blocked.hidden {
+  display: none;
+}
+
+/* The crew reading in the top bar opens the crew sheet. */
+.mini.crew-cell {
+  cursor: pointer;
+  border-radius: 10px;
+}
+
+.mini.crew-cell .mini-u {
+  text-decoration: underline;
+  text-decoration-color: var(--dim);
+  text-underline-offset: 3px;
+}
+
+.mini.crew-cell:focus-visible {
+  outline: 2px solid var(--lilac);
+  outline-offset: 2px;
+}

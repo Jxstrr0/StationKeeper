@@ -52,7 +52,6 @@
     "doublingC": 8,
     "newFailShare": 0.04,
     "repairFactor": 2,
-    "repairTeams": 1,
     "worn": { "above": 0.6, "below": 0.4 },
     "initialWear": { "array-1": 0.15, "battery-1": 0.55, "habitat-1": 0.3, "radiator-1": 0.25, "life-support-1": 0.35, "research-lab-1": 0.2 }
   },
@@ -61,7 +60,7 @@
     "loan": { "principal": 20, "ratePerQuarter": 0.03 },
     "quarterDays": 1,
     "guestPerDay": 1.5,
-    "operationsPerDay": 1.8,
+    "operationsPerDay": 0.3,
     "deliveryHours": 6,
     "serviceCostShare": 0.02,
     "repairCostShare": 0.06,
@@ -136,6 +135,18 @@
         }
       ]
     }
+  },
+  "crew": {
+    "roster": [
+      { "name": "Dara Quinlan", "role": "engineer" },
+      { "name": "Sefa Moana", "role": "scientist" },
+      { "name": "Hugo Albrecht", "role": "scientist" }
+    ],
+    "names": ["Rafael Duarte", "Asha Mbeki", "Jonas Halloran", "Yuki Brandt", "Priya Castellano", "Oskar Nilsen", "Leila Haddad", "Callum Reyes"],
+    "signingFee": 1.0,
+    "wagePerDay": 0.5,
+    "arrivalHours": 6,
+    "unstaffedLabFactor": 0.5
   },
   "endings": { "overdraftLimit": 20, "overdrawnQuarters": 2, "evacuateBelow": 0.15 },
   "layout": [

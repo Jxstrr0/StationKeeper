@@ -24,7 +24,7 @@ export function moduleHighlights(def: ModuleDef): string[] {
   if (p.storageKwh) out.push(`+${kw(p.storageKwh)} kWh storage`);
   if (def.thermal.rejectKw) out.push(`+${kw(def.thermal.rejectKw)} kW heat rejection`);
   if (def.lifeSupport) out.push(`O₂ ${def.lifeSupport.o2KgPerDay} kg/day · CO₂ ${def.lifeSupport.co2KgPerDay} kg/day`);
-  const people = [def.cabin?.crew && `${def.cabin.crew} crew`, def.cabin?.guests && `${def.cabin.guests} guests`].filter(Boolean);
+  const people = [def.cabin?.bunks && `${def.cabin.bunks} bunks`, def.cabin?.guests && `${def.cabin.guests} guests`].filter(Boolean);
   if (people.length) out.push(people.join(', '));
   if (def.kind === 'lab') out.push('Runs research contracts');
   // Ports beyond the one it docks by are room to grow.

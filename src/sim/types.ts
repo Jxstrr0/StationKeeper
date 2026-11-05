@@ -6,7 +6,7 @@ export type Vec3 = readonly [number, number, number];
 export type Tier = 'critical' | 'essential' | 'commercial';
 export const TIERS: readonly Tier[] = ['critical', 'essential', 'commercial'];
 
-export type ModuleKind = 'core' | 'solar' | 'battery' | 'habitat' | 'radiator' | 'lifesupport' | 'lab' | 'node';
+export type ModuleKind = 'core' | 'solar' | 'battery' | 'habitat' | 'radiator' | 'lifesupport' | 'lab' | 'node' | 'quarters';
 
 export interface PortDef {
   id: string;
@@ -40,7 +40,8 @@ export interface ThermalSpec {
 /** Pressurised volume and the people who live in it. */
 export interface CabinSpec {
   volumeM3: number;
-  crew?: number;
+  /** Beds for crew. The crew themselves come from the roster, not the modules. */
+  bunks?: number;
   guests?: number;
 }
 
@@ -199,9 +200,10 @@ export interface ScenarioDef {
   };
   thermal: ThermalConfig;
   lifeSupport: LifeSupportConfig;
-  reliability: ReliabilityConfig;
+  reliability: ReliabilityData;
   economy: EconomyConfig;
   endings: EndingsConfig;
+  crew: CrewConfig;
   layout: LayoutEntry[];
 }
 
@@ -215,6 +217,47 @@ export type GoalDef =
   | { kind: 'contracts'; count: number; days?: number };
 
 export type GoalKind = GoalDef['kind'];
+
+export type CrewRole = 'engineer' | 'scientist';
+
+export interface CrewConfig {
+  /** Who is aboard at the start. */
+  roster: { name: string; role: CrewRole }[];
+  /** Names for new hires, used in order and then reused with a number. */
+  names: string[];
+  /** Paid when someone is hired, for the contract and the seat up, $ millions. */
+  signingFee: number;
+  /** Each crew member's pay, $ millions a day. */
+  wagePerDay: number;
+  /** Hours from hiring to arriving aboard. */
+  arrivalHours: number;
+  /** A lab with no scientist to run it works at this share of its speed. */
+  unstaffedLabFactor: number;
+}
+
+export interface CrewMemberSnapshot {
+  id: string;
+  name: string;
+  role: CrewRole;
+  /** Hours until they arrive, or null if aboard. */
+  arrivesInHours: number | null;
+}
+
+export interface CrewSnapshot {
+  /** Aboard first, then on their way. */
+  members: CrewMemberSnapshot[];
+  aboard: number;
+  /** Bunks on the station, and how many are taken by people aboard or on their way. */
+  bunks: number;
+  bunksTaken: number;
+  engineers: number;
+  scientists: number;
+  labs: number;
+  wagesPerDay: number;
+  signingFee: number;
+  wagePerDay: number;
+  arrivalHours: number;
+}
 
 /** How a game can end, besides the goal. */
 export interface EndingsConfig {
@@ -297,7 +340,7 @@ export interface ContractDef {
   stable?: boolean;
 }
 
-export type LedgerCategory = 'guests' | 'contracts' | 'operations' | 'interest' | 'construction' | 'repairs' | 'penalties';
+export type LedgerCategory = 'guests' | 'contracts' | 'wages' | 'operations' | 'interest' | 'construction' | 'repairs' | 'penalties';
 export type Ledger = Record<LedgerCategory, number>;
 
 export interface ContractSnapshot {
@@ -371,13 +414,16 @@ export interface ReliabilityConfig {
   newFailShare: number;
   /** Repairing a failed module takes this many times its service hours. */
   repairFactor: number;
-  /** How many repairs or services the crew can work on at once. */
+  /** How many repairs or services the crew can work on at once: the engineers aboard. Set by the sim. */
   repairTeams: number;
   /** Raise the "due for service" warning at this wear (with hysteresis). */
   worn: Band;
   /** Starting wear of modules in the scenario layout, by instance id. Others start new. */
   initialWear: Record<string, number>;
 }
+
+/** Reliability settings as the scenario gives them. Repair teams aren't data: there is one per engineer aboard. */
+export type ReliabilityData = Omit<ReliabilityConfig, 'repairTeams'>;
 
 /**
  * powered: running. throttled: running slow to save heat. shed: no power. overheated: tripped by heat.
@@ -509,6 +555,7 @@ export interface SimSnapshot {
   economy: EconomySnapshot;
   /** What is wrong, and why: a graph of problems, each naming the problems that cause it. */
   ending: EndingSnapshot;
+  crew: CrewSnapshot;
   warnings: StationWarning[];
 }
 
@@ -531,7 +578,9 @@ export type WarningKind =
   | 'crewCondition'
   | 'guestsIdle'
   | 'contractAtRisk'
-  | 'overdrawn';
+  | 'overdrawn'
+  | 'noEngineers'
+  | 'labUnstaffed';
 
 export interface StationWarning {
   /** Stable id, like "failed:radiator-1" or "shed:commercial". */
