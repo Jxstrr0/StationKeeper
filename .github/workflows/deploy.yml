@@ -11,9 +11,10 @@ permissions:
   pages: write
   id-token: write
 
+# PR runs replace each other; main deploys queue and always finish, so Pages never holds a half-cancelled deployment.
 concurrency:
   group: pages-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
