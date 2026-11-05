@@ -146,7 +146,9 @@ function comfortSpec(v: unknown, path: string): ComfortSpec {
   const o = obj(v, path);
   const seats = num(o.seats, `${path}.seats`);
   if (!(Number.isInteger(seats) && seats > 0)) fail(`${path}.seats`, 'expected a whole number above 0');
-  return { morale: fraction(o.morale, `${path}.morale`), seats };
+  const spec: ComfortSpec = { morale: fraction(o.morale, `${path}.morale`), seats };
+  if (o.guestFare !== undefined) spec.guestFare = fraction(o.guestFare, `${path}.guestFare`);
+  return spec;
 }
 
 function lifeSupportSpec(v: unknown, path: string): LifeSupportSpec {

@@ -12,6 +12,7 @@ import {
   contractSnapshots,
   createEconomyState,
   labCount,
+  fareLift,
   netPerDay,
   repayLoan,
   type Staffing,
@@ -52,6 +53,7 @@ import {
 import {
   bonusProblem,
   comfortLift,
+  type RunningComfort,
   countAboard,
   countFit,
   fitPaces,
@@ -248,6 +250,14 @@ export class Simulation {
     return fitPaces(this.crew, this.minutes, 'engineer', this.scenario.crew.needs);
   }
 
+  /** What the running comforts add to every guest's fare. */
+  private fareLift(): number {
+    return fareLift(
+      this.runningComforts().map((r) => ({ name: r.name, guestFare: r.comfort.guestFare ?? 0 })),
+      this.scenario.crew.comfortStack,
+    );
+  }
+
   private staffing(): Staffing {
     return {
       scientistPaces: fitPaces(this.crew, this.minutes, 'scientist', this.scenario.crew.needs),
@@ -280,14 +290,20 @@ export class Simulation {
     this.checkEnding();
   }
 
-  /** What the running comforts (a galley, say) add to the crew's morale. */
+  /** Comforts (a galley, a cupola) that are running now. */
+  private runningComforts(): RunningComfort[] {
+    return this.station.modules
+      .filter((m) => {
+        const st = this.power.modules.get(m.id)?.status;
+        return m.def.comfort && (st === 'powered' || st === 'throttled');
+      })
+      .map((m) => ({ name: m.def.name, comfort: m.def.comfort! }));
+  }
+
+  /** What the running comforts add to the crew's morale. */
   private comfort(): ReturnType<typeof comfortLift> {
-    const running = this.station.modules.filter((m) => {
-      const st = this.power.modules.get(m.id)?.status;
-      return m.def.comfort && (st === 'powered' || st === 'throttled');
-    });
     return comfortLift(
-      running.map((m) => ({ name: m.def.name, comfort: m.def.comfort! })),
+      this.runningComforts(),
       countAboard(this.crew, this.minutes),
       this.scenario.crew.comfortStack,
     );
@@ -611,6 +627,7 @@ export class Simulation {
         dtHours: TICK_HOURS,
         throttleFactor: this.scenario.thermal.throttleFactor,
         staff: this.staffing(),
+        fareLift: this.fareLift(),
         events: this.events,
       });
     }
@@ -620,6 +637,7 @@ export class Simulation {
     const e = this.economy;
     const cfg = this.scenario.economy;
     const quarterMinutes = Math.round(cfg.quarterDays * 1440);
+    const fare = this.fareLift();
     return {
       cash: e.cash,
       loan: e.loan,
@@ -627,13 +645,14 @@ export class Simulation {
       quarter: e.quarter,
       quarterProgress: (this.minutes % quarterMinutes) / quarterMinutes,
       ledger: { ...e.ledger },
-      netPerDay: netPerDay(this.station, this.power, e, cfg, this.staffing()),
+      netPerDay: netPerDay(this.station, this.power, e, cfg, this.staffing(), fare),
       lastReport: e.lastReport ? structuredClone(e.lastReport) : null,
       ...contractSnapshots(e, this.station, this.power, cfg, this.minutes, this.scenario.thermal.throttleFactor, this.staffing()),
       labs: labCount(this.station),
       guestIncomePerDay: Object.fromEntries(
-        this.station.modules.filter((m) => m.def.cabin?.guests).map((m) => [m.id, (m.def.cabin?.guests ?? 0) * cfg.guestPerDay]),
+        this.station.modules.filter((m) => m.def.cabin?.guests).map((m) => [m.id, (m.def.cabin?.guests ?? 0) * cfg.guestPerDay * (1 + fare)]),
       ),
+      fareLift: fare,
       deliveries: this.deliveries.map((d) => ({
         moduleId: d.moduleId,
         defId: d.defId,

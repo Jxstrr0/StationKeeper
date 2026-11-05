@@ -106,6 +106,8 @@ export interface ComfortSpec {
   morale: number;
   /** How many it serves. With more crew aboard than seats, the lift is shared out. */
   seats: number;
+  /** Share added to every guest's fare while it runs (guests pay for the view, seat or no seat). Default 0. */
+  guestFare?: number;
 }
 
 export interface Attachment {
@@ -491,8 +493,10 @@ export interface EconomySnapshot {
   active: ContractSnapshot[];
   /** Research labs on the station; each can run one contract. */
   labs: number;
-  /** What each habitat's guests pay a day while it runs, by module id. */
+  /** What each habitat's guests pay a day while it runs, by module id, with the comforts' fare lift. */
   guestIncomePerDay: Record<string, number>;
+  /** Share the running comforts add to every guest's fare. */
+  fareLift: number;
   deliveries: DeliverySnapshot[];
 }
 
