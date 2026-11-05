@@ -5,6 +5,7 @@ import {
   type Band,
   type CabinSpec,
   type ContractDef,
+  type AmenitySpec,
   type ComfortSpec,
   type CrewConfig,
   type CrewNeedsConfig,
@@ -29,7 +30,6 @@ import {
   type TierThreshold,
   type Vec3,
 } from './types';
-import { stars } from './systems/guests';
 
 type Obj = Record<string, unknown>;
 
@@ -77,7 +77,7 @@ function tier(v: unknown, path: string): Tier {
   return s as Tier;
 }
 
-const KINDS: readonly ModuleKind[] = ['core', 'solar', 'battery', 'habitat', 'radiator', 'lifesupport', 'lab', 'node', 'quarters', 'galley', 'cupola'];
+const KINDS: readonly ModuleKind[] = ['core', 'solar', 'battery', 'habitat', 'radiator', 'lifesupport', 'lab', 'node', 'quarters', 'galley', 'cupola', 'lounge'];
 
 function kind(v: unknown, path: string): ModuleKind {
   const s = str(v, path);
@@ -153,6 +153,13 @@ function comfortSpec(v: unknown, path: string): ComfortSpec {
   return spec;
 }
 
+function amenitySpec(v: unknown, path: string): AmenitySpec {
+  const o = obj(v, path);
+  const reputation = fraction(o.reputation, `${path}.reputation`);
+  if (!(reputation > 0)) fail(`${path}.reputation`, 'must be more than 0');
+  return { reputation };
+}
+
 function lifeSupportSpec(v: unknown, path: string): LifeSupportSpec {
   const o = obj(v, path);
   return {
@@ -209,6 +216,7 @@ export function parseModuleDefs(raw: unknown): ModuleDef[] {
     if (o.lifeSupport !== undefined) def.lifeSupport = lifeSupportSpec(o.lifeSupport, `${path}.lifeSupport`);
     if (o.reliability !== undefined) def.reliability = reliabilitySpec(o.reliability, `${path}.reliability`);
     if (o.comfort !== undefined) def.comfort = comfortSpec(o.comfort, `${path}.comfort`);
+    if (o.amenity !== undefined) def.amenity = amenitySpec(o.amenity, `${path}.amenity`);
     if (o.price !== undefined) def.price = positive(o.price, `${path}.price`);
     const gimbalAxis = optVec3(o.gimbalAxis, `${path}.gimbalAxis`);
     const panelNormal = optVec3(o.panelNormal, `${path}.panelNormal`);
@@ -560,8 +568,5 @@ export function parseScenario(raw: unknown): ScenarioDef {
     layout,
   };
   if (catalogue) def.catalogue = catalogue;
-  if (goal.kind === 'reviews' && goal.stars > stars(def.guests.base)) {
-    fail('goal.stars', `guests give at most ${stars(def.guests.base)} stars at this station's "guests.base"`);
-  }
   return def;
 }

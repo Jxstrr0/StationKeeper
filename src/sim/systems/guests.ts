@@ -5,7 +5,8 @@
 // many places are booked for the quarter ahead.
 //
 // Reputation is the station's, not the guests': it moves with how the station is run even while few are aboard, so
-// a station with empty places can still win its guests back.
+// a station with empty places can still win its guests back. Guest amenities, such as a lounge, lift where it settles
+// while they run, which is the only way past four stars.
 import type { EventBus, SimEvents } from '../events';
 import type { GuestComplaint, GuestConfig, GuestReview } from '../types';
 
@@ -48,6 +49,8 @@ export interface GuestInputs {
   served: number;
   hot: boolean;
   badAir: boolean;
+  /** What running guest amenities add to where reputation settles (see `amenityLift`). */
+  lift: number;
 }
 
 /** What is bothering guests right now. */
@@ -64,11 +67,21 @@ export function complaints(inputs: GuestInputs): GuestComplaint[] {
 export function reputationTarget(inputs: GuestInputs, cfg: GuestConfig): number {
   if (inputs.places === 0) return cfg.base;
   const p = cfg.penalties;
-  let t = cfg.base;
+  let t = cfg.base + inputs.lift;
   if (inputs.hot) t -= p.hot;
   if (inputs.badAir) t -= p.badAir;
   t -= p.dark * (1 - inputs.served / inputs.places);
   return Math.min(1, Math.max(0, t));
+}
+
+/**
+ * What running amenities add to where reputation settles: each kind's `reputation`, biggest first, each further kind
+ * counting for `stack` of the one before. A second lounge of the same kind adds nothing: guests can only sit in one.
+ */
+export function amenityLift(running: readonly { name: string; reputation: number }[], stack: number): number {
+  const best = new Map<string, number>();
+  for (const r of running) best.set(r.name, Math.max(best.get(r.name) ?? 0, r.reputation));
+  return [...best.values()].sort((a, b) => b - a).reduce((sum, v, i) => sum + v * stack ** i, 0);
 }
 
 /** What fares are multiplied by at this reputation. */
