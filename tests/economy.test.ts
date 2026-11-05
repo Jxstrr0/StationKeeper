@@ -3,7 +3,7 @@ import { forecast } from '../src/sim/forecast';
 import type { SimEvents } from '../src/sim/events';
 import type { Simulation } from '../src/sim/simulation';
 import type { ModuleDef, ScenarioDef } from '../src/sim/types';
-import { baseScenario, defs, makeSim, runUntil } from './helpers';
+import { baseScenario, defs, flatPace, makeSim, runUntil } from './helpers';
 
 const econ = baseScenario.economy;
 const cash = (sim: Simulation) => sim.snapshot().economy.cash;
@@ -22,6 +22,7 @@ function withLab(contractId: string, patch: (s: ScenarioDef) => void = () => {})
     instant(s);
     s.economy.contracts.pool = s.economy.contracts.pool.filter((c) => c.id === contractId);
     s.economy.contracts.startingOffers = 1;
+    flatPace(s); // these count lab hours
     patch(s);
   });
   expect(sim.command({ type: 'addModule', defId: 'research-lab', to: 'life-support-1', port: 'aft' }).ok).toBe(true);

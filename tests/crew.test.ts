@@ -3,7 +3,7 @@ import type { SimEvents } from '../src/sim/events';
 import { Simulation, type SimSave } from '../src/sim/simulation';
 import { labCapacity } from '../src/sim/systems/crew';
 import type { ScenarioDef } from '../src/sim/types';
-import { baseScenario, defs, makeSim, runUntil } from './helpers';
+import { baseScenario, defs, flatPace, makeSim, runUntil } from './helpers';
 
 const crewCfg = baseScenario.crew;
 const arrival = Math.round(crewCfg.arrivalHours * 60);
@@ -77,16 +77,19 @@ describe('crew', () => {
   });
 
   it('labs go to the fastest first, and a lab with no scientist works at the unstaffed share', () => {
-    expect(labCapacity([1, 1], 2, 0.5)).toBe(2);
-    expect(labCapacity([1, 1], 1, 0.5)).toBe(1.5);
-    expect(labCapacity([0.6, 1], 1, 0.5)).toBeCloseTo(1.3);
-    expect(labCapacity([1], 0, 0.5)).toBe(0.5);
+    expect(labCapacity([1, 1], [1, 1], 0.5)).toBe(2);
+    expect(labCapacity([1, 1], [1], 0.5)).toBe(1.5);
+    expect(labCapacity([0.6, 1], [1], 0.5)).toBeCloseTo(1.3);
+    expect(labCapacity([1], [], 0.5)).toBe(0.5);
+    // The fastest scientist gets the fastest lab.
+    expect(labCapacity([0.6, 1], [0.8, 1.1], 0.5)).toBeCloseTo(1.1 + 0.48);
   });
 
   it('send both scientists home and the lab runs at half pace', () => {
     const progress = (sendHome: boolean) => {
       const sim = makeSim((s) => {
         rich(s);
+        flatPace(s);
         s.thermal.throttle = { above: 99, below: 98 };
         s.thermal.trip.commercial = { above: 100, below: 99 };
         for (const c of s.economy.contracts.pool) {
