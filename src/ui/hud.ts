@@ -181,6 +181,8 @@ export class Hud {
     const shed = [p.shedTiers.essential && 'Essential', (p.shedTiers.commercial || p.shedTiers.essential) && 'Commercial'].filter(Boolean);
     const offline = snap.modules.filter((m) => m.status === 'shed').map((m) => m.name);
     if (offline.length) notes.push(`Load shedding (${shed.join(', ') || 'emergency'}): ${offline.join(', ')} offline`);
+    const broken = snap.modules.filter((m) => m.status === 'failed').map((m) => m.name);
+    if (broken.length) notes.push(`Failed: ${broken.join(', ')}`);
     const cooked = snap.modules.filter((m) => m.status === 'overheated').map((m) => m.name);
     if (cooked.length) notes.push(`Overheating: ${cooked.join(', ')} tripped until the loop cools`);
     else if (th.throttled) notes.push('Running hot: Commercial loads throttled');

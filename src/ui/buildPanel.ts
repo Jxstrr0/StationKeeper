@@ -57,6 +57,12 @@ export function previewRows(base: Forecast, next: Forecast): PreviewRow[] {
       after: `${next.highestCo2MmHg.toFixed(1)} mmHg`,
       tone: tone(base.highestCo2MmHg, next.highestCo2MmHg, false, 0.05),
     },
+    {
+      label: 'Chance of a failure',
+      before: pct(base.failureChance),
+      after: pct(next.failureChance),
+      tone: tone(base.failureChance, next.failureChance, false, 0.005),
+    },
     { label: 'People aboard', before: String(base.people), after: String(next.people), tone: 'same' },
     {
       label: 'Water used',

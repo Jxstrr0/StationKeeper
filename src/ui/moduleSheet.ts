@@ -1,11 +1,14 @@
 // Bottom sheet with details for the tapped module.
 import type { ModuleDef, ModuleSnapshot, SimSnapshot } from '../sim/types';
 import { el, setClass, setText } from './dom';
-import { KIND_LABEL, STATUS_LABEL, TIER_LABEL, celsius, kw } from './format';
+import { KIND_LABEL, STATUS_LABEL, TIER_LABEL, celsius, kw, minutes } from './format';
+import { repairText } from './warningText';
 
 export interface ModuleSheetHandlers {
   onClose(): void;
   onToggle(moduleId: string, enabled: boolean): void;
+  onRepair(moduleId: string): void;
+  onCancelRepair(moduleId: string): void;
 }
 
 export class ModuleSheet {
@@ -31,12 +34,21 @@ export class ModuleSheet {
   private readonly o2Made = el('dd');
   private readonly co2Scrubbed = el('dd');
   private readonly tanks = el('dd');
+  private readonly wearRows: HTMLElement[];
+  private readonly wear = el('dd');
+  private readonly wearBar = el('i');
+  private readonly risk = el('dd');
+  private readonly crewRow: HTMLElement;
+  private readonly crew = el('dd');
+  private readonly repair = el('button', 'sheet-toggle sheet-repair');
   private moduleId: string | null = null;
 
   constructor(
     parent: HTMLElement,
     handlers: ModuleSheetHandlers,
     private readonly defs: Map<string, ModuleDef>,
+    /** Repairs take this many times a service (scenario reliability config). */
+    private readonly repairFactor: number,
   ) {
     const close = el('button', 'sheet-close', ['×']);
     close.type = 'button';
@@ -49,11 +61,21 @@ export class ModuleSheet {
       handlers.onToggle(this.moduleId, this.toggle.dataset.enable === 'true');
     });
 
+    this.repair.type = 'button';
+    this.repair.addEventListener('click', () => {
+      if (!this.moduleId) return;
+      if (this.repair.dataset.action === 'cancel') handlers.onCancelRepair(this.moduleId);
+      else handlers.onRepair(this.moduleId);
+    });
+
     const row = (label: string, value: HTMLElement) => el('div', 'sheet-row', [el('dt', '', [label]), value]);
     this.outputRow = el('div', 'sheet-row', [this.outputLabel, this.output]);
     this.storedRow = row('Stored', this.stored);
     this.aboardRow = row('Aboard', this.aboard);
     this.lsRows = [row('O₂ made', this.o2Made), row('CO₂ scrubbed', this.co2Scrubbed), row('Tanks', this.tanks)];
+    this.wear.append(el('span', 'wear-bar', [this.wearBar]), el('span', 'wear-text'));
+    this.wearRows = [row('Wear', this.wear), row('Failure chance', this.risk)];
+    this.crewRow = row('Crew', this.crew);
     const head = el('div', 'sheet-head', [el('div', '', [this.kind, this.title]), close]);
 
     this.root = el('section', 'sheet', [
@@ -70,8 +92,10 @@ export class ModuleSheet {
         this.aboardRow,
         row('Temperature', this.temp),
         row('Heat to loop', this.heat),
+        ...this.wearRows,
+        this.crewRow,
       ]),
-      this.toggle,
+      el('div', 'sheet-actions', [this.repair, this.toggle]),
     ]);
     this.root.setAttribute('aria-hidden', 'true');
     parent.append(this.root);
@@ -155,6 +179,31 @@ export class ModuleSheet {
     const hasStore = m.capacityKwh > 0;
     setClass(this.storedRow, 'hidden', !hasStore);
     if (hasStore) setText(this.stored, `${m.storedKwh.toFixed(2)} / ${m.capacityKwh.toFixed(1)} kWh (${Math.round((m.storedKwh / m.capacityKwh) * 100)}%)`);
+
+    for (const r of this.wearRows) setClass(r, 'hidden', !m.canFail);
+    if (m.canFail) {
+      this.wearBar.style.width = `${Math.round(m.wear * 100)}%`;
+      setClass(this.wear, 'worn', m.dueForService);
+      setText(this.wear.querySelector<HTMLElement>('.wear-text')!, `${Math.round(m.wear * 100)}%${m.dueForService ? ' · due for service' : ''}`);
+      setText(
+        this.risk,
+        m.status === 'failed' ? 'Failed' : m.failChancePerDay < 0.001 ? 'Under 0.1% a day' : `${(m.failChancePerDay * 100).toFixed(1)}% a day while running`,
+      );
+    }
+    const note = repairText(m);
+    setClass(this.crewRow, 'hidden', !note);
+    setText(this.crew, note ?? '');
+    const hours = def?.reliability?.serviceHours ?? 0;
+    setClass(this.repair, 'hidden', !m.canFail);
+    if (m.repair) {
+      setText(this.repair, m.repair.active ? `Stop the ${m.repair.kind}` : 'Take off the list');
+      this.repair.dataset.action = 'cancel';
+    } else {
+      const failed = m.status === 'failed';
+      setText(this.repair, failed ? `Repair · ${minutes(hours * this.repairFactor * 60)}` : `Service · ${minutes(hours * 60)}`);
+      this.repair.dataset.action = 'repair';
+    }
+    setClass(this.repair, 'primary', !m.repair && (m.status === 'failed' || m.dueForService));
 
     setText(this.toggle, m.enabled ? 'Switch off' : 'Switch on');
     this.toggle.dataset.enable = String(!m.enabled);
