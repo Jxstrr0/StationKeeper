@@ -1,0 +1,118 @@
+// The simulation: owns all sim state, advances one tick per in-game minute, and hands out snapshots.
+// The view and UI read snapshots and send commands; they never touch sim state directly.
+import { EventBus, type SimEvents } from './events';
+import { createOrbit, isInShadowArc, orbitSnapshot, phaseAt, sunlightAt, type OrbitModel } from './orbit';
+import { Rng } from './rng';
+import { buildStation, indexDefs, type Station } from './station';
+import { createPowerState, setModuleEnabled, stepPower, storageTotals, type PowerState } from './systems/power';
+import { MINUTE_MS } from './time';
+import type { ModuleDef, ModuleSnapshot, ScenarioDef, SimSnapshot } from './types';
+
+export type SimCommand = { type: 'setModuleEnabled'; moduleId: string; enabled: boolean };
+
+const TICK_HOURS = 1 / 60;
+
+export class Simulation {
+  readonly events = new EventBus<SimEvents>();
+  readonly station: Station;
+  readonly orbit: OrbitModel;
+  readonly rng: Rng;
+  readonly scenario: ScenarioDef;
+  private readonly startMs: number;
+  private minutes = 0;
+  private readonly power: PowerState;
+
+  constructor(defs: readonly ModuleDef[], scenario: ScenarioDef) {
+    this.scenario = scenario;
+    this.station = buildStation(indexDefs(defs), scenario.layout);
+    this.orbit = createOrbit(scenario.orbit);
+    this.rng = new Rng(scenario.seed);
+    const start = Date.parse(scenario.startDate);
+    if (Number.isNaN(start)) throw new Error(`Bad scenario start date "${scenario.startDate}"`);
+    this.startMs = start;
+    this.power = createPowerState(this.station, scenario.power.initialChargeFraction);
+    this.solvePower(false);
+  }
+
+  get elapsedMinutes(): number {
+    return this.minutes;
+  }
+
+  tick(): void {
+    const wasShadow = isInShadowArc(this.orbit, phaseAt(this.orbit, this.minutes));
+    this.minutes += 1;
+    const isShadow = isInShadowArc(this.orbit, phaseAt(this.orbit, this.minutes));
+    if (!wasShadow && isShadow) this.events.emit('eclipseBegan', { minutes: this.minutes });
+    if (wasShadow && !isShadow) this.events.emit('sunrise', { minutes: this.minutes });
+    this.solvePower(true);
+  }
+
+  /** Run many ticks at once (tests, fast-forward). */
+  run(ticks: number): void {
+    for (let i = 0; i < ticks; i++) this.tick();
+  }
+
+  command(cmd: SimCommand): void {
+    switch (cmd.type) {
+      case 'setModuleEnabled':
+        if (!this.station.byId.has(cmd.moduleId)) return;
+        setModuleEnabled(this.power, cmd.moduleId, cmd.enabled);
+        // Re-solve so the snapshot reflects the switch right away, without spending energy.
+        this.solvePower(false);
+        return;
+    }
+  }
+
+  private solvePower(commitEnergy: boolean): void {
+    // Sunlight at the middle of the minute that just passed (or is about to, for the first solve).
+    const mid = commitEnergy ? this.minutes - 0.5 : this.minutes;
+    stepPower(this.power, this.station, {
+      sunlight: sunlightAt(this.orbit, phaseAt(this.orbit, mid)),
+      thresholds: this.scenario.power.thresholds,
+      dtHours: TICK_HOURS,
+      commitEnergy,
+      events: this.events,
+    });
+  }
+
+  snapshot(): SimSnapshot {
+    const { storedKwh, capacityKwh } = storageTotals(this.power, this.station);
+    const t = this.power.totals;
+    const modules: ModuleSnapshot[] = this.station.modules.map((m) => {
+      const s = this.power.modules.get(m.id)!;
+      return {
+        id: m.id,
+        defId: m.def.id,
+        attach: m.attach,
+        name: m.def.name,
+        kind: m.def.kind,
+        tier: m.def.power.tier,
+        status: s.status,
+        drawKw: m.def.power.drawKw,
+        actualDrawKw: s.actualDrawKw,
+        generationKw: s.generationKw,
+        storedKwh: s.storedKwh,
+        capacityKwh: m.def.power.storageKwh ?? 0,
+        enabled: s.enabled,
+      };
+    });
+    return {
+      minutes: this.minutes,
+      timeMs: this.startMs + this.minutes * MINUTE_MS,
+      orbit: orbitSnapshot(this.orbit, this.minutes),
+      power: {
+        generationKw: t.generationKw,
+        loadKw: t.loadKw,
+        demandKw: t.demandKw,
+        chargeKw: t.chargeKw,
+        dischargeKw: t.dischargeKw,
+        curtailedKw: t.curtailedKw,
+        storedKwh,
+        capacityKwh,
+        charge: capacityKwh > 0 ? storedKwh / capacityKwh : 0,
+        shedTiers: { ...this.power.shedTiers },
+      },
+      modules,
+    };
+  }
+}
