@@ -11,6 +11,8 @@ import { baseScenario, defs, makeSim, runUntil } from './helpers';
 
 const HOUR = 60;
 const galley = defs.find((d) => d.id === 'galley')!;
+const cupola = defs.find((d) => d.id === 'cupola')!;
+const stack = baseScenario.crew.comfortStack;
 const bonus = baseScenario.crew.bonus;
 
 /** A station in permanent sunlight with money to spare and a radiator big enough, so a galley is never shed. */
@@ -27,11 +29,13 @@ function sunny(patch: (s: ScenarioDef) => void = () => {}): Simulation {
   );
 }
 
-function buildGalley(sim: Simulation): string {
-  const port = sim.snapshot().freePorts.find((p) => sim.buildProblem('galley', p.moduleId, p.portId) === null)!;
-  expect(sim.command({ type: 'addModule', defId: 'galley', to: port.moduleId, port: port.portId })).toMatchObject({ ok: true });
-  return sim.snapshot().modules.find((m) => m.kind === 'galley')!.id;
+function build(sim: Simulation, defId: string): string {
+  const port = sim.snapshot().freePorts.find((p) => sim.buildProblem(defId, p.moduleId, p.portId) === null)!;
+  const r = sim.command({ type: 'addModule', defId, to: port.moduleId, port: port.portId });
+  expect(r).toMatchObject({ ok: true });
+  return r.ok && 'moduleId' in r ? String(r.moduleId) : '';
 }
+const buildGalley = (sim: Simulation) => build(sim, 'galley');
 
 const avgMorale = (sim: Simulation) => {
   const here = sim.snapshot().crew.members.filter((m) => m.status !== 'inFlight');
@@ -39,12 +43,39 @@ const avgMorale = (sim: Simulation) => {
 };
 
 describe('comforts', () => {
-  it('the best comfort counts, and too few seats share it out', () => {
-    const g = galley.comfort!;
-    expect(comfortLift([], 4)).toEqual({ lift: 0, seats: 0 });
-    expect(comfortLift([g], 4)).toEqual({ lift: g.morale, seats: g.seats });
-    expect(comfortLift([g], 9).lift).toBeCloseTo((g.morale * g.seats) / 9);
-    expect(comfortLift([g, g], 9)).toEqual({ lift: g.morale, seats: 2 * g.seats });
+  it('too few seats share a comfort out, and more of the same kind only adds seats', () => {
+    const g = { name: galley.name, comfort: galley.comfort! };
+    const { morale, seats } = g.comfort;
+    expect(comfortLift([], 4, stack)).toEqual({ lift: 0, seats: 0, kinds: [] });
+    expect(comfortLift([g], 4, stack)).toMatchObject({ lift: morale, seats });
+    expect(comfortLift([g], 9, stack).lift).toBeCloseTo((morale * seats) / 9);
+    expect(comfortLift([g, g], 9, stack)).toMatchObject({ lift: morale, seats: 2 * seats });
+  });
+
+  it('different kinds stack, the biggest lift first and each further kind counting for less', () => {
+    const g = { name: galley.name, comfort: galley.comfort! };
+    const c = { name: cupola.name, comfort: cupola.comfort! };
+    const both = comfortLift([c, g], 3, stack);
+    expect(both.kinds.map((k) => k.name)).toEqual([galley.name, cupola.name]);
+    expect(both.lift).toBeCloseTo(g.comfort.morale + stack * c.comfort.morale);
+    expect(both.seats).toBe(g.comfort.seats + c.comfort.seats);
+    // Six aboard: the cupola's three seats go half as far.
+    expect(comfortLift([g, c], 6, stack).lift).toBeCloseTo(g.comfort.morale + stack * c.comfort.morale * (c.comfort.seats / 6));
+  });
+
+  it('a cupola is a dead end, and with a galley the crew settles happier still', () => {
+    const galleyOnly = sunny();
+    const both = sunny();
+    buildGalley(galleyOnly);
+    buildGalley(both);
+    const id = build(both, 'cupola');
+    expect(both.snapshot().freePorts.some((p) => p.moduleId === id)).toBe(false);
+    const crew = both.snapshot().crew;
+    expect(crew.comfortLift).toBeCloseTo(galley.comfort!.morale + stack * cupola.comfort!.morale);
+    expect(comfortText(both.snapshot())).toMatch(/Galley \+12%, 6 seats · Observation Cupola \+4%, 3 seats/);
+    galleyOnly.run(24 * HOUR);
+    both.run(24 * HOUR);
+    expect(avgMorale(both)).toBeGreaterThan(avgMorale(galleyOnly) + 0.03);
   });
 
   it('a running galley lifts where morale settles, and stops when switched off', () => {
@@ -129,5 +160,8 @@ describe('comfort and bonus data', () => {
     expect(crew(undefined)).toThrow(/crew.bonus/);
     expect(crew({ perPerson: -1, morale: 0.1, cooldownHours: 24 })).toThrow(/perPerson/);
     expect(crew({ perPerson: 0.3, morale: 2, cooldownHours: 24 })).toThrow(/morale/);
+    const stacking = (v: unknown) => () => parseScenario({ ...scenarioJson, crew: { ...scenarioJson.crew, comfortStack: v } });
+    expect(stacking(undefined)).toThrow(/comfortStack/);
+    expect(stacking(1.5)).toThrow(/comfortStack/);
   });
 });

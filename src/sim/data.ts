@@ -75,7 +75,7 @@ function tier(v: unknown, path: string): Tier {
   return s as Tier;
 }
 
-const KINDS: readonly ModuleKind[] = ['core', 'solar', 'battery', 'habitat', 'radiator', 'lifesupport', 'lab', 'node', 'quarters', 'galley'];
+const KINDS: readonly ModuleKind[] = ['core', 'solar', 'battery', 'habitat', 'radiator', 'lifesupport', 'lab', 'node', 'quarters', 'galley', 'cupola'];
 
 function kind(v: unknown, path: string): ModuleKind {
   const s = str(v, path);
@@ -441,6 +441,7 @@ function crewConfig(raw: unknown): CrewConfig {
     arrivalHours: nonNegative(o.arrivalHours, 'crew.arrivalHours'),
     unstaffedLabFactor: fraction(o.unstaffedLabFactor, 'crew.unstaffedLabFactor'),
     needs: crewNeeds(o.needs),
+    comfortStack: fraction(o.comfortStack, 'crew.comfortStack'),
     bonus: {
       perPerson: nonNegative(bonus.perPerson, 'crew.bonus.perPerson'),
       morale: fraction(bonus.morale, 'crew.bonus.morale'),
