@@ -38,7 +38,7 @@ export function warningTitle(w: StationWarning, mod: (id: string) => ModuleSnaps
     case 'crewCondition':
       return `Crew condition at ${pct(w.value)}`;
     case 'guestsIdle':
-      return `${name} down: guests aren't paying`;
+      return `${name} down: guests aren't paying (${money(w.value ?? 0)} a day)`;
     case 'contractAtRisk':
       return `Contract at risk: ${w.label ?? 'research'}`;
     case 'overdrawn':

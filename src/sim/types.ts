@@ -301,6 +301,8 @@ export interface EconomySnapshot {
   active: ContractSnapshot[];
   /** Research labs on the station; each can run one contract. */
   labs: number;
+  /** What each habitat's guests pay a day while it runs, by module id. */
+  guestIncomePerDay: Record<string, number>;
   deliveries: DeliverySnapshot[];
 }
 
