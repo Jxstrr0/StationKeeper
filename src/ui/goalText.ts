@@ -1,6 +1,7 @@
 // Words for a scenario's goal: what the board wants, and how far along the station is.
+import type { ScenarioRecord } from '../records';
 import type { GoalDef, GoalSnapshot } from '../sim/types';
-import { money } from './format';
+import { minutes, money } from './format';
 
 const days = (d: number) => `${d} ${d === 1 ? 'day' : 'days'}`;
 
@@ -31,4 +32,22 @@ export function deadlineText(g: GoalSnapshot, nowMinutes: number): string | null
   const h = Math.floor((left % 1440) / 60);
   if (d > 0) return `${d} d ${h} h left`;
   return h > 0 ? `${h} h ${Math.floor(left % 60)} min left` : `${Math.floor(left)} min left`;
+}
+
+/** "3 d 4 h", or "14 h 20 min" under a day. */
+export function durationText(m: number): string {
+  if (m < 1440) return minutes(m);
+  const d = Math.floor(m / 1440);
+  const h = Math.floor((m % 1440) / 60);
+  return h > 0 ? `${d} d ${h} h` : `${d} d`;
+}
+
+const times = (n: number) => (n === 1 ? 'once' : n === 2 ? 'twice' : `${n} times`);
+const stations = (n: number) => `${n} ${n === 1 ? 'station' : 'stations'} lost`;
+
+/** "Won twice, fastest in 3 d 4 h · 1 station lost", or null for a scenario never finished either way. */
+export function recordLine(r: ScenarioRecord): string | null {
+  if (r.wins === 0 && r.losses === 0) return null;
+  const won = r.wins > 0 && r.bestMinutes !== null ? `Won ${times(r.wins)}, fastest in ${durationText(r.bestMinutes)}` : 'Not won yet';
+  return r.losses > 0 ? `${won} · ${stations(r.losses)}` : won;
 }

@@ -6,6 +6,7 @@ import modulesJson from './data/modules.json';
 import { SCENARIOS, scenarioById } from './scenarios';
 import { parseModuleDefs } from './sim/data';
 import { loadGame, saveGame, startNewGame, takeChosenScenario } from './persist';
+import { loadRecords, recordLoss, recordWin } from './records';
 import { forecast } from './sim/forecast';
 import { phaseAt, sunlightAt } from './sim/orbit';
 import { Simulation } from './sim/simulation';
@@ -109,7 +110,7 @@ async function start(): Promise<void> {
     onClose: () => crew.close(),
     onHire: (role) => send({ type: 'hireCrew', role }),
     onDismiss: (crewId) => send({ type: 'dismissCrew', crewId }),
-  });
+  }, sim.forSale('research-lab') || sim.snapshot().modules.some((m) => m.kind === 'lab') ? ['engineer', 'scientist'] : ['engineer']);
   const sheet = new ModuleSheet(
     ui,
     {
@@ -163,13 +164,13 @@ async function start(): Promise<void> {
     onAbandon: (uid) => send({ type: 'abandonContract', uid }),
     onRepay: (amount) => send({ type: 'repayLoan', amount }),
     onNewGame: () => newGame(),
-  }, scenario.goal);
+  }, scenario.goal, scenario.economy.contracts.pool.length > 0);
   // A new station: choose a scenario, then reload into it.
   const picker = new ScenarioPicker(ui, SCENARIOS, (id) => {
     saving = false;
     startNewGame(id);
     location.reload();
-  });
+  }, loadRecords);
   const newGame = () => {
     clock.setSpeed(0);
     finance.close();
@@ -216,12 +217,15 @@ async function start(): Promise<void> {
       lifetimeNet: Object.values(sim.lifetimeLedger).reduce((a, b) => a + b, 0),
     });
   };
+  // Each ending is recorded once: the events fire only on the tick it happens, never again after a reload.
   sim.events.on('gameOver', ({ outcome }) => {
+    recordLoss(sim.scenario.id, outcome);
     if (report.isOpen) report.close(); // its Continue won't restart a lost game
     showEnding(outcome);
     autosave(true);
   });
-  sim.events.on('goalReached', () => {
+  sim.events.on('goalReached', ({ minutes }) => {
+    recordWin(sim.scenario.id, minutes);
     goalResume = clock.speed === 0 ? 1 : clock.speed;
     showEnding('goal');
   });
@@ -276,7 +280,7 @@ async function start(): Promise<void> {
       buildPanel.showPreview(def.name, sub, previewRows(base, next), null);
     }, 30);
   };
-  const buildPanel = new BuildPanel(ui, defs, {
+  const buildPanel = new BuildPanel(ui, defs.filter((d) => sim.forSale(d.id)), {
     onOpen: () => {
       select(null);
       warnings.close();

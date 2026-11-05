@@ -31,5 +31,7 @@ describe('crew text', () => {
     const { crewDuties } = await import('../src/ui/crewPanel');
     const { makeSim } = await import('./helpers');
     expect(crewDuties(makeSim().snapshot())).toBe('1 engineer, 1 repair team · 2 scientists, no labs yet');
+    const hotel = makeSim((s) => (s.crew.roster = [{ name: 'A', role: 'engineer' }, { name: 'B', role: 'engineer' }]));
+    expect(crewDuties(hotel.snapshot())).toBe('2 engineers, 2 repair teams');
   });
 });

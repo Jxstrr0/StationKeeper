@@ -151,7 +151,12 @@ export class Hud {
     const o = snap.orbit;
     setClass(this.orbitState, 'eclipse', !o.sunlit);
     setText(this.orbitLabel, o.sunlit ? 'Sunlight' : 'Eclipse');
-    setText(this.orbitEta, o.sunlit ? `Eclipse in ${minutes(o.minutesToTransition)}` : `Sunrise in ${minutes(o.minutesToTransition)}`);
+    const eta = !Number.isFinite(o.minutesToTransition)
+      ? 'No eclipse on this orbit'
+      : o.sunlit
+        ? `Eclipse in ${minutes(o.minutesToTransition)}`
+        : `Sunrise in ${minutes(o.minutesToTransition)}`;
+    setText(this.orbitEta, eta);
 
     const p = snap.power;
     setText(this.gen, kw(p.generationKw));
