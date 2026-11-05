@@ -9,6 +9,7 @@ describe('goal text', () => {
     expect(goalLine({ kind: 'repayLoan' })).toBe('Pay off the loan.');
     expect(goalLine({ kind: 'cash', amount: 120, days: 1 })).toBe('Build up $120M in cash within 1 day.');
     expect(goalLine({ kind: 'contracts', count: 6, days: 6 })).toBe('Deliver 6 research contracts within 6 days.');
+    expect(goalLine({ kind: 'reviews', stars: 4, days: 8 })).toBe('Earn 4-star guest reviews within 8 days.');
   });
 
   it('says how far along the station is', () => {
@@ -16,6 +17,7 @@ describe('goal text', () => {
     expect(goalProgress(snap({ kind: 'repayLoan', current: 18, target: 0 }))).toBe('$18.0M left to repay');
     expect(goalProgress(snap({ kind: 'repayLoan', current: 0, target: 0 }))).toBe('Paid off');
     expect(goalProgress(snap({ kind: 'cash', current: -4, target: 90 }))).toBe('$0 of $90.0M');
+    expect(goalProgress(snap({ kind: 'reviews', current: 2, target: 4 }))).toBe('Last reviews ★★☆☆☆');
   });
 
   it('counts down to the deadline', () => {

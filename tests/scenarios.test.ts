@@ -58,3 +58,42 @@ describe('Halyard Sunward', () => {
     expect(['throttled', 'overheated']).toContain(habitat.status);
   });
 });
+
+describe('Saltglass Rest', () => {
+  const saltglass = scenarioById('saltglass')!;
+  const DAY = 1440;
+  /** Buy each module in turn as soon as there is a port for it. */
+  const buy = (sim: Simulation, defIds: string[]) => {
+    for (const defId of defIds) {
+      const port = sim.snapshot().freePorts.find((p) => sim.buildProblem(defId, p.moduleId, p.portId) === null)!;
+      expect(sim.command({ type: 'addModule', defId, to: port.moduleId, port: port.portId }).ok).toBe(true);
+    }
+  };
+
+  it('opens at one star, with two habitats and most of the places unbooked', () => {
+    const s = new Simulation(defs, saltglass, saltglass.layout, { failures: false }).snapshot();
+    expect(s.guests.stars).toBe(1);
+    expect(s.guests.places).toBe(8);
+    expect(s.guests.booked).toBeLessThan(4);
+    expect(s.ending.goal).toMatchObject({ kind: 'reviews', current: 1, target: 4 });
+  });
+
+  it('left as it is, it never earns four stars, and the owners replace you', () => {
+    const sim = new Simulation(defs, saltglass, saltglass.layout, { failures: false });
+    const posted: number[] = [];
+    sim.events.on('guestReviews', (r) => posted.push(r.stars));
+    sim.run(9 * DAY);
+    expect(posted.length).toBeGreaterThanOrEqual(7);
+    expect(Math.max(...posted)).toBeLessThan(4);
+    expect(sim.snapshot().ending.outcome).toBe('replaced');
+  });
+
+  it('with cooling, storage and generation added, it earns four stars well inside the week', () => {
+    const sim = new Simulation(defs, saltglass, saltglass.layout, { failures: false });
+    buy(sim, ['radiator', 'battery-pack', 'solar-array']);
+    sim.run(6 * DAY);
+    const goalAt = sim.snapshot().ending.goalAtMinutes;
+    expect(goalAt).not.toBeNull();
+    expect(goalAt!).toBeLessThan(saltglass.goal.days! * DAY);
+  });
+});
