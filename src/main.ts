@@ -4,14 +4,17 @@ import * as THREE from 'three';
 import modulesJson from './data/modules.json';
 import scenarioJson from './data/scenario.json';
 import { parseModuleDefs, parseScenario } from './sim/data';
+import { forecast } from './sim/forecast';
 import { phaseAt, sunlightAt } from './sim/orbit';
 import { Simulation } from './sim/simulation';
-import { indexDefs } from './sim/station';
+import { indexDefs, mountPort } from './sim/station';
 import { Clock, SPEEDS, type Speed } from './sim/time';
+import { BuildPanel, previewRows } from './ui/buildPanel';
 import { connectEventFeed } from './ui/eventFeed';
 import { Hud } from './ui/hud';
 import { ModuleSheet } from './ui/moduleSheet';
 import { Toasts } from './ui/toasts';
+import { BuildView, type PortRef } from './view/buildView';
 import { OrbitCamera } from './view/camera';
 import { ModuleModelLoader } from './view/moduleModels';
 import { ALTITUDE, createScene } from './view/scene';
@@ -34,8 +37,11 @@ async function start(): Promise<void> {
   const boot = byId<HTMLDivElement>('boot');
 
   const env = createScene(canvas);
-  const stationView = new StationView(defsById, new ModuleModelLoader());
+  const models = new ModuleModelLoader();
+  const stationView = new StationView(defsById, models);
   env.scene.add(stationView.root);
+  const buildView = new BuildView(stationView, models);
+  env.scene.add(buildView.root);
 
   const cam = new OrbitCamera(env.camera, canvas, { minDistance: 12, maxDistance: 170, floorY: -ALTITUDE + 8 });
 
@@ -70,10 +76,92 @@ async function start(): Promise<void> {
   );
   connectEventFeed(sim.events, toasts, (id) => snap.modules.find((m) => m.id === id)?.name ?? id);
 
+  // ---- Build mode: tray → tap a port → preview → build ----
+  const PREVIEW_MINUTES = Math.ceil(sim.orbit.periodMinutes * 2);
+  let build: { defId: string; via: string; step: 'placing' | 'preview'; target: PortRef | null; fits: number } | null = null;
+  const exitBuild = () => {
+    build = null;
+    buildView.clear();
+    buildPanel.close();
+  };
+  const pickModule = async (defId: string) => {
+    const def = defsById.get(defId);
+    const via = def && mountPort(def);
+    if (!def || !via) return;
+    build = { defId, via, step: 'placing', target: null, fits: 0 };
+    const candidates = snap.freePorts.filter((p) => sim.buildProblem(defId, p.moduleId, p.portId) === null);
+    const fits = await buildView.showPorts(def, via, candidates);
+    if (build?.defId !== defId) return;
+    build.fits = fits.length;
+    buildPanel.showPlacing(def.name, fits.length);
+  };
+  const previewAt = async (ref: PortRef) => {
+    if (!build) return;
+    const current = build;
+    const def = defsById.get(current.defId)!;
+    current.step = 'preview';
+    current.target = ref;
+    const blocker = await buildView.showGhost(def, current.via, ref);
+    if (build !== current || current.target !== ref) return;
+    const portName = `${stationView.moduleName(ref.moduleId)}, ${ref.portId} port`;
+    const blockedBy = blocker ? stationView.moduleName(blocker) : null;
+    buildPanel.showPreview(def.name, `On the ${portName}. Over the next two orbits:`, null, blockedBy);
+    // Let the panel paint, then run the two forecasts (fast: the sim is headless).
+    setTimeout(() => {
+      if (build !== current || current.target !== ref) return;
+      const base = forecast(sim, PREVIEW_MINUTES);
+      const next = forecast(sim, PREVIEW_MINUTES, { type: 'addModule', defId: current.defId, to: ref.moduleId, port: ref.portId });
+      if (!base || !next) return buildPanel.showPreview(def.name, 'That port is no longer free.', [], 'station');
+      buildPanel.showPreview(def.name, `On the ${portName}. Over the next two orbits:`, previewRows(base, next), blockedBy);
+    }, 30);
+  };
+  const buildPanel = new BuildPanel(ui, defs, {
+    onOpen: () => {
+      select(null);
+      buildPanel.showTray();
+    },
+    onClose: exitBuild,
+    onPick: (defId) => void pickModule(defId),
+    onBack: () => {
+      if (!build) return;
+      if (build.step === 'preview') {
+        build.step = 'placing';
+        build.target = null;
+        buildView.clearGhost();
+        buildPanel.showPlacing(defsById.get(build.defId)!.name, build.fits);
+      } else {
+        build = null;
+        buildView.clear();
+        buildPanel.showTray();
+      }
+    },
+    onConfirm: () => {
+      if (!build?.target) return;
+      const { defId, target } = build;
+      const result = sim.command({ type: 'addModule', defId, to: target.moduleId, port: target.portId });
+      if (!result.ok) {
+        toasts.show(`Can't build there: ${result.reason}.`, 'warn');
+        return;
+      }
+      snap = sim.snapshot();
+      exitBuild();
+      void stationView.sync(snap).then(() => {
+        const b = stationView.bounds();
+        cam.focus(b.center, Math.max(cam.distance, b.radius * (env.camera.aspect < 0.8 ? 3.4 : 2.4)));
+      });
+      toasts.show(`${defsById.get(defId)!.name} built on the ${stationView.moduleName(target.moduleId)}.`, 'ok');
+    },
+  });
+
   const ndc = new THREE.Vector2();
   cam.onTap = (x, y) => {
     const rect = canvas.getBoundingClientRect();
     ndc.set(((x - rect.left) / rect.width) * 2 - 1, -((y - rect.top) / rect.height) * 2 + 1);
+    if (build) {
+      const ref = buildView.pickPort(ndc, env.camera);
+      if (ref) void previewAt(ref);
+      return;
+    }
     select(stationView.pick(ndc, env.camera));
   };
 
@@ -82,7 +170,8 @@ async function start(): Promise<void> {
       e.preventDefault();
       clock.togglePause();
     } else if (e.key === 'Escape') {
-      select(null);
+      if (build || buildPanel.isOpen) exitBuild();
+      else select(null);
     } else if (/^[1-4]$/.test(e.key)) {
       clock.setSpeed(SPEEDS[Number(e.key) - 1] as Speed);
     }
@@ -109,6 +198,7 @@ async function start(): Promise<void> {
     env.earth.setCloudShift(t * 0.0006);
 
     stationView.update(snap, env.sunDir, dt);
+    buildView.update(dt, env.camera);
     cam.update(dt);
     hud.update(snap, clock.speed);
     sheet.update(snap);
