@@ -26,6 +26,7 @@ export function moduleHighlights(def: ModuleDef): string[] {
   if (def.lifeSupport) out.push(`O₂ ${def.lifeSupport.o2KgPerDay} kg/day · CO₂ ${def.lifeSupport.co2KgPerDay} kg/day`);
   const people = [def.cabin?.bunks && `${def.cabin.bunks} bunks`, def.cabin?.guests && `${def.cabin.guests} guests`].filter(Boolean);
   if (people.length) out.push(people.join(', '));
+  if (def.comfort) out.push(`+${Math.round(def.comfort.morale * 100)}% crew morale, seats ${def.comfort.seats}`);
   if (def.kind === 'lab') out.push('Runs research contracts');
   // Ports beyond the one it docks by are room to grow.
   if (def.kind === 'node') out.push(`Adds ${def.ports.length - 1} docking ports`);

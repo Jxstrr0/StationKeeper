@@ -110,6 +110,7 @@ async function start(): Promise<void> {
     onClose: () => crew.close(),
     onHire: (role) => send({ type: 'hireCrew', role }),
     onDismiss: (crewId) => send({ type: 'dismissCrew', crewId }),
+    onBonus: () => send({ type: 'payBonus' }),
   }, sim.forSale('research-lab') || sim.snapshot().modules.some((m) => m.kind === 'lab') ? ['engineer', 'scientist'] : ['engineer']);
   const sheet = new ModuleSheet(
     ui,
