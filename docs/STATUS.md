@@ -43,6 +43,66 @@ Generation is 22 kW peak, the load is 11.7 kW, and the battery holds 9 kWh with 
 - Penumbra and beta angle are static. No battery efficiency losses yet.
 - Verified headless in an emulated Pixel 7 (SwiftShader). Still needs a real-device check of frame rate and touch feel.
 
-## Next slice: Thermal
+## Session 2 (Slice 2): thermal
 
-Every powered module produces heat equal to its draw. Radiators reject heat, more on the night side. Add a thermal store per module or loop through `network.ts`, overheating effects (throttling, then shedding), and a Heat overlay toggle that tints modules. Reuse the network solver for the coolant loop, and add a radiator module to `modules.json`.
+### What was built
+
+- **Sim (`src/sim/systems/thermal.ts`):** one shared coolant loop.
+  - **Heat in:** every kW a module actually draws becomes a kW of heat in the loop.
+  - **Heat out:** radiators reject up to `rejectKw` in full eclipse, falling to `rejectKw × sunlitFactor` in full sunlight, because the Sun and Earth glare warm the panels. The radiator valves hold the loop at its setpoint (18 °C) when there is capacity to spare, and never chill it below.
+  - **Hysteresis bands on loop temperature** (`scenario.json` → `thermal`):
+    - **Throttle:** Commercial loads run at 60% of their draw above 24 °C, and the throttle clears below 21 °C.
+    - **Trips:** Commercial above 30 °C (back below 25), Essential above 36 (back below 30), Critical above 45 (back below 38). A lower tier never runs while a higher one is tripped.
+  - **Never tripped:** radiators, since tripping the cooling would only cook the station faster.
+  - **Module temperatures:** each module sits above the loop by `riseCPerKw × its heat` and follows that target with an 8-minute lag. These feed the Heat overlay.
+  - **Cascade:**
+    - Power runs first, using last tick's throttle and trip flags.
+    - Thermal then runs on what actually drew power.
+    - Tripped modules draw nothing next tick ("overheated" status).
+    - Radiator pumps are an Essential power load, so a deep power shortage stops the radiators and the loop warms.
+- **Data:** every module has a `thermal` block. New **Radiator Array** module (0.8 kW Essential pumps, 15 kW rejection, 0.66 in sunlight) on the core's port side. Both data files are validated, including band order and throttle factor range.
+- **View:**
+  - **Radiator grey-box:** a truss with a T of six white panels. They face the orbit normal, so they stay edge-on to the Sun, as real radiators are steered to.
+  - **Heat overlay:** the **Heat** button in the power card. Each module swaps to its own tint material coloured from a shared scale (blue below setpoint, lilac healthy, peach to red when hot), with a legend. Draw calls don't change.
+  - **Status lights:** pale clay when throttled; red and blinking when tripped. Habitat windows dim when throttled.
+- **UI:**
+  - **Power card:** a coolant loop row showing the temperature, a gauge from setpoint to first trip with a tick at the throttle point, and "Warming / Cooling / Holding" with kW.
+  - **Notes:** "Running hot" and "Overheating" join the shedding note.
+  - **Module sheet:** Temperature and Heat to loop rows; radiators show "Rejecting". Draw shows "throttled from" when throttled.
+  - **Toasts:** throttle, trips, and recoveries.
+- **Tests (`tests/thermal.test.ts`, 40 total):**
+  - Radiators reject more in eclipse.
+  - Heat equals power drawn.
+  - The loop warms in sunlight and returns to setpoint in eclipse.
+  - Throttling cuts Commercial draw to the throttle factor.
+  - Trip order is throttle → Commercial → Essential → Critical, with Critical only at 45 °C, and radiators are never tripped.
+  - Tripped modules draw nothing and come back once cooled.
+  - Switching the radiators off overheats the station.
+  - The default scenario throttles but never trips.
+
+### Thermal balance (by design)
+
+Heat is 12.5 kW with everything on, against 15 kW of rejection in eclipse and 9.9 kW in sunlight. The loop climbs about 6 °C over each day pass. In the last few minutes of sunlight it crosses 24 °C and the Guest Habitat throttles for about 20 minutes, into the start of eclipse, until the loop is back under 21 °C. Later in the same eclipse the battery runs low and the habitat is power-shed around sunrise. Each orbit now has two different problems, at two different times, from two systems. A second radiator or a bigger battery is the obvious fix once build mode lands.
+
+### How to test on a phone
+
+1. Press **20×**. Watch the coolant loop warm through the day and cool in eclipse. Near sunset the habitat light turns pale clay, a "Running hot" note appears, and a toast fires.
+2. Tap **Heat** to tint the station by temperature, and tap it again to turn the tint off.
+3. Open the Radiator Array sheet and switch it off. Within a few minutes the habitat throttles, then trips (red blinking light). Switch it back on and everything recovers.
+
+### Choices made
+
+- **One loop for the whole station.** Separate internal and external loops can come later, when a second loop has a gameplay reason to exist.
+- **Thermal doesn't use `network.ts`.** The power solver's hard feasibility limit would hide heat that modules really produced that tick, so thermal uses its own energy-conserving loop update plus temperature hysteresis. If life support has the same supply/store/loads shape as power, it can reuse `network.ts`.
+- **Trips act one tick (one in-game minute) late**, so power and thermal each solve once per tick with no circular dependency.
+- **Sun heating is folded into `sunlitFactor`.** There is no separate absorbed-flux model yet.
+
+### Known gaps
+
+- No battery charge and discharge losses, no battery cold limit, and no heater power.
+- The overlay tints modules evenly; there are no per-part hot spots.
+- The Pages deploy needs a check on a real device.
+
+## Next slice: Life support
+
+Oxygen, CO2, and water, with power and water costs, plus a crew count that consumes them. The likely approach is to put each consumable on `network.ts` (O2 generation as supply, tanks as stores, crew as loads), with crew health effects when tanks run dry. Add a life-support rack module whose power and heat feed the existing systems, so a power or thermal problem becomes a breathing problem.

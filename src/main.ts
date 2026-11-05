@@ -46,7 +46,10 @@ async function start(): Promise<void> {
   cam.setDistance(frame.radius * (env.camera.aspect < 0.8 ? 3.4 : 2.4));
 
   // ---- UI ----
-  const hud = new Hud(ui, { onSpeed: (s) => clock.setSpeed(s) });
+  const hud = new Hud(ui, {
+    onSpeed: (s) => clock.setSpeed(s),
+    onHeatOverlay: (on) => stationView.setHeatOverlay(on),
+  });
   const toasts = new Toasts(ui);
   const descriptions = new Map(defs.map((d) => [d.id, d.description]));
   const select = (id: string | null) => {
