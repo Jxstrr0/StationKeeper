@@ -1,7 +1,8 @@
 // Draws the station from sim snapshots: places modules at their ports, tints status lights,
 // turns the solar wings toward the sun, and answers "which module did I tap?".
 import * as THREE from 'three';
-import type { ModuleDef, ModuleSnapshot, ModuleStatus, SimSnapshot } from '../sim/types';
+import { mountPort } from '../sim/station';
+import type { DeliverySnapshot, ModuleDef, ModuleSnapshot, ModuleStatus, SimSnapshot } from '../sim/types';
 import { heatRgb } from './heatScale';
 import type { ModuleModel, ModuleModelSource } from './moduleModels';
 
@@ -66,6 +67,12 @@ export class StationView {
   readonly root = new THREE.Group();
   private readonly entries = new Map<string, Entry>();
   private readonly pending = new Set<string>();
+  /** Modules on their way: a faint outline where each will dock. Not pickable, but solid to collision(). */
+  private readonly orders = new Map<string, THREE.Object3D>();
+  private readonly orderNames = new Map<string, string>();
+  private readonly pendingOrders = new Set<string>();
+  private ordersKey = '';
+  private readonly orderMat = new THREE.MeshBasicMaterial({ color: 0xe8dfcf, transparent: true, opacity: 0.16, depthWrite: false });
   private readonly raycaster = new THREE.Raycaster();
   private readonly haloTexture = makeHaloTexture();
   private readonly lightGeo = new THREE.SphereGeometry(0.16, 12, 8);
@@ -92,6 +99,43 @@ export class StationView {
         await this.add(m);
       } finally {
         this.pending.delete(m.id);
+      }
+    }
+  }
+
+  /** Draw modules on order where they will dock, and drop the outline once one has docked. Cheap when nothing changed. */
+  async syncOrders(deliveries: readonly DeliverySnapshot[]): Promise<void> {
+    const key = deliveries.map((d) => d.moduleId).join(',');
+    if (key === this.ordersKey) return;
+    this.ordersKey = key;
+    const want = new Set(deliveries.map((d) => d.moduleId));
+    for (const [id, object] of this.orders) {
+      if (want.has(id)) continue;
+      this.root.remove(object);
+      this.orders.delete(id);
+      this.orderNames.delete(id);
+    }
+    for (const d of deliveries) {
+      if (this.orders.has(d.moduleId) || this.pendingOrders.has(d.moduleId)) continue;
+      const def = this.defs.get(d.defId);
+      const via = def && mountPort(def);
+      if (!def || !via) continue;
+      this.pendingOrders.add(d.moduleId);
+      try {
+        const object = (await this.models.load(def)).root;
+        // It may have docked (or the view moved on) while the model loaded.
+        if (!this.ordersKey.split(',').includes(d.moduleId) || this.entries.has(d.moduleId)) continue;
+        if (!this.place(object, def, d.to, d.port, via)) continue;
+        object.name = `order:${d.moduleId}`;
+        object.traverse((o) => {
+          o.raycast = () => {};
+          if (o instanceof THREE.Mesh) o.material = this.orderMat;
+        });
+        this.orders.set(d.moduleId, object);
+        this.orderNames.set(d.moduleId, d.name);
+        this.root.add(object);
+      } finally {
+        this.pendingOrders.delete(d.moduleId);
       }
     }
   }
@@ -174,12 +218,20 @@ export class StationView {
         for (const b of mine) if (b.intersectsBox(theirs)) return e.id;
       }
     }
+    // Modules on order count too: their ports are already spoken for.
+    for (const [id, object] of this.orders) {
+      object.updateWorldMatrix(true, true);
+      for (const theirs of meshBoxes(object)) {
+        for (const b of mine) if (b.intersectsBox(theirs)) return id;
+      }
+    }
     return null;
   }
 
   /** Display name of a module on the station. */
   moduleName(id: string): string {
-    return this.entries.get(id)?.def.name ?? id;
+    const order = this.orders.get(id);
+    return this.entries.get(id)?.def.name ?? (order ? `${this.orderNames.get(id) ?? id} on order` : id);
   }
 
   /** Show or hide the Heat overlay: every module is tinted by its temperature. */

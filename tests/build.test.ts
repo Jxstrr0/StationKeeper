@@ -1,10 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { forecast } from '../src/sim/forecast';
+import type { ScenarioDef } from '../src/sim/types';
 import { makeSim } from './helpers';
+
+/** These tests are about installing modules: no delivery wait, and cash to spare. */
+const instant = (s: ScenarioDef) => {
+  s.economy.deliveryHours = 0;
+  s.economy.startCash = 500;
+};
 
 describe('building modules', () => {
   it('lists free ports and removes them once used', () => {
-    const sim = makeSim();
+    const sim = makeSim(instant);
     const free = sim.snapshot().freePorts;
     expect(free).toContainEqual({ moduleId: 'core-1', portId: 'zenith' });
     expect(free).not.toContainEqual({ moduleId: 'core-1', portId: 'fore' });
@@ -14,7 +21,7 @@ describe('building modules', () => {
   });
 
   it('attaches by the new module’s first port and shows up in the snapshot', () => {
-    const sim = makeSim();
+    const sim = makeSim(instant);
     sim.command({ type: 'addModule', defId: 'habitat', to: 'habitat-1', port: 'fore' });
     const m = sim.snapshot().modules.find((x) => x.id === 'habitat-2')!;
     expect(m.attach).toEqual({ to: 'habitat-1', port: 'fore', via: 'aft' });
@@ -22,7 +29,7 @@ describe('building modules', () => {
   });
 
   it('refuses used ports, unknown ports, and unknown modules', () => {
-    const sim = makeSim();
+    const sim = makeSim(instant);
     expect(sim.command({ type: 'addModule', defId: 'battery-pack', to: 'core-1', port: 'fore' })).toMatchObject({ ok: false, reason: /in use/ });
     expect(sim.command({ type: 'addModule', defId: 'battery-pack', to: 'core-1', port: 'nope' })).toMatchObject({ ok: false, reason: /no port/ });
     expect(sim.command({ type: 'addModule', defId: 'warp-drive', to: 'core-1', port: 'zenith' })).toMatchObject({ ok: false, reason: /Unknown/ });
@@ -30,8 +37,22 @@ describe('building modules', () => {
     expect(sim.snapshot().modules).toHaveLength(6);
   });
 
+  it('a docking node uses one port and opens three more, so the station has room to grow', () => {
+    const sim = makeSim(instant);
+    const before = sim.snapshot().freePorts.length;
+    expect(sim.command({ type: 'addModule', defId: 'docking-node', to: 'core-1', port: 'zenith' })).toMatchObject({ ok: true });
+    const free = sim.snapshot().freePorts;
+    expect(free).toHaveLength(before + 2);
+    const onNode = free.filter((p) => p.moduleId === 'docking-node-1').map((p) => p.portId);
+    expect(onNode.sort()).toEqual(['fore', 'nadir', 'zenith']);
+    // Something can dock to it.
+    const fits = onNode.filter((port) => sim.buildProblem('battery-pack', 'docking-node-1', port) === null);
+    expect(fits.length).toBeGreaterThan(0);
+    expect(sim.command({ type: 'addModule', defId: 'battery-pack', to: 'docking-node-1', port: fits[0]! })).toMatchObject({ ok: true });
+  });
+
   it('a new battery adds storage, arriving half charged', () => {
-    const sim = makeSim();
+    const sim = makeSim(instant);
     const before = sim.snapshot().power;
     sim.command({ type: 'addModule', defId: 'battery-pack', to: 'core-1', port: 'zenith' });
     const after = sim.snapshot().power;
@@ -40,7 +61,7 @@ describe('building modules', () => {
   });
 
   it('a new radiator adds rejection; a new habitat adds guests, volume, and load', () => {
-    const sim = makeSim();
+    const sim = makeSim(instant);
     const cap = sim.snapshot().thermal.capacityKw;
     sim.command({ type: 'addModule', defId: 'radiator', to: 'core-1', port: 'zenith' });
     expect(sim.snapshot().thermal.capacityKw).toBeGreaterThan(cap);
@@ -55,7 +76,7 @@ describe('building modules', () => {
   });
 
   it('a fork runs exactly like the original and does not touch it', () => {
-    const sim = makeSim();
+    const sim = makeSim(instant);
     sim.run(137);
     const fork = sim.fork();
     const before = sim.snapshot();
@@ -66,7 +87,7 @@ describe('building modules', () => {
   });
 
   it('forecast: a second battery stops the end-of-eclipse shed', () => {
-    const sim = makeSim();
+    const sim = makeSim(instant);
     const orbit = Math.ceil(sim.orbit.periodMinutes) * 2;
     const base = forecast(sim, orbit)!;
     const withBattery = forecast(sim, orbit, { type: 'addModule', defId: 'battery-pack', to: 'core-1', port: 'zenith' })!;
@@ -76,7 +97,7 @@ describe('building modules', () => {
   });
 
   it('forecast: a second radiator stops the sunset throttle', () => {
-    const sim = makeSim();
+    const sim = makeSim(instant);
     const orbit = Math.ceil(sim.orbit.periodMinutes) * 2;
     const base = forecast(sim, orbit)!;
     const withRadiator = forecast(sim, orbit, { type: 'addModule', defId: 'radiator', to: 'core-1', port: 'zenith' })!;
@@ -86,7 +107,7 @@ describe('building modules', () => {
   });
 
   it('forecast returns null for a refused change and leaves the real sim alone', () => {
-    const sim = makeSim();
+    const sim = makeSim(instant);
     const before = sim.snapshot();
     expect(forecast(sim, 10, { type: 'addModule', defId: 'battery-pack', to: 'core-1', port: 'fore' })).toBeNull();
     forecast(sim, 50, { type: 'addModule', defId: 'battery-pack', to: 'core-1', port: 'zenith' });

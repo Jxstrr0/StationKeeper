@@ -15,6 +15,7 @@ const base: Forecast = {
   waterChangeKg: -1.4,
   people: 7,
   failureChance: 0.2,
+  netIncome: 1,
 };
 
 describe('build panel helpers', () => {
@@ -31,6 +32,7 @@ describe('build panel helpers', () => {
 
   it('always shows battery and loop rows, even when unchanged', () => {
     expect(previewRows(base, base).map((r) => r.label)).toEqual(['Lowest battery', 'Hottest loop']);
+    expect(previewRows(base, { ...base, netIncome: 3 }).find((r) => r.label.startsWith('Income'))).toMatchObject({ tone: 'good' });
   });
 
   it('sums up each module in a few lines', () => {

@@ -259,6 +259,86 @@ Heat is 12.5 kW with everything on, against 15 kW of rejection in eclipse and 9.
 - No passive cooling: with every radiator down, the loop holds its temperature rather than drifting down.
 - Failure chance is shown per day while running. A module that's off shows the chance it would have.
 
-## Next slice: Money and contracts
+## Session 6 (Slice 6): money and contracts
 
-Research contracts that pay for keeping certain modules running (uptime), launch costs for new modules (build mode charges and takes delivery time), spare parts for repairs, a starting loan with interest, and a quarterly report. The build preview and the warnings feed should show money, for example "Habitat failed: guests refunded $X an hour".
+### What was built
+
+- **Sim (`src/sim/systems/economy.ts`):**
+  - **Cash and a loan.** The station starts with $40M cash and a $60M loan at 3% a quarter. Money is in millions throughout.
+  - **Income.** Guests pay $1.5M each a day while their habitat runs. Throttled counts as running; shed, tripped, failed or switched off doesn't.
+  - **Costs.** Operations cost $1.8M a day. Interest accrues every minute. Everything is booked in a ledger by category: guests, contracts, operations, interest, construction, spare parts and penalties.
+  - **Quarters** close every in-game day with a `quarterReport` event. Each report has the ledger, net, cash, loan, contracts delivered and failed, guest habitat uptime and breakdowns.
+  - **Research contracts** need a Research Lab, which runs one contract at a time.
+    - Up to three offers are open at once. A new one arrives every 8 hours, and each lapses after 20.
+    - Each contract asks for some lab hours before a deadline. The lab earns one hour per hour powered and 0.6 an hour while throttled. "Steady loop" contracts earn nothing while the loop is throttled.
+    - A delivered contract pays its reward. A missed or abandoned one costs its penalty.
+    - There are six fictional sponsors and jobs in `scenario.json`.
+  - **Launches.** Ordering a module charges its price at once. It docks 6 hours later, and its port is reserved until then. You need the cash to order.
+  - **Spare parts.** A service costs 2% of the module's price and a repair 6%. Parts are charged when the work starts and refunded if it's cancelled. Repairs may push cash below zero, because a broken station shouldn't be stuck for want of money.
+  - **Repaying the loan** comes out of cash and lowers the interest.
+- **New modules:**
+  - **Research Lab:** $14M, 3 kW, Commercial tier. It docks by its fore port and passes an aft port on.
+  - **Docking Node:** $5M. It uses one port and offers three. Without it the starting station could take only three more modules.
+- **Warnings** now include money:
+  - a habitat that isn't running ("guests aren't paying ($6.0M a day)", traced to why it's down);
+  - a contract at risk of missing its deadline, traced to its lab or a hot loop;
+  - overdrawn cash.
+  - A new root cause, **"batteries at their power limit"**, explains loads shed while the battery still has charge.
+- **UI:**
+  - **Finance button** (bottom centre): shows cash, with a dot when there are offers to look at and a pulse when a contract is at risk. It opens a sheet with:
+    - cash, the loan with Repay $5M / $20M / all, and the running net a day;
+    - this quarter's ledger;
+    - contracts under way, with progress bars, and offers with Accept;
+    - launches in transit;
+    - last quarter.
+  - **Build tray** shows prices and strikes through what you can't afford. The preview shows the price and delivery time, and a new row: **"Income, less running costs"** over the next two orbits. The confirm button says Order.
+  - **Quarterly report:** pauses the game with the quarter's numbers and a one-line verdict from the board, then Continue resumes at the same speed.
+  - **Toasts:** order placed, module docked, contract signed, delivered or failed.
+  - **Modules on order** show as a faint outline at their port until they dock. Build mode treats them as solid, so nothing can be ordered into the space they'll take.
+- **Tests (116 total):**
+  - `tests/economy.test.ts`: income and costs, the quarter report, offers and lapsing, accepting and refusing, lab progress (powered, throttled, steady-loop), delivery and failure, abandoning, repaying, launches and port reservation, parts charged and refunded, and the money warnings.
+  - `tests/financePanel.test.ts` and `tests/format.test.ts`: ledger rows, contract text, money formatting, the report verdict.
+  - Build tests: the docking node.
+
+### Balance (by design)
+
+These figures come from a scripted player who repairs anything failed or over 85% worn, signs the best-paying offer per lab hour, and buys from a list when cash allows. Three seeds were run, over 6–8 in-game days.
+
+- **Neglect sinks the station.** With no repairs, a failure soon takes the habitat down for good. The station then loses $3.6M a day: operations plus interest.
+- **A tended starting station roughly breaks even**, give or take $2M a quarter, depending on breakdowns. The single battery sheds the habitat for part of each eclipse, which costs income. A second battery ($8M) makes it slightly profitable.
+- **A lab needs support.** Bought on its own, it is shed at eclipse (battery limit) and pushes the loop into throttling, which also throttles the habitat. Lab first, then battery, radiator, node and a second array grows cash from $40M to about $70–77M over 8 days, with 12–15 contracts delivered and few failed. Building the support first is safer but slower: the lab arrives around day 7.
+- The build preview shows all of this before you commit: battery low point, loop peak, income over two orbits, failure chance.
+
+### How to test on a phone
+
+1. Tap the **cash** button: $40M, the loan, and contract offers that need a Research Lab.
+2. Tap **Build**: prices are on every card. Order a **Research Lab** on a free port. The preview shows its cost, when it docks, and what it does to income. Six hours later (20× makes that 18 minutes) it docks.
+3. Open the cash button and **Accept** an offer. Watch the progress bar. At eclipse the lab may be shed: open warnings for the cause.
+4. Play to 06:00 the next day for the **quarterly report**. The game pauses until you tap Continue.
+
+### Choices made
+
+- **Quarters are compressed to one in-game day.** Orbit time can't be compressed: eclipse every 92 minutes is the heart of the power game. A real quarter would take 33 hours of play at 20×, so a "quarter" is one day. `quarterDays` is data.
+- **Contracts pay for lab hours, not for uptime of any module.** The handoff suggested paying for keeping modules running. Lab hours with a deadline give the same pressure, and they read well in a progress bar. "Steady loop" contracts tie research to thermal.
+- **Repairs may overdraw cash; orders may not.** You can always fix what you have, but you can't buy on credit. Overdraft raises an alarm and carries no extra penalty yet.
+- **Guests aren't refunded when their habitat goes down.** They simply stop paying, and the warning says how much a day.
+- **The loan can only be repaid,** not extended.
+- **The quarterly report pauses the game**, so the report is a beat rather than a toast. A scrim covers the screen while it's up, and keys don't reach anything behind it, so the game can't be unpaused under it.
+
+### Known gaps
+
+- There's no game over and no bankruptcy: cash can sink indefinitely after repairs. This needs a design decision, for example the bank taking over below some line.
+- Offers don't scale with station size or reputation yet, and every sponsor pays the same rate for the same work.
+- Habitat guests are a fixed four per habitat, always present. Occupancy, reviews and pricing could come later.
+- Modules can't be sold or removed.
+- The build preview checks whether you can afford the module when you tap a port. If income covers the price while the preview is open, tap the port again.
+
+## Next
+
+The planned slices are done. Candidates for what's next, roughly in order of value:
+
+1. **Play-testing on a real phone** to tune pace, readability, and the first ten minutes.
+2. **Save and load** (the sim is already deterministic and serialisable in shape).
+3. **An end state**: bankruptcy or a board takeover, and goals per scenario.
+4. **Crew**: health, skills, more repair teams, and crew needs.
+5. **Art**: Blender models replacing the grey-boxes (the loader already prefers them).

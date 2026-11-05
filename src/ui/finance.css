@@ -1,0 +1,458 @@
+/* ---------- Finance ---------- */
+
+.fin-fab {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(var(--safe-bottom) + 16px);
+  height: 46px;
+  min-width: 46px;
+  max-width: 132px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 23px;
+  background: rgba(31, 30, 27, 0.94);
+  color: var(--ivory);
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  z-index: 1;
+}
+
+.fin-fab-cash {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fin-fab.negative {
+  border-color: var(--clay);
+  color: var(--clay);
+}
+
+.fin-fab.risk {
+  border-color: var(--clay);
+  background: rgba(70, 32, 22, 0.95);
+}
+
+.fin-fab.active {
+  display: none;
+}
+
+.fin-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--slate);
+  border-radius: 50%;
+  background: var(--lilac);
+}
+
+.fin-dot.risk {
+  background: var(--clay);
+  animation: fin-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes fin-pulse {
+  50% {
+    box-shadow: 0 0 0 4px rgba(217, 119, 87, 0.3);
+  }
+}
+
+.fin-sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-width: 560px;
+  max-height: 66vh;
+  margin: 0 auto;
+  padding: 12px 0 calc(var(--safe-bottom) + 14px);
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.45);
+  transform: translateY(105%);
+  transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+  z-index: 2;
+}
+
+.fin-sheet.open {
+  transform: none;
+}
+
+.fin-scroll {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 18px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.fin-section {
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.fin-section:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.fin-h-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.fin-h {
+  margin: 0 0 6px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+  font-weight: 600;
+}
+
+.fin-sub {
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Summary */
+
+.fin-cash-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fin-k {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.fin-cash {
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.fin-cash.neg {
+  color: var(--clay);
+}
+
+.fin-facts {
+  margin: 8px 0 10px;
+}
+
+.fin-fact {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 4px 0;
+  font-size: 14px;
+}
+
+.fin-fact dt {
+  color: var(--muted);
+}
+
+.fin-fact dd {
+  margin: 0;
+  text-align: right;
+}
+
+.fin-v {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.fin-v.pos {
+  color: var(--lilac);
+}
+
+.fin-v.neg {
+  color: var(--clay);
+}
+
+.fin-repay {
+  display: flex;
+  gap: 6px;
+}
+
+.fin-repay .warn-act {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0 6px;
+}
+
+/* Buttons the house style leaves without a disabled look. */
+.fin-sheet .warn-act:disabled {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--dim);
+  cursor: default;
+}
+
+/* Ledger tables */
+
+.fin-ledger {
+  margin: 0;
+}
+
+.fin-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+}
+
+.fin-row:last-child {
+  border-bottom: 0;
+}
+
+.fin-row dt {
+  min-width: 0;
+  color: var(--muted);
+}
+
+.fin-row dd {
+  margin: 0;
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  color: var(--ivory);
+}
+
+.fin-row dd.in {
+  color: var(--lilac);
+}
+
+.fin-row dd.out {
+  color: var(--muted);
+}
+
+.fin-row.net {
+  border-top: 1px solid var(--muted);
+}
+
+.fin-row.net dt,
+.fin-row.net dd {
+  color: var(--ivory);
+  font-weight: 700;
+}
+
+.fin-row.net dd.out {
+  color: var(--clay);
+}
+
+.fin-row.good dd {
+  color: var(--lilac);
+}
+
+.fin-row.bad dd {
+  color: var(--clay);
+}
+
+/* Contracts */
+
+.fin-note {
+  margin: 2px 0 8px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.fin-leads {
+  margin: 10px 0 6px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.fin-card {
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.fin-card.active {
+  border-left: 3px solid var(--lilac);
+}
+
+.fin-card.active.at-risk {
+  border-left-color: var(--clay);
+}
+
+.fin-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.fin-card-names {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.fin-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.fin-card-sponsor {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.fin-card-reward {
+  flex: none;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--lilac);
+  font-variant-numeric: tabular-nums;
+}
+
+.fin-desc {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.fin-meta {
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.fin-card.offer > .fin-meta {
+  color: var(--ivory);
+}
+
+.fin-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.fin-bar i {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: 3px;
+  background: var(--lilac);
+  transition: width 0.4s ease;
+}
+
+.fin-card.at-risk .fin-bar i {
+  background: var(--clay);
+}
+
+.fin-card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 10px;
+  margin-top: 2px;
+}
+
+.fin-card-foot > .warn-act,
+.fin-accept {
+  margin-left: auto;
+}
+
+.fin-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-width: 0;
+}
+
+.fin-tag {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(180, 140, 232, 0.16);
+  color: var(--lilac);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.fin-tag.risk {
+  background: rgba(217, 119, 87, 0.18);
+  color: var(--clay);
+}
+
+.fin-accept {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fin-reason {
+  font-size: 12px;
+  color: var(--muted);
+  text-align: right;
+}
+
+/* Deliveries */
+
+.fin-deliveries {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fin-delivery {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+}
+
+.fin-delivery:last-child {
+  border-bottom: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fin-sheet,
+  .fin-bar i {
+    transition: none;
+  }
+
+  .fin-dot.risk {
+    animation: none;
+  }
+}

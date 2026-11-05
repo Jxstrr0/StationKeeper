@@ -3,7 +3,20 @@
 import { EventBus, type SimEvents } from './events';
 import { createOrbit, isInShadowArc, orbitSnapshot, phaseAt, sunlightAt, type OrbitModel } from './orbit';
 import { Rng } from './rng';
-import { attachModule, attachProblem, buildStation, freePorts, indexDefs, mountPort, nextInstanceId, type Station } from './station';
+import { attachModule, attachProblem, buildStation, freePorts, indexDefs, mountPort, type Station } from './station';
+import {
+  abandonContract,
+  acceptContract,
+  acceptProblem,
+  book,
+  contractSnapshots,
+  createEconomyState,
+  labCount,
+  netPerDay,
+  repayLoan,
+  stepEconomy,
+  type EconomyState,
+} from './systems/economy';
 import { addPowerModule, createPowerState, setModuleEnabled, setOutage, stepPower, storageTotals, type PowerState } from './systems/power';
 import {
   co2MmHg,
@@ -27,7 +40,7 @@ import {
 } from './systems/reliability';
 import { addThermalModule, createThermalState, stepThermal, thermalLimits, type ThermalState } from './systems/thermal';
 import { MINUTE_MS } from './time';
-import type { LayoutEntry, ModuleDef, ModuleSnapshot, ScenarioDef, SimSnapshot } from './types';
+import type { LayoutEntry, Ledger, ModuleDef, ModuleSnapshot, ScenarioDef, SimSnapshot } from './types';
 import { diagnose } from './warnings';
 
 export type SimCommand =
@@ -36,7 +49,20 @@ export type SimCommand =
   | { type: 'addModule'; defId: string; to: string; port: string }
   /** Put a module on the crew's list: a service if it works, a repair if it has failed. */
   | { type: 'repair'; moduleId: string }
-  | { type: 'cancelRepair'; moduleId: string };
+  | { type: 'cancelRepair'; moduleId: string }
+  | { type: 'acceptContract'; uid: string }
+  | { type: 'abandonContract'; uid: string }
+  /** Pay down the loan from cash. */
+  | { type: 'repayLoan'; amount: number };
+
+/** A module paid for and on its way up. Its port is reserved until it docks. */
+interface Delivery {
+  moduleId: string;
+  defId: string;
+  to: string;
+  port: string;
+  arrivesAt: number;
+}
 
 export interface SimOptions {
   /** When false, modules wear but never fail. Forecasts use this so a preview can't reveal the dice. */
@@ -49,6 +75,9 @@ export type CommandResult = { ok: true; moduleId?: string } | { ok: false; reaso
 const NEW_BATTERY_CHARGE = 0.5;
 
 const TICK_HOURS = 1 / 60;
+
+/** Money for refusal reasons, in $ millions. */
+const money = (m: number) => (m >= 1 ? `$${m.toFixed(1)}M` : `$${Math.round(m * 1000)}k`);
 
 export class Simulation {
   readonly events = new EventBus<SimEvents>();
@@ -65,6 +94,8 @@ export class Simulation {
   private lifePlant: LifeSupportPlant;
   private life: LifeSupportState;
   private reliability: ReliabilityState;
+  private economy: EconomyState;
+  private deliveries: Delivery[] = [];
   private readonly failures: boolean;
 
   /** `layout` defaults to the scenario's starting layout; forks pass the current one. */
@@ -84,6 +115,16 @@ export class Simulation {
     this.lifePlant = lifeSupportPlant(this.station, scenario.lifeSupport);
     this.life = createLifeSupportState(this.lifePlant, scenario.lifeSupport);
     this.reliability = createReliabilityState(this.station, scenario.reliability);
+    this.economy = createEconomyState(scenario.economy, this.rng);
+    // Spare parts are paid for when a crew team picks a job up, and refunded if it is cancelled.
+    this.events.on('repairStarted', ({ moduleId, kind }) => {
+      const price = this.station.byId.get(moduleId)?.def.price ?? 0;
+      const cost = price * (kind === 'repair' ? scenario.economy.repairCostShare : scenario.economy.serviceCostShare);
+      this.economy.partsOnJob[moduleId] = cost;
+      book(this.economy, 'repairs', -cost);
+    });
+    this.events.on('repairDone', ({ moduleId }) => delete this.economy.partsOnJob[moduleId]);
+    this.events.on('moduleFailed', () => this.economy.stats.failures++);
     this.solve(false);
   }
 
@@ -97,6 +138,7 @@ export class Simulation {
     const isShadow = isInShadowArc(this.orbit, phaseAt(this.orbit, this.minutes));
     if (!wasShadow && isShadow) this.events.emit('eclipseBegan', { minutes: this.minutes });
     if (wasShadow && !isShadow) this.events.emit('sunrise', { minutes: this.minutes });
+    this.deliverDue();
     this.solve(true);
   }
 
@@ -122,12 +164,33 @@ export class Simulation {
         this.solve(false);
         return { ok: true };
       }
-      case 'cancelRepair':
+      case 'cancelRepair': {
         if (!cancelRepair(this.reliability, cmd.moduleId, this.scenario.reliability, this.events)) {
           return { ok: false, reason: `No work is planned on "${cmd.moduleId}"` };
         }
+        const refund = this.economy.partsOnJob[cmd.moduleId];
+        if (refund !== undefined) {
+          book(this.economy, 'repairs', refund);
+          delete this.economy.partsOnJob[cmd.moduleId];
+        }
         this.solve(false);
         return { ok: true };
+      }
+      case 'acceptContract': {
+        const problem = acceptProblem(this.economy, this.station, cmd.uid);
+        if (problem) return { ok: false, reason: problem };
+        acceptContract(this.economy, this.scenario.economy, cmd.uid, this.minutes, this.events);
+        return { ok: true };
+      }
+      case 'abandonContract':
+        return abandonContract(this.economy, this.scenario.economy, cmd.uid, this.events) ? { ok: true } : { ok: false, reason: 'No such contract is running' };
+      case 'repayLoan': {
+        if (!(cmd.amount > 0)) return { ok: false, reason: 'Choose an amount to repay' };
+        if (this.economy.loan <= 0) return { ok: false, reason: 'The loan is already paid off' };
+        if (this.economy.cash <= 0) return { ok: false, reason: 'No cash to repay with' };
+        repayLoan(this.economy, cmd.amount);
+        return { ok: true };
+      }
     }
   }
 
@@ -137,23 +200,59 @@ export class Simulation {
     if (!def) return `Unknown module "${defId}"`;
     const via = mountPort(def);
     if (!via) return `${def.name} has no port to mount by`;
-    return attachProblem(this.station, this.defs, { id: nextInstanceId(this.station, defId), module: defId, attach: { to, port, via } });
+    if (def.price === undefined) return `${def.name} is not for sale`;
+    if (this.deliveries.some((d) => d.to === to && d.port === port)) return 'A module is already on its way to that port';
+    const problem = attachProblem(this.station, this.defs, { id: this.nextId(defId), module: defId, attach: { to, port, via } });
+    if (problem) return problem;
+    if (this.economy.cash < def.price) return `Not enough cash: the ${def.name} costs ${money(def.price)}`;
+    return null;
   }
 
+  /** The next instance id for `defId`, skipping ones already on order. */
+  private nextId(defId: string): string {
+    let n = 1;
+    const taken = (id: string) => this.station.byId.has(id) || this.deliveries.some((d) => d.moduleId === id);
+    while (taken(`${defId}-${n}`)) n++;
+    return `${defId}-${n}`;
+  }
+
+  /** Pay for a module and put it on the next launch. It docks after the delivery time. */
   private addModule(defId: string, to: string, port: string): CommandResult {
     const problem = this.buildProblem(defId, to, port);
     if (problem) return { ok: false, reason: problem };
     const def = this.defs.get(defId)!;
-    const id = nextInstanceId(this.station, defId);
-    const inst = attachModule(this.station, this.defs, { id, module: defId, attach: { to, port, via: mountPort(def)! } });
+    const id = this.nextId(defId);
+    const hours = this.scenario.economy.deliveryHours;
+    book(this.economy, 'construction', -def.price!);
+    this.deliveries.push({ moduleId: id, defId, to, port, arrivesAt: this.minutes + Math.round(hours * 60) });
+    this.events.emit('moduleOrdered', { moduleId: id, defId, cost: def.price!, hours });
+    if (hours <= 0) this.deliverDue();
+    return { ok: true, moduleId: id };
+  }
+
+  /** Dock every module that is on its way, now. Forecasts use this to show a module's effect once installed. */
+  deliverAll(): void {
+    for (const d of this.deliveries) d.arrivesAt = Math.min(d.arrivesAt, this.minutes);
+    this.deliverDue();
+  }
+
+  private deliverDue(): void {
+    const due = this.deliveries.filter((d) => d.arrivesAt <= this.minutes);
+    if (due.length === 0) return;
+    this.deliveries = this.deliveries.filter((d) => !due.includes(d));
+    for (const d of due) this.install(d);
+    this.solve(false);
+  }
+
+  private install(d: Delivery): void {
+    const def = this.defs.get(d.defId)!;
+    const inst = attachModule(this.station, this.defs, { id: d.moduleId, module: d.defId, attach: { to: d.to, port: d.port, via: mountPort(def)! } });
     addPowerModule(this.power, inst, NEW_BATTERY_CHARGE);
-    addThermalModule(this.thermal, id);
-    addReliabilityModule(this.reliability, id);
+    addThermalModule(this.thermal, d.moduleId);
+    addReliabilityModule(this.reliability, d.moduleId);
     // New cabins, crew, and tanks change the plant; the air and tanks keep what they hold (new tanks arrive empty).
     this.lifePlant = lifeSupportPlant(this.station, this.scenario.lifeSupport);
-    this.solve(false);
-    this.events.emit('moduleAdded', { moduleId: id, defId });
-    return { ok: true, moduleId: id };
+    this.events.emit('moduleAdded', { moduleId: d.moduleId, defId: d.defId });
   }
 
   /** The station's current layout, parents first. */
@@ -175,6 +274,8 @@ export class Simulation {
     copy.thermal = structuredClone(this.thermal);
     copy.life = structuredClone(this.life);
     copy.reliability = structuredClone(this.reliability);
+    copy.economy = structuredClone(this.economy);
+    copy.deliveries = structuredClone(this.deliveries);
     copy.solve(false);
     return copy;
   }
@@ -224,6 +325,50 @@ export class Simulation {
       commit,
       events: this.events,
     });
+    if (commit) {
+      stepEconomy(this.economy, this.station, this.power, {
+        cfg: this.scenario.economy,
+        rng: this.rng,
+        now: this.minutes,
+        dtHours: TICK_HOURS,
+        throttleFactor: this.scenario.thermal.throttleFactor,
+        events: this.events,
+      });
+    }
+  }
+
+  private economySnapshot(): SimSnapshot['economy'] {
+    const e = this.economy;
+    const cfg = this.scenario.economy;
+    const quarterMinutes = Math.round(cfg.quarterDays * 1440);
+    return {
+      cash: e.cash,
+      loan: e.loan,
+      ratePerQuarter: cfg.loan.ratePerQuarter,
+      quarter: e.quarter,
+      quarterProgress: (this.minutes % quarterMinutes) / quarterMinutes,
+      ledger: { ...e.ledger },
+      netPerDay: netPerDay(this.station, this.power, e, cfg),
+      lastReport: e.lastReport ? structuredClone(e.lastReport) : null,
+      ...contractSnapshots(e, this.station, this.power, cfg, this.minutes, this.scenario.thermal.throttleFactor),
+      labs: labCount(this.station),
+      guestIncomePerDay: Object.fromEntries(
+        this.station.modules.filter((m) => m.def.cabin?.guests).map((m) => [m.id, (m.def.cabin?.guests ?? 0) * cfg.guestPerDay]),
+      ),
+      deliveries: this.deliveries.map((d) => ({
+        moduleId: d.moduleId,
+        defId: d.defId,
+        name: this.defs.get(d.defId)?.name ?? d.defId,
+        to: d.to,
+        port: d.port,
+        hoursLeft: (d.arrivesAt - this.minutes) / 60,
+      })),
+    };
+  }
+
+  /** Lifetime books (never reset at quarter ends), for forecasts. */
+  get lifetimeLedger(): Readonly<Ledger> {
+    return this.economy.lifetime;
   }
 
   snapshot(): SimSnapshot {
@@ -301,7 +446,8 @@ export class Simulation {
         alarms: { ...this.life.alarms },
       },
       modules,
-      freePorts: freePorts(this.station),
+      freePorts: freePorts(this.station).filter((p) => !this.deliveries.some((d) => d.to === p.moduleId && d.port === p.portId)),
+      economy: this.economySnapshot(),
     };
     return { ...snap, warnings: diagnose(snap) };
   }

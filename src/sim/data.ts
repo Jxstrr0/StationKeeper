@@ -4,6 +4,8 @@ import {
   type Attachment,
   type Band,
   type CabinSpec,
+  type ContractDef,
+  type EconomyConfig,
   type LifeSupportConfig,
   type LifeSupportSpec,
   type GreyboxSpec,
@@ -68,7 +70,7 @@ function tier(v: unknown, path: string): Tier {
   return s as Tier;
 }
 
-const KINDS: readonly ModuleKind[] = ['core', 'solar', 'battery', 'habitat', 'radiator', 'lifesupport'];
+const KINDS: readonly ModuleKind[] = ['core', 'solar', 'battery', 'habitat', 'radiator', 'lifesupport', 'lab', 'node'];
 
 function kind(v: unknown, path: string): ModuleKind {
   const s = str(v, path);
@@ -189,6 +191,7 @@ export function parseModuleDefs(raw: unknown): ModuleDef[] {
     if (o.cabin !== undefined) def.cabin = cabin(o.cabin, `${path}.cabin`);
     if (o.lifeSupport !== undefined) def.lifeSupport = lifeSupportSpec(o.lifeSupport, `${path}.lifeSupport`);
     if (o.reliability !== undefined) def.reliability = reliabilitySpec(o.reliability, `${path}.reliability`);
+    if (o.price !== undefined) def.price = positive(o.price, `${path}.price`);
     const gimbalAxis = optVec3(o.gimbalAxis, `${path}.gimbalAxis`);
     const panelNormal = optVec3(o.panelNormal, `${path}.panelNormal`);
     if (gimbalAxis) def.gimbalAxis = gimbalAxis;
@@ -281,6 +284,66 @@ function reliabilityConfig(v: unknown): ReliabilityConfig {
   };
 }
 
+function nonNegative(v: unknown, path: string): number {
+  const n = num(v, path);
+  if (n < 0) fail(path, 'expected zero or more');
+  return n;
+}
+
+function contract(v: unknown, path: string): ContractDef {
+  const o = obj(v, path);
+  const def: ContractDef = {
+    id: str(o.id, `${path}.id`),
+    title: str(o.title, `${path}.title`),
+    sponsor: str(o.sponsor, `${path}.sponsor`),
+    description: str(o.description, `${path}.description`),
+    labHours: positive(o.labHours, `${path}.labHours`),
+    deadlineHours: positive(o.deadlineHours, `${path}.deadlineHours`),
+    reward: positive(o.reward, `${path}.reward`),
+    penalty: nonNegative(o.penalty, `${path}.penalty`),
+  };
+  if (def.deadlineHours < def.labHours) fail(`${path}.deadlineHours`, 'shorter than the lab time it needs');
+  if (o.stable !== undefined) {
+    if (typeof o.stable !== 'boolean') fail(`${path}.stable`, 'expected true or false');
+    def.stable = o.stable;
+  }
+  return def;
+}
+
+function economyConfig(v: unknown): EconomyConfig {
+  const o = obj(v, 'economy');
+  const loan = obj(o.loan, 'economy.loan');
+  const c = obj(o.contracts, 'economy.contracts');
+  const whole = (x: unknown, path: string) => {
+    const n = nonNegative(x, path);
+    if (!Number.isInteger(n)) fail(path, 'expected a whole number');
+    return n;
+  };
+  const pool = arr(c.pool, 'economy.contracts.pool').map((x, i) => contract(x, `economy.contracts.pool[${i}]`));
+  const ids = new Set<string>();
+  for (const d of pool) {
+    if (ids.has(d.id)) fail('economy.contracts.pool', `duplicate contract "${d.id}"`);
+    ids.add(d.id);
+  }
+  return {
+    startCash: num(o.startCash, 'economy.startCash'),
+    loan: { principal: nonNegative(loan.principal, 'economy.loan.principal'), ratePerQuarter: fraction(loan.ratePerQuarter, 'economy.loan.ratePerQuarter') },
+    quarterDays: positive(o.quarterDays, 'economy.quarterDays'),
+    guestPerDay: nonNegative(o.guestPerDay, 'economy.guestPerDay'),
+    operationsPerDay: nonNegative(o.operationsPerDay, 'economy.operationsPerDay'),
+    deliveryHours: nonNegative(o.deliveryHours, 'economy.deliveryHours'),
+    serviceCostShare: fraction(o.serviceCostShare, 'economy.serviceCostShare'),
+    repairCostShare: fraction(o.repairCostShare, 'economy.repairCostShare'),
+    contracts: {
+      maxOffers: whole(c.maxOffers, 'economy.contracts.maxOffers'),
+      offerEveryHours: positive(c.offerEveryHours, 'economy.contracts.offerEveryHours'),
+      offerLifeHours: positive(c.offerLifeHours, 'economy.contracts.offerLifeHours'),
+      startingOffers: whole(c.startingOffers, 'economy.contracts.startingOffers'),
+      pool,
+    },
+  };
+}
+
 function attachment(v: unknown, path: string): Attachment {
   const o = obj(v, path);
   return { to: str(o.to, `${path}.to`), port: str(o.port, `${path}.port`), via: str(o.via, `${path}.via`) };
@@ -322,6 +385,7 @@ export function parseScenario(raw: unknown): ScenarioDef {
     thermal: thermalConfig(o.thermal),
     lifeSupport: lifeSupportConfig(o.lifeSupport),
     reliability,
+    economy: economyConfig(o.economy),
     layout,
   };
 }
