@@ -2,10 +2,11 @@
 import halyard from './data/scenarios/halyard.json';
 import kittiwake from './data/scenarios/kittiwake.json';
 import longlightOne from './data/scenarios/longlight-one.json';
+import saltglass from './data/scenarios/saltglass.json';
 import { parseScenario } from './sim/data';
 import type { ScenarioDef } from './sim/types';
 
-export const SCENARIOS: readonly ScenarioDef[] = [longlightOne, kittiwake, halyard].map(parseScenario);
+export const SCENARIOS: readonly ScenarioDef[] = [longlightOne, kittiwake, halyard, saltglass].map(parseScenario);
 
 const ids = new Set<string>();
 for (const s of SCENARIOS) {

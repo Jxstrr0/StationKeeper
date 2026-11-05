@@ -39,7 +39,7 @@ const LOSS: Record<Outcome, Copy> = {
   },
 };
 
-/** The goal sheet's words, by goal. `target` is the cash amount or contract count. */
+/** The goal sheet's words, by goal. `target` is the cash amount, contract count or stars. */
 function goalCopy(kind: GoalKind, target: number): Copy {
   switch (kind) {
     case 'repayLoan':
@@ -59,6 +59,12 @@ function goalCopy(kind: GoalKind, target: number): Copy {
         kicker: 'Goal reached',
         title: `${target} contracts delivered`,
         text: 'The labs have earned their keep and the sponsors are calling back. Keep going and see what else the station can do.',
+      };
+    case 'reviews':
+      return {
+        kicker: 'Goal reached',
+        title: `${target}-star reviews`,
+        text: 'The guests have stopped mentioning the smell. The owners have framed a review. Keep going and keep it that way.',
       };
   }
 }

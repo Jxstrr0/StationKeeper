@@ -1,18 +1,24 @@
 // Words for a scenario's goal: what the board wants, and how far along the station is.
 import type { ScenarioRecord } from '../records';
 import type { GoalDef, GoalSnapshot } from '../sim/types';
-import { minutes, money } from './format';
+import { minutes, money, stars } from './format';
 
 const days = (d: number) => `${d} ${d === 1 ? 'day' : 'days'}`;
 
 /** "Deliver 6 research contracts within 6 days." */
 export function goalLine(g: GoalDef): string {
   const what =
-    g.kind === 'repayLoan' ? 'Pay off the loan' : g.kind === 'cash' ? `Build up ${money(g.amount)} in cash` : `Deliver ${g.count} research contracts`;
+    g.kind === 'repayLoan'
+      ? 'Pay off the loan'
+      : g.kind === 'cash'
+        ? `Build up ${money(g.amount)} in cash`
+        : g.kind === 'contracts'
+          ? `Deliver ${g.count} research contracts`
+          : `Earn ${g.stars}-star guest reviews`;
   return g.days === undefined ? `${what}.` : `${what} within ${days(g.days)}.`;
 }
 
-/** "3 of 6 delivered", "$18.0M left to repay". */
+/** "3 of 6 delivered", "$18.0M left to repay", "Last reviews ★★☆☆☆". */
 export function goalProgress(g: GoalSnapshot): string {
   switch (g.kind) {
     case 'repayLoan':
@@ -21,6 +27,8 @@ export function goalProgress(g: GoalSnapshot): string {
       return `${money(Math.max(0, g.current))} of ${money(g.target)}`;
     case 'contracts':
       return `${g.current} of ${g.target} delivered`;
+    case 'reviews':
+      return `Last reviews ${stars(g.current)}`;
   }
 }
 

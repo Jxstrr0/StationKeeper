@@ -277,7 +277,9 @@ export interface ScenarioDef {
 export type GoalDef =
   | { kind: 'repayLoan'; days?: number }
   | { kind: 'cash'; amount: number; days?: number }
-  | { kind: 'contracts'; count: number; days?: number };
+  | { kind: 'contracts'; count: number; days?: number }
+  /** Guests post reviews of at least this many stars at a quarter's close. */
+  | { kind: 'reviews'; stars: number; days?: number };
 
 export type GoalKind = GoalDef['kind'];
 
@@ -417,9 +419,9 @@ export type Outcome = 'bankrupt' | 'evacuated' | 'replaced';
 
 export interface GoalSnapshot {
   kind: GoalKind;
-  /** Where the station stands: loan left for repayLoan, cash for cash, contracts delivered for contracts. */
+  /** Where the station stands: loan left for repayLoan, cash for cash, contracts delivered for contracts, stars of the last reviews for reviews. */
   current: number;
-  /** What it must reach: 0 loan, the cash amount, or the contract count. */
+  /** What it must reach: 0 loan, the cash amount, the contract count, or the stars. */
   target: number;
   /** 0..1, for a progress bar. */
   progress: number;

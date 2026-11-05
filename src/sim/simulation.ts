@@ -753,6 +753,11 @@ export class Simulation {
         return { kind: g.kind, current: this.economy.cash, target: g.amount, progress: clamp(this.economy.cash / g.amount), deadlineAtMinutes };
       case 'contracts':
         return { kind: g.kind, current: this.ending.contractsDone, target: g.count, progress: clamp(this.ending.contractsDone / g.count), deadlineAtMinutes };
+      case 'reviews': {
+        // Before any reviews are posted, the station stands where its reputation starts.
+        const posted = this.economy.lastReport?.reviews?.stars ?? stars(this.scenario.guests.start);
+        return { kind: g.kind, current: posted, target: g.stars, progress: posted >= g.stars ? 1 : clamp((posted - 1) / (g.stars - 1)), deadlineAtMinutes };
+      }
     }
   }
 
