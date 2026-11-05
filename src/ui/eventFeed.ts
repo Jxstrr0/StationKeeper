@@ -130,6 +130,9 @@ export function connectEventFeed(
   events.on('crewFellIll', ({ name, hours }) => {
     toasts.show(`${name} is ill and off duty for about ${Math.round(hours)} h. The medical kit is finally earning its keep.`, 'warn');
   });
+  events.on('crewBonusPaid', ({ cost, people }) => {
+    toasts.show(`Bonus paid: ${money(cost)} across ${people === 1 ? 'one person' : `${people} people`}. Spirits lift; productivity is rumoured to follow.`, 'ok');
+  });
   events.on('crewRecovered', ({ name }) => {
     toasts.show(`${name} is well again and back on the rota.`, 'ok');
   });
