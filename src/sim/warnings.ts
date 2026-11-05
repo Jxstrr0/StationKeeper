@@ -1,0 +1,123 @@
+// What is wrong with the station, and why. Built from a snapshot as a small graph: every problem names the
+// problems that cause it, down to root causes such as a failed radiator or the eclipse. The UI groups the feed by
+// root cause and lets the player walk a chain like "CO₂ high ← rack tripped ← loop hot ← radiator failed".
+import type { ModuleSnapshot, SimSnapshot, StationWarning, Tier } from './types';
+
+type DiagnosisInput = Omit<SimSnapshot, 'warnings' | 'freePorts'>;
+
+const running = (m: ModuleSnapshot) => m.status === 'powered' || m.status === 'throttled';
+
+const TIER_SEVERITY: Record<Tier, StationWarning['severity']> = { commercial: 'warn', essential: 'alarm', critical: 'alarm' };
+
+export function diagnose(s: DiagnosisInput): StationWarning[] {
+  const out = new Map<string, StationWarning>();
+  const add = (w: StationWarning): string => {
+    out.set(w.key, w);
+    return w.key;
+  };
+
+  // Root causes on modules.
+  for (const m of s.modules) {
+    const base = { moduleId: m.id, tier: m.tier, causes: [] };
+    if (m.status === 'failed') add({ ...base, key: `failed:${m.id}`, kind: 'moduleFailed', severity: TIER_SEVERITY[m.tier] });
+    else if (m.status === 'servicing') add({ ...base, key: `servicing:${m.id}`, kind: 'moduleServicing', severity: 'info' });
+    else if (m.status === 'off') add({ ...base, key: `off:${m.id}`, kind: 'moduleOff', severity: 'info' });
+    if (m.dueForService && m.status !== 'failed' && !m.repair) {
+      add({ ...base, key: `worn:${m.id}`, kind: 'moduleWorn', severity: 'warn', value: m.wear });
+    }
+  }
+
+  /** The warning that explains why `m` isn't running, if it isn't. */
+  const whyDown = (m: ModuleSnapshot): string | null => {
+    switch (m.status) {
+      case 'failed':
+      case 'servicing':
+      case 'off':
+        return `${m.status}:${m.id}`;
+      case 'shed':
+        return `shed:${m.tier}`;
+      case 'overheated':
+        return `trip:${m.tier}`;
+      default:
+        return null;
+    }
+  };
+  /** Modules out of the network entirely (not just unpowered). */
+  const outOfService = (m: ModuleSnapshot) => m.status === 'failed' || m.status === 'servicing' || m.status === 'off';
+  const keys = (list: (string | null)[]) => [...new Set(list.filter((k): k is string => k !== null))];
+  const eclipse = () => add({ key: 'eclipse', kind: 'eclipse', severity: 'info', causes: [] });
+
+  // Power: shedding happens when the arrays and batteries can't cover the load.
+  const supplyDown = s.modules.filter((m) => (m.kind === 'solar' || m.kind === 'battery') && outOfService(m)).map(whyDown);
+  for (const tier of ['commercial', 'essential', 'critical'] as const) {
+    // The tier flag follows battery level; with no battery at all, loads are shed one by one instead.
+    if (!s.power.shedTiers[tier] && !s.modules.some((m) => m.tier === tier && m.status === 'shed')) continue;
+    add({ key: `shed:${tier}`, kind: 'loadShed', severity: TIER_SEVERITY[tier], tier, causes: keys([s.orbit.sunlit ? null : eclipse(), ...supplyDown]) });
+  }
+
+  // Heat: the loop runs hot when the radiators can't keep up.
+  if (s.thermal.throttled || Object.values(s.thermal.tripped).some(Boolean)) {
+    const radiatorsDown = s.modules.filter((m) => m.kind === 'radiator' && !running(m)).map(whyDown);
+    const sunlit = s.orbit.sunlit ? add({ key: 'sunlitRadiators', kind: 'sunlitRadiators', severity: 'info', causes: [] }) : null;
+    add({ key: 'loopHot', kind: 'throttled', severity: 'warn', value: s.thermal.loopC, causes: keys([...radiatorsDown, sunlit]) });
+    for (const tier of ['commercial', 'essential', 'critical'] as const) {
+      if (s.thermal.tripped[tier]) add({ key: `trip:${tier}`, kind: 'tripped', severity: TIER_SEVERITY[tier], tier, value: s.thermal.loopC, causes: ['loopHot'] });
+    }
+  }
+
+  // Life support: air and tanks go wrong when the racks stop.
+  const ls = s.lifeSupport;
+  const racks = s.modules.filter((m) => m.kind === 'lifesupport');
+  const racksDown = racks.every((m) => !running(m)) ? keys(racks.map(whyDown)) : [];
+  if (ls.alarms.co2Warn || ls.alarms.co2Danger) {
+    add({ key: 'co2', kind: 'co2', severity: ls.alarms.co2Danger ? 'alarm' : 'warn', value: ls.co2MmHg, causes: racksDown });
+  }
+  if (ls.alarms.o2Low || ls.alarms.o2Out) {
+    add({ key: 'o2', kind: 'o2', severity: ls.alarms.o2Out ? 'alarm' : 'warn', value: ls.o2CapacityKg > 0 ? ls.o2Kg / ls.o2CapacityKg : 0, causes: racksDown });
+  }
+  if (ls.alarms.waterLow || ls.alarms.waterOut) {
+    add({ key: 'water', kind: 'water', severity: ls.alarms.waterOut ? 'alarm' : 'warn', value: ls.waterCapacityKg > 0 ? ls.waterKg / ls.waterCapacityKg : 0, causes: racksDown });
+  }
+  if (ls.alarms.healthLow) {
+    const why = [ls.alarms.co2Danger ? 'co2' : null, ls.alarms.o2Out ? 'o2' : null, ls.alarms.waterOut ? 'water' : null];
+    add({ key: 'crew', kind: 'crewCondition', severity: 'alarm', value: ls.health, causes: keys(why) });
+  }
+
+  // Keep only links to warnings that exist (a status and its tier flag can disagree for a tick).
+  const list = [...out.values()];
+  for (const w of list) w.causes = w.causes.filter((k) => out.has(k));
+  return list;
+}
+
+/** The root causes behind a warning: the warnings at the end of its cause chains. A root cause is its own root. */
+export function rootCauses(warnings: readonly StationWarning[], key: string): string[] {
+  const byKey = new Map(warnings.map((w) => [w.key, w]));
+  const roots: string[] = [];
+  const seen = new Set<string>();
+  const visit = (k: string) => {
+    if (seen.has(k)) return;
+    seen.add(k);
+    const w = byKey.get(k);
+    if (!w) return;
+    if (w.causes.length === 0) roots.push(k);
+    else for (const c of w.causes) visit(c);
+  };
+  visit(key);
+  return roots;
+}
+
+/** Every warning `key` leads to (its effects), nearest first. */
+export function effectsOf(warnings: readonly StationWarning[], key: string): string[] {
+  const out: string[] = [];
+  const queue = [key];
+  while (queue.length) {
+    const k = queue.shift()!;
+    for (const w of warnings) {
+      if (w.causes.includes(k) && !out.includes(w.key) && w.key !== key) {
+        out.push(w.key);
+        queue.push(w.key);
+      }
+    }
+  }
+  return out;
+}

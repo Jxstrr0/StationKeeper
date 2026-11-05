@@ -25,6 +25,7 @@
       "description": "Two sun-tracking wings on a short truss. Generates only in sunlight; the gimbal drives draw a little power of their own.",
       "power": { "drawKw": 0.4, "tier": "essential", "generationKw": 22 },
       "thermal": { "riseCPerKw": 2.0 },
+      "reliability": { "wearDays": 6, "failPerDay": 1.0, "serviceHours": 2 },
       "gimbalAxis": [0, 0, 1],
       "panelNormal": [1, 0, 0],
       "ports": [{ "id": "base", "position": [0, 0, 0], "direction": [0, 0, -1] }],
@@ -37,6 +38,7 @@
       "description": "Lithium-ion storage that carries the station through eclipse. Its own thermal control is critical: cold cells are dead cells.",
       "power": { "drawKw": 0.3, "tier": "critical", "storageKwh": 9, "maxChargeKw": 8, "maxDischargeKw": 15 },
       "thermal": { "riseCPerKw": 5.0 },
+      "reliability": { "wearDays": 5, "failPerDay": 1.0, "serviceHours": 1.5 },
       "ports": [{ "id": "top", "position": [0, 0, 0], "direction": [0, 1, 0] }],
       "greybox": { "shape": "battery", "size": [2.6, 1.8, 2.6], "light": [1.35, -0.6, 0] }
     },
@@ -47,6 +49,7 @@
       "description": "Four paying guests, one large window, and a coffee machine that draws more power than it should. Commercial load: first to go when power runs short.",
       "power": { "drawKw": 6.0, "tier": "commercial" },
       "thermal": { "riseCPerKw": 0.8 },
+      "reliability": { "wearDays": 6, "failPerDay": 0.8, "serviceHours": 2.5 },
       "cabin": { "volumeM3": 90, "guests": 4 },
       "ports": [
         { "id": "aft", "position": [0, 0, 0], "direction": [-1, 0, 0] },
@@ -61,6 +64,7 @@
       "description": "Ammonia loop panels that dump the station's heat to deep space. They work best in Earth's shadow; in sunlight they are fighting the Sun as well as the coffee machine.",
       "power": { "drawKw": 0.8, "tier": "essential" },
       "thermal": { "riseCPerKw": 1.0, "rejectKw": 15, "sunlitFactor": 0.66 },
+      "reliability": { "wearDays": 4, "failPerDay": 1.5, "serviceHours": 2 },
       "ports": [{ "id": "base", "position": [0, 0, 0], "direction": [0, 0, 1] }],
       "greybox": { "shape": "radiator", "length": 6, "wingLength": 7, "wingWidth": 2.2, "light": [0, 0.75, -1.2] }
     },
@@ -71,6 +75,7 @@
       "description": "Splits water into oxygen, scrubs CO2 out of the air, and turns yesterday's coffee back into drinking water. Nobody asks too many questions about that last part.",
       "power": { "drawKw": 2.0, "tier": "essential" },
       "thermal": { "riseCPerKw": 1.5 },
+      "reliability": { "wearDays": 3, "failPerDay": 2.0, "serviceHours": 2.5 },
       "cabin": { "volumeM3": 25 },
       "lifeSupport": { "o2KgPerDay": 7.2, "co2KgPerDay": 14, "waterRecovery": 0.9, "o2TankKg": 24, "waterTankKg": 420 },
       "ports": [

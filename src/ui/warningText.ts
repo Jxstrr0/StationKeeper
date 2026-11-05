@@ -1,0 +1,48 @@
+// Words for the sim's warnings. The sim says what is wrong and why; this says it in plain English.
+import type { ModuleSnapshot, StationWarning } from '../sim/types';
+import { TIER_LABEL, minutes } from './format';
+
+const pct = (v: number | undefined) => `${Math.round((v ?? 0) * 100)}%`;
+
+export function warningTitle(w: StationWarning, mod: (id: string) => ModuleSnapshot | undefined): string {
+  const m = w.moduleId ? mod(w.moduleId) : undefined;
+  const name = m?.name ?? w.moduleId ?? '';
+  const tier = w.tier ? TIER_LABEL[w.tier] : '';
+  switch (w.kind) {
+    case 'eclipse':
+      return 'Eclipse: the arrays are dark';
+    case 'sunlitRadiators':
+      return 'Radiators in sunlight shed less heat';
+    case 'moduleFailed':
+      return `${name} failed`;
+    case 'moduleServicing':
+      return m?.repair?.kind === 'repair' ? `${name} under repair` : `${name} being serviced`;
+    case 'moduleOff':
+      return `${name} switched off`;
+    case 'moduleWorn':
+      return `${name} due for service (${pct(w.value)} worn)`;
+    case 'loadShed':
+      return `${tier} loads shed for power`;
+    case 'throttled':
+      return `Coolant loop hot at ${(w.value ?? 0).toFixed(1)} °C`;
+    case 'tripped':
+      return `${tier} loads tripped on heat`;
+    case 'co2':
+      return `CO₂ ${w.severity === 'alarm' ? 'dangerous' : 'high'} at ${(w.value ?? 0).toFixed(1)} mmHg`;
+    case 'o2':
+      return w.severity === 'alarm' ? 'Oxygen reserve empty' : `Oxygen reserve low at ${pct(w.value)}`;
+    case 'water':
+      return w.severity === 'alarm' ? 'Water tanks dry' : `Water low at ${pct(w.value)}`;
+    case 'crewCondition':
+      return `Crew condition at ${pct(w.value)}`;
+  }
+}
+
+/** What the crew is doing about a module, for sheets and the warnings list. */
+export function repairText(m: ModuleSnapshot): string | null {
+  const r = m.repair;
+  if (!r) return null;
+  const what = r.kind === 'repair' ? 'Repair' : 'Service';
+  if (r.active) return `${what} under way, ${minutes(r.hoursLeft * 60)} left`;
+  return `${what} queued (${r.queuePosition === 1 ? 'next' : `#${r.queuePosition}`}), takes ${minutes(r.hoursLeft * 60)}`;
+}

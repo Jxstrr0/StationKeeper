@@ -11,6 +11,8 @@ const STATUS_COLORS: Record<ModuleStatus, number> = {
   shed: 0xd97757, // clay: warning
   overheated: 0xff5a3c, // hot red-orange: tripped by heat
   off: 0x5a5852,
+  failed: 0xff5a3c, // red-orange, blinking: broken
+  servicing: 0xfaf9f5, // ivory: crew at work
 };
 
 interface Entry {
@@ -211,6 +213,13 @@ export class StationView {
     return { center: sphere.center, radius: sphere.radius };
   }
 
+  /** World-space centre of one module, for pointing the camera at it. */
+  moduleCenter(id: string): THREE.Vector3 | null {
+    const e = this.entries.get(id);
+    if (!e) return null;
+    return new THREE.Box3().setFromObject(e.object).getCenter(new THREE.Vector3());
+  }
+
   update(snap: SimSnapshot, sunDirWorld: THREE.Vector3, dt: number): void {
     this.blink += dt;
     const blinkOn = Math.sin(this.blink * 6) > -0.2;
@@ -231,8 +240,9 @@ export class StationView {
         // A little self-light so the tint still reads on the night side.
         e.heatMaterial.emissive.setRGB(r * 0.6, g * 0.6, b * 0.6, THREE.SRGBColorSpace);
       }
-      const alarm = m.status === 'shed' || m.status === 'overheated';
-      const visible = !alarm || blinkOn;
+      const alarm = m.status === 'shed' || m.status === 'overheated' || m.status === 'failed';
+      // Crew at work: a slow, steady pulse rather than an alarm blink.
+      const visible = m.status === 'servicing' ? Math.sin(this.blink * 2) > 0 : !alarm || blinkOn;
       e.lightCore.visible = visible;
       e.halo.visible = visible && m.status !== 'off';
       if (e.model.gimbal) this.trackSun(e, sunDirWorld);
