@@ -235,7 +235,45 @@ export interface CrewConfig {
   arrivalHours: number;
   /** A lab with no scientist to run it works at this share of its speed. */
   unstaffedLabFactor: number;
+  needs: CrewNeedsConfig;
 }
+
+/** Rest, morale, and illness, per person. Fatigue and morale run 0..1. */
+export interface CrewNeedsConfig {
+  /** Fatigue gained per hour on shift, and lost per hour off it. */
+  fatiguePerWorkHour: number;
+  restPerHour: number;
+  /** On shift past this, a rested colleague takes over if there is one. */
+  tiredAbove: number;
+  /** At full fatigue someone is exhausted and stops work until fatigue falls below this. "Rested" also means below this. */
+  restedBelow: number;
+  morale: {
+    start: number;
+    /** Where morale settles when nothing is wrong. */
+    base: number;
+    /** How quickly morale closes on where it is heading: share of the gap per hour. */
+    perHour: number;
+    /** Taken off the settling point while each applies to the person. */
+    penalties: { tired: number; exhausted: number; sick: number; badAir: number; hot: number };
+    /** Low-morale warning, with hysteresis. */
+    low: Band;
+    /** Below this for `resignHours` straight, and they resign. */
+    resignBelow: number;
+    resignHours: number;
+  };
+  illness: {
+    /** Chance per person per day of falling ill. */
+    perDay: number;
+    /** Multipliers on that chance while tired, and while the air is bad. */
+    tiredFactor: number;
+    badAirFactor: number;
+    /** Hours off duty. */
+    hours: number;
+  };
+}
+
+/** What a crew member is doing now. */
+export type CrewStatus = 'inFlight' | 'onShift' | 'resting' | 'exhausted' | 'sick';
 
 export interface CrewMemberSnapshot {
   id: string;
@@ -243,6 +281,17 @@ export interface CrewMemberSnapshot {
   role: CrewRole;
   /** Hours until they arrive, or null if aboard. */
   arrivesInHours: number | null;
+  status: CrewStatus;
+  fatigue: number;
+  morale: number;
+  /** Past the tired line. */
+  tired: boolean;
+  /** Hours until they're well again, while sick. */
+  sickHoursLeft: number | null;
+  /** Hours until they resign, while their morale is below the resignation line. */
+  resignsInHours: number | null;
+  /** Morale below the warning line. */
+  moraleLow: boolean;
 }
 
 export interface CrewSnapshot {
@@ -252,8 +301,12 @@ export interface CrewSnapshot {
   /** Bunks on the station, and how many are taken by people aboard or on their way. */
   bunks: number;
   bunksTaken: number;
+  /** Aboard, by role. */
   engineers: number;
   scientists: number;
+  /** Fit to work: aboard, not sick, not exhausted. Engineers fit to work are the repair teams. */
+  fitEngineers: number;
+  fitScientists: number;
   labs: number;
   wagesPerDay: number;
   signingFee: number;
@@ -582,7 +635,10 @@ export type WarningKind =
   | 'contractAtRisk'
   | 'overdrawn'
   | 'noEngineers'
-  | 'labUnstaffed';
+  | 'labUnstaffed'
+  | 'crewExhausted'
+  | 'crewSick'
+  | 'moraleLow';
 
 export interface StationWarning {
   /** Stable id, like "failed:radiator-1" or "shed:commercial". */
@@ -600,6 +656,8 @@ export interface StationWarning {
   limit?: number;
   /** The last warning before the game is lost, such as a final quarter in the red. */
   final?: boolean;
+  /** Hours left before something happens, such as a resignation. */
+  hours?: number;
   /** Keys of the warnings that cause this one. Empty for a root cause. */
   causes: string[];
 }
