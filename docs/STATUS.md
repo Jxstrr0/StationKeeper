@@ -793,13 +793,57 @@ Traced on four seeds per line:
 
 ### Known gaps
 
-- Comforts help only the crew. Guests don't notice them yet.
+- Comforts help only the crew. Guests don't notice them yet. (Session 16 adds guest fares.)
+
+## Session 16: guests pay for comforts
+
+### What was built
+
+- **Guest fares** (`fareLift` in `src/sim/systems/economy.ts`). A comfort may carry `guestFare`, the share it adds to every guest's fare while it runs:
+  - The Observation Cupola adds 12%: guests pay for the view.
+  - The Galley adds 4%: a hot meal.
+  - Kinds stack like crew morale, biggest first, each further kind at `crew.comfortStack` (0.5). A cupola and galley together add 12% + 2% = 14%.
+  - More of the same kind adds nothing.
+- **Economy:** guest income, the running net, and each habitat's income per day include the lift. The snapshot carries `economy.fareLift`.
+- **UI:**
+  - The build card adds "+12% guest fares".
+  - The finance summary gains a Guest fares line: "Base rate" or "+12% from comforts". It is hidden on a station with no guest habitat.
+- **Data:** `comfort.guestFare` is optional, a fraction.
+- **Save:** unchanged at version 6.
+- **Tests:** 189, up from 186: stacking and repeats, a lit cupola raising guest income by its share over most of a day, the finance and build text, and data validation.
+
+### Balance (by design)
+
+Traced on four seeds per line:
+
+- **Halyard, the hotel, now has a smart first buy.**
+  - Cupola first, then the radiator and habitat: the goal on all four seeds, in 7.7–8.5 days.
+  - The plain winning line: three of four, in 8.5–9.2 days.
+  - Radiator, habitat, cupola: the goal on all four seeds, in 7.5–8.9 days, though one seed was evacuated half a day after reaching it.
+  - Galley and cupola together: four of four, in 8.0–9.0 days.
+- **Longlight, tended:** the cupola now roughly pays for itself in fares, ending day 8 within $5M of not buying it, with a faster crew (104–107% pace).
+- **Kittiwake:** unchanged from session 15.
+
+### How to test on a phone
+
+1. Longlight: open Finance. The summary says "Guest fares · Base rate".
+2. Build an Observation Cupola. When it docks and lights, the line reads "+12% from comforts", and the running income rises by about $0.7M a day.
+3. Switch the cupola off: fares drop back to the base rate.
+
+### Choices made
+
+- **Guests pay for the view whether or not there's a seat.** Seats share out crew morale only. Fares are a flat share per kind of comfort, so the money is easy to read.
+- **The lift sits in the comfort, not the habitat.** Any scenario with guests gets it, and a new comfort sets its own fare share in data.
+
+### Known gaps
+
+- Guests don't care about anything else yet: heat, bad air, or a shed habitat cost them their fare but not their mood.
 
 ## Next
 
 The planned slices are done. Candidates for what's next, roughly in order of value:
 
 1. **Play-testing on a real phone**, to tune pace, readability, the first ten minutes, and now how often illness and exhaustion bite.
-2. **Guests who care about comforts**: a hotel scenario where a cupola or galley lifts guest income, not just crew pace.
+2. **Guest satisfaction**: guests who remember a hot or stuffy stay, with reviews that move future fares.
 3. **More scenarios**, perhaps with their own modules or prices.
 4. **Art**: Blender models replacing the grey-boxes (the loader already prefers them).

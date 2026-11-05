@@ -27,6 +27,7 @@ export function moduleHighlights(def: ModuleDef): string[] {
   const people = [def.cabin?.bunks && `${def.cabin.bunks} bunks`, def.cabin?.guests && `${def.cabin.guests} guests`].filter(Boolean);
   if (people.length) out.push(people.join(', '));
   if (def.comfort) out.push(`+${Math.round(def.comfort.morale * 100)}% crew morale, seats ${def.comfort.seats}`);
+  if (def.comfort?.guestFare) out.push(`+${Math.round(def.comfort.guestFare * 100)}% guest fares`);
   if (def.kind === 'lab') out.push('Runs research contracts');
   // Ports beyond the one it docks by are room to grow.
   if (def.kind === 'node') out.push(`Adds ${def.ports.length - 1} docking ports`);

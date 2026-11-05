@@ -5,8 +5,11 @@ import { parseModuleDefs, parseScenario } from '../src/sim/data';
 import type { SimEvents } from '../src/sim/events';
 import { Simulation, type SimSave } from '../src/sim/simulation';
 import { comfortLift } from '../src/sim/systems/crew';
+import { fareLift } from '../src/sim/systems/economy';
 import type { ScenarioDef } from '../src/sim/types';
+import { moduleHighlights } from '../src/ui/buildPanel';
 import { bonusBlocked, comfortText } from '../src/ui/crewPanel';
+import { fareText } from '../src/ui/financePanel';
 import { baseScenario, defs, makeSim, runUntil } from './helpers';
 
 const HOUR = 60;
@@ -103,6 +106,41 @@ describe('comforts', () => {
   });
 });
 
+describe('guest fares', () => {
+  it('each kind of comfort adds its fare share once, biggest first, the rest at the stacking weight', () => {
+    const c = { name: cupola.name, guestFare: cupola.comfort!.guestFare! };
+    const g = { name: galley.name, guestFare: galley.comfort!.guestFare! };
+    expect(fareLift([], stack)).toBe(0);
+    expect(fareLift([c], stack)).toBeCloseTo(c.guestFare);
+    expect(fareLift([c, c], stack)).toBeCloseTo(c.guestFare);
+    expect(fareLift([g, c], stack)).toBeCloseTo(c.guestFare + stack * g.guestFare);
+    expect(fareLift([{ name: 'Plain', guestFare: 0 }], stack)).toBe(0);
+  });
+
+  it('guests pay more while a cupola is lit, and the finance sheet says so', () => {
+    const plain = sunny();
+    const viewed = sunny();
+    const id = build(viewed, 'cupola');
+    const lift = cupola.comfort!.guestFare!;
+    const e = viewed.snapshot().economy;
+    expect(e.fareLift).toBeCloseTo(lift);
+    expect(e.guestIncomePerDay['habitat-1']).toBeCloseTo(plain.snapshot().economy.guestIncomePerDay['habitat-1']! * (1 + lift));
+    expect(fareText(e)).toBe(`+${Math.round(lift * 100)}% from comforts`);
+    expect(fareText(plain.snapshot().economy)).toBe('Base rate');
+    // Within the first quarter, so the ledger hasn't been closed off.
+    plain.run(20 * HOUR);
+    viewed.run(20 * HOUR);
+    expect(viewed.snapshot().economy.ledger.guests / plain.snapshot().economy.ledger.guests).toBeCloseTo(1 + lift, 2);
+
+    viewed.command({ type: 'setModuleEnabled', moduleId: id, enabled: false });
+    expect(viewed.snapshot().economy.fareLift).toBe(0);
+  });
+
+  it('the build card names the fare lift', () => {
+    expect(moduleHighlights(cupola)).toContain(`+${Math.round(cupola.comfort!.guestFare! * 100)}% guest fares`);
+  });
+});
+
 describe('bonus', () => {
   it('costs a fixed sum a head, lifts everyone, and waits a day before the next', () => {
     let sim = sunny();
@@ -156,6 +194,7 @@ describe('comfort and bonus data', () => {
     expect(withGalley({ morale: 0.1, seats: 0 })).toThrow(/seats/);
     expect(withGalley({ morale: 0.1, seats: 2.5 })).toThrow(/seats/);
     expect(withGalley({ morale: 1.5, seats: 4 })).toThrow(/morale/);
+    expect(withGalley({ morale: 0.1, seats: 4, guestFare: 2 })).toThrow(/guestFare/);
     const crew = (b: unknown) => () => parseScenario({ ...scenarioJson, crew: { ...scenarioJson.crew, bonus: b } });
     expect(crew(undefined)).toThrow(/crew.bonus/);
     expect(crew({ perPerson: -1, morale: 0.1, cooldownHours: 24 })).toThrow(/perPerson/);
