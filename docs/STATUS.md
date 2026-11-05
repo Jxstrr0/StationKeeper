@@ -582,11 +582,75 @@ The lesson is to get the second habitat up early, with just enough cooling for i
 - Hiring a scientist is still possible where labs are for sale but none is built; that is intended.
 - The picker is a plain list. With many more scenarios it would want sorting or an unlock order.
 
+## Session 12: crew needs
+
+### What was built
+
+- **Shifts and fatigue.** Each person's fatigue (0–100%) rises 7% an hour on shift and falls 10% an hour off it.
+  - Engineers are on shift while a repair or service is under way. Scientists are on shift while a lab runs a contract.
+  - Rested people already on shift carry on. Past 70% a worker hands over to a colleague below 30%, if there is one; otherwise they carry on.
+  - At 100% they're **exhausted** and off duty until they're back under 30%: 14 h of straight work, then about 7 h of rest.
+  - So one scientist can't run a lab around the clock, and two can.
+- **Fit to work.** Only engineers aboard, well and not exhausted are repair teams. The same goes for scientists running labs.
+  - "No engineers aboard" now also fires as "No engineer fit to work", and it links to the exhaustion or illness behind it.
+- **Morale** (0–100%) drifts towards a settling point, closing about 8% of the gap an hour.
+  - The point starts at 80%, less 10 for tired, 35 for exhausted, 20 for ill, 30 for bad air (CO₂ high, oxygen or water low) and 15 for a hot coolant loop.
+  - Under 40% a warning names the unhappiest person.
+  - Under 25% for 12 h straight, they **resign** and take the next flight down. The warning turns into an alarm with a countdown.
+- **Illness.** Each person has a 3% chance a day of falling ill, doubled while tired and tripled in bad air. Someone ill is off duty for 12 h.
+  - Illness rolls on its own seeded dice, so the station's failure rolls and contract offers are exactly as they were.
+- **Data:** `crew.needs` in each scenario, validated on load.
+- **Save:** members carry fatigue, morale, shift, exhaustion, illness and low-morale timers. The crew's dice are saved too. `SAVE_VERSION` is now 5.
+- **Events:** `crewExhausted`, `crewFellIll` and `crewRecovered`. `crewLeft` gains a `reason` (`dismissed` or `resigned`).
+- **Crew sheet:** each person shows what they're doing (on shift, tiring, off shift, exhausted, ill with time left, in flight) and their fatigue and morale. It turns clay when something is wrong, and counts down to a resignation.
+- **Toasts** for exhaustion, illness, recovery and resignation.
+- **Warnings:** `crewExhausted`, `crewSick` (info) and `moraleLow`.
+- **Tests (172):**
+  - shift hand-over rules;
+  - two scientists sharing a lab without wearing out, and one wearing out on the expected schedule;
+  - an exhausted engineer not repairing until rested;
+  - illness: off duty, recovery, its own dice, and determinism through a save;
+  - the morale settling point;
+  - resignation, and life support following it;
+  - morale recovering;
+  - needs validation;
+  - crew sheet and warning text.
+
+### Balance (by design)
+
+Traced on four seeds per line:
+
+- **Unchanged:**
+  - Halyard's winning line: identical cash and goal days.
+  - Longlight neglect: still evacuated in about a day.
+  - Kittiwake with a battery and radiator: goal in 3.7–4.9 days, against 3.2–4.9 before.
+- **Morale** stayed between 42% and 65% in tended play, so no one resigned in any trace. Resignation takes days of compounded neglect, and the air usually kills first.
+- **The new pressure is one engineer.** A scripted Longlight builder that spends down to almost nothing lost two of four seeds once its only engineer could be ill or exhausted when something broke.
+  - The same script with a second engineer hired survived on all four seeds.
+
+### How to test on a phone
+
+1. Longlight: build a Research Lab and take a contract. Open the crew sheet: one scientist is on shift. About 10 h later they hand over to the other.
+2. Send one scientist home and keep the contract running. About 14 h in, the other is exhausted, the lab slows, and a warning says why.
+3. Let CO₂ climb (switch off the Life Support Rack for a while): morale falls for everyone, and illness becomes more likely.
+
+### Choices made
+
+- **Shifts follow work, not the clock.** Nobody works when there's nothing to do, so a quiet station rests everyone.
+- **Crew condition (air and water) stays shared, and illness is personal.** The station-wide condition is still what evacuates everyone.
+- **Morale doesn't slow work, it only ends in a resignation.** One clear consequence is easier to read than a hidden slowdown.
+- **Guests have no needs.** They pay, breathe, and complain only to each other.
+
+### Known gaps
+
+- There's nothing that raises morale above its settling point: no galley, gym or day off.
+- Exhausted and ill people still draw full pay.
+
 ## Next
 
 The planned slices are done. Candidates for what's next, roughly in order of value:
 
-1. **Play-testing on a real phone** to tune pace, readability, and the first ten minutes (and Halyard's opening hours).
-2. **Crew needs**: rest, morale, and individual health.
+1. **Play-testing on a real phone**, to tune pace, readability, the first ten minutes, and now how often illness and exhaustion bite.
+2. **Comforts:** something to spend on morale, such as a galley or a recreation module, so morale is a lever and not only a hazard.
 3. **More scenarios**, perhaps with their own modules (say, an observation cupola for a hotel) or prices.
 4. **Art**: Blender models replacing the grey-boxes (the loader already prefers them).
