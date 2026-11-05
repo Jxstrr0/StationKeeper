@@ -6,7 +6,7 @@ export type Vec3 = readonly [number, number, number];
 export type Tier = 'critical' | 'essential' | 'commercial';
 export const TIERS: readonly Tier[] = ['critical', 'essential', 'commercial'];
 
-export type ModuleKind = 'core' | 'solar' | 'battery' | 'habitat' | 'radiator' | 'lifesupport' | 'lab';
+export type ModuleKind = 'core' | 'solar' | 'battery' | 'habitat' | 'radiator' | 'lifesupport' | 'lab' | 'node';
 
 export interface PortDef {
   id: string;

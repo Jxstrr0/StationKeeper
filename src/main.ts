@@ -91,7 +91,8 @@ async function start(): Promise<void> {
     defsById,
     scenario.reliability.repairFactor,
   );
-  const moduleSnap = (id: string) => snap.modules.find((m) => m.id === id);
+  // Events fire mid-tick, so a module that just docked isn't in the frame's snapshot yet: fall back to a fresh one.
+  const moduleSnap = (id: string) => snap.modules.find((m) => m.id === id) ?? sim.snapshot().modules.find((m) => m.id === id);
   connectEventFeed(
     sim.events,
     toasts,
@@ -268,6 +269,7 @@ async function start(): Promise<void> {
     }
     if (needsSync) {
       needsSync = false;
+      snap = sim.snapshot(); // fresh: a module can dock outside a tick (the dev console's deliverAll)
       void stationView.sync(snap).then(() => {
         const b = stationView.bounds();
         cam.focus(b.center, Math.max(cam.distance, b.radius * (env.camera.aspect < 0.8 ? 3.4 : 2.4)));

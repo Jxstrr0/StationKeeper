@@ -94,16 +94,33 @@
       "name": "Research Lab",
       "kind": "lab",
       "description": "Experiment racks, a glovebox, and a freezer full of other people's samples. Runs one research contract at a time. Commercial load.",
-      "power": { "drawKw": 4.0, "tier": "commercial" },
+      "power": { "drawKw": 3.0, "tier": "commercial" },
       "thermal": { "riseCPerKw": 1.2 },
       "reliability": { "wearDays": 5, "failPerDay": 1.0, "serviceHours": 2 },
-      "price": 18,
+      "price": 14,
       "cabin": { "volumeM3": 35 },
       "ports": [
         { "id": "fore", "position": [0, 0, 0], "direction": [1, 0, 0] },
         { "id": "aft", "position": [-6.5, 0, 0], "direction": [-1, 0, 0] }
       ],
       "greybox": { "shape": "lab", "length": 6.5, "radius": 1.6, "light": [-3.2, 1.75, 0] }
+    },
+    {
+      "id": "docking-node",
+      "name": "Docking Node",
+      "kind": "node",
+      "description": "A pressurised junction with three spare docking ports. Not glamorous, but nothing else attaches without one. Draws a little for lights and fans.",
+      "power": { "drawKw": 0.1, "tier": "essential" },
+      "thermal": { "riseCPerKw": 1.0 },
+      "price": 5,
+      "cabin": { "volumeM3": 12 },
+      "ports": [
+        { "id": "aft", "position": [0, 0, 0], "direction": [-1, 0, 0] },
+        { "id": "fore", "position": [3, 0, 0], "direction": [1, 0, 0] },
+        { "id": "zenith", "position": [1.5, 1.3, 0], "direction": [0, 1, 0] },
+        { "id": "nadir", "position": [1.5, -1.3, 0], "direction": [0, -1, 0] }
+      ],
+      "greybox": { "shape": "node", "length": 3, "radius": 1.3, "light": [1.5, 0.9, 1.0] }
     }
   ]
 }

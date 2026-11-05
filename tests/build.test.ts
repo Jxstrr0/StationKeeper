@@ -37,6 +37,20 @@ describe('building modules', () => {
     expect(sim.snapshot().modules).toHaveLength(6);
   });
 
+  it('a docking node uses one port and opens three more, so the station has room to grow', () => {
+    const sim = makeSim(instant);
+    const before = sim.snapshot().freePorts.length;
+    expect(sim.command({ type: 'addModule', defId: 'docking-node', to: 'core-1', port: 'zenith' })).toMatchObject({ ok: true });
+    const free = sim.snapshot().freePorts;
+    expect(free).toHaveLength(before + 2);
+    const onNode = free.filter((p) => p.moduleId === 'docking-node-1').map((p) => p.portId);
+    expect(onNode.sort()).toEqual(['fore', 'nadir', 'zenith']);
+    // Something can dock to it.
+    const fits = onNode.filter((port) => sim.buildProblem('battery-pack', 'docking-node-1', port) === null);
+    expect(fits.length).toBeGreaterThan(0);
+    expect(sim.command({ type: 'addModule', defId: 'battery-pack', to: 'docking-node-1', port: fits[0]! })).toMatchObject({ ok: true });
+  });
+
   it('a new battery adds storage, arriving half charged', () => {
     const sim = makeSim(instant);
     const before = sim.snapshot().power;
