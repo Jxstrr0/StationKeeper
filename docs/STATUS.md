@@ -643,14 +643,65 @@ Traced on four seeds per line:
 
 ### Known gaps
 
-- There's nothing that raises morale above its settling point: no galley, gym or day off.
+- There's nothing that raises morale above its settling point: no galley, gym or day off. (Session 13 added a galley and a bonus.)
 - Exhausted and ill people still draw full pay.
+
+## Session 13: morale comforts
+
+### What was built
+
+- **Galley** (`galley` in `src/data/modules.json`), a new module kind:
+  - $8M, 2 kW, Commercial tier, 30 m³ of cabin.
+  - While it runs (powered or throttled), it lifts where everyone's morale settles by 12%.
+  - It seats six. With more people aboard than seats, the lift is shared out: 9 aboard get 6/9 of it.
+  - Several comforts don't stack: the best lift counts, and the seats add up.
+  - Every scenario sells it; Halyard's catalogue now lists it.
+- **Crew bonus**, a new command (`payBonus`):
+  - Costs $300k a head for everyone aboard, booked under wages.
+  - Lifts each person's morale by 15% at once. Anyone lifted back above the resignation line stops their countdown.
+  - Once a day at most: "Another bonus so soon would set a precedent."
+  - Set per scenario in `crew.bonus` (`perPerson`, `morale`, `cooldownHours`).
+- **Data:** a module's `comfort` takes `morale` (a fraction) and `seats` (a whole number above 0). `crew.bonus` is required and validated.
+- **Save:** version 6, because the crew now remembers when the last bonus was paid.
+- **UI:**
+  - The build card says "+12% crew morale, seats 6".
+  - The crew sheet has a Morale section: what comforts are doing (or that there are none), and a "Pay everyone a bonus · $900k" button. The note under it gives the lift, or the hours until the next bonus, or why it's refused.
+  - A toast confirms the payment.
+- **Tests:** 179, up from 172 (`tests/comforts.test.ts`): sharing seats, the galley lifting morale only while it runs, the bonus's cost, lift, cooldown across a save, rescue from a resignation, refusal without cash, and data validation.
+
+### Balance (by design)
+
+Traced on four seeds per line:
+
+- **Unchanged:** Halyard's winning line (a radiator, then a second habitat) reaches the goal in 8.2–9.2 days, as before.
+- **The galley is a luxury with a cost:**
+  - Tended Longlight with a second engineer: the lowest morale seen rose from 42–58% to 53–65%, for about $10M less cash at day 8.
+  - In Kittiwake, buying it before the goal delayed or lost the goal on three of four seeds: the money mattered more.
+  - In Halyard, its heat tipped an already hot loop over, and two of four seeds were evacuated late on.
+- **The bonus is cheap insurance.** A script that pays whenever anyone falls below 50% paid at most three times in eight days and never changed an outcome.
+
+### How to test on a phone
+
+1. Longlight: open the crew sheet. The Morale section says nothing is running and suggests a galley.
+2. Build a Galley. Once it's running, the sheet says "Comforts lift morale 12% · seats for 6", and morale climbs past 80% over the next day.
+3. Tap "Pay everyone a bonus". Cash drops by $900k, everyone's morale jumps, and the button greys out with a 24 h countdown.
+
+### Choices made
+
+- **Morale still only matters through resignation.** So the galley is insurance, not income. If play-testing shows that's too weak a reason to build one, the next step is letting low morale slow work.
+- **The best comfort counts, not the sum.** Two galleys give more seats, not a happier crew. That leaves room for a different comfort later without stacking into 100% morale.
+- **A bonus is a lump, not a rate.** The cooldown, not the price, stops it being bought every hour.
+
+### Known gaps
+
+- Only one comfort so far. A gym or a cupola could have different seats, power or heat.
+- Morale doesn't change work pace.
 
 ## Next
 
 The planned slices are done. Candidates for what's next, roughly in order of value:
 
 1. **Play-testing on a real phone**, to tune pace, readability, the first ten minutes, and now how often illness and exhaustion bite.
-2. **Comforts:** something to spend on morale, such as a galley or a recreation module, so morale is a lever and not only a hazard.
+2. **Morale and work:** let low morale slow repairs and labs, so comforts pay for themselves; perhaps a second comfort (a gym or an observation cupola).
 3. **More scenarios**, perhaps with their own modules (say, an observation cupola for a hotel) or prices.
 4. **Art**: Blender models replacing the grey-boxes (the loader already prefers them).

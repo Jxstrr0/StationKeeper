@@ -6,7 +6,7 @@ export type Vec3 = readonly [number, number, number];
 export type Tier = 'critical' | 'essential' | 'commercial';
 export const TIERS: readonly Tier[] = ['critical', 'essential', 'commercial'];
 
-export type ModuleKind = 'core' | 'solar' | 'battery' | 'habitat' | 'radiator' | 'lifesupport' | 'lab' | 'node' | 'quarters';
+export type ModuleKind = 'core' | 'solar' | 'battery' | 'habitat' | 'radiator' | 'lifesupport' | 'lab' | 'node' | 'quarters' | 'galley';
 
 export interface PortDef {
   id: string;
@@ -88,6 +88,7 @@ export interface ModuleDef {
   cabin?: CabinSpec;
   lifeSupport?: LifeSupportSpec;
   reliability?: ReliabilitySpec;
+  comfort?: ComfortSpec;
   /** Cost to build, launch included, in $ millions. Modules without a price can't be ordered. */
   price?: number;
   ports: PortDef[];
@@ -97,6 +98,14 @@ export interface ModuleDef {
   /** Solar arrays: local axis the wings rotate about, and the wing normal at rest. */
   gimbalAxis?: Vec3;
   panelNormal?: Vec3;
+}
+
+/** Something that lifts crew morale while the module runs. */
+export interface ComfortSpec {
+  /** Added to where everyone's morale settles, 0..1. */
+  morale: number;
+  /** How many it serves. With more crew aboard than seats, the lift is shared out. */
+  seats: number;
 }
 
 export interface Attachment {
@@ -236,6 +245,15 @@ export interface CrewConfig {
   /** A lab with no scientist to run it works at this share of its speed. */
   unstaffedLabFactor: number;
   needs: CrewNeedsConfig;
+  /** A one-off payment to everyone aboard that lifts morale at once. */
+  bonus: {
+    /** $ millions per person aboard. */
+    perPerson: number;
+    /** Added to each person's morale. */
+    morale: number;
+    /** Hours before another can be paid. */
+    cooldownHours: number;
+  };
 }
 
 /** Rest, morale, and illness, per person. Fatigue and morale run 0..1. */
@@ -312,6 +330,13 @@ export interface CrewSnapshot {
   signingFee: number;
   wagePerDay: number;
   arrivalHours: number;
+  /** What the running comforts add to everyone's morale now, after sharing out the seats. */
+  comfortLift: number;
+  comfortSeats: number;
+  /** A bonus for everyone aboard: what it costs now, and hours until one can be paid again (null if it can now). */
+  bonusCost: number;
+  bonusMorale: number;
+  bonusReadyInHours: number | null;
 }
 
 /** How a game can end, besides the goal. */
