@@ -1,6 +1,7 @@
 // Turns sim events into toasts. Grounded, with the occasional dry aside.
 import type { EventBus, SimEvents } from '../sim/events';
 import type { ModuleKind } from '../sim/types';
+import { money } from './format';
 import type { Toasts } from './toasts';
 
 const COMMERCIAL_SHED = [
@@ -41,6 +42,7 @@ export function connectEventFeed(
   toasts: Toasts,
   moduleName: (id: string) => string,
   moduleKindOf: (id: string) => ModuleKind,
+  defName: (defId: string) => string,
 ): void {
   let quip = 0;
   const pct = (c: number) => `${Math.round(c * 100)}%`;
@@ -123,6 +125,28 @@ export function connectEventFeed(
 
   events.on('repairDone', ({ moduleId, kind }) => {
     toasts.show(`${moduleName(moduleId)} ${kind === 'repair' ? 'repaired' : 'serviced'} and back to work, good as new.`, 'ok');
+  });
+
+  events.on('moduleOrdered', ({ defId, cost, hours }) => {
+    const when = hours > 0 ? `It docks in ${+hours.toFixed(1)} h.` : 'It docks now.';
+    toasts.show(`${defName(defId)} ordered for ${money(cost)}. ${when}`, 'ok');
+  });
+
+  events.on('moduleAdded', ({ moduleId }) => {
+    toasts.show(`${moduleName(moduleId)} has docked and is coming online.`, 'ok');
+  });
+
+  events.on('contractAccepted', ({ title }) => {
+    toasts.show(`Contract signed: ${title}. The lab is on it.`, 'ok');
+  });
+
+  events.on('contractCompleted', ({ title, reward }) => {
+    toasts.show(`${title} delivered. ${money(reward)} received, and a polite thank-you email.`, 'ok');
+  });
+
+  events.on('contractFailed', ({ title, penalty, abandoned }) => {
+    const why = abandoned ? 'abandoned' : 'missed its deadline';
+    toasts.show(`${title} ${why}. ${money(penalty)} penalty. The sponsor is "disappointed".`, 'warn');
   });
 
   events.on('moduleRestored', ({ moduleId, tier }) => {

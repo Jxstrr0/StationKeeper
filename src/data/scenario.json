@@ -53,6 +53,87 @@
     "worn": { "above": 0.6, "below": 0.4 },
     "initialWear": { "array-1": 0.3, "battery-1": 0.35, "habitat-1": 0.2, "radiator-1": 0.45, "life-support-1": 0.62 }
   },
+  "economy": {
+    "startCash": 40,
+    "loan": { "principal": 60, "ratePerQuarter": 0.03 },
+    "quarterDays": 1,
+    "guestPerDay": 1.5,
+    "operationsPerDay": 1.8,
+    "deliveryHours": 6,
+    "serviceCostShare": 0.02,
+    "repairCostShare": 0.06,
+    "contracts": {
+      "maxOffers": 3,
+      "offerEveryHours": 8,
+      "offerLifeHours": 20,
+      "startingOffers": 2,
+      "pool": [
+        {
+          "id": "protein-crystals",
+          "title": "Protein crystal growth",
+          "sponsor": "Halvorsen Biologics",
+          "description": "Grow large, clean protein crystals for a drug programme. Temperature swings ruin the batch.",
+          "labHours": 12,
+          "deadlineHours": 24,
+          "reward": 7,
+          "penalty": 2,
+          "stable": true
+        },
+        {
+          "id": "alloy-casting",
+          "title": "Microgravity alloy casting",
+          "sponsor": "Kestrel Materials",
+          "description": "Cast test bars of a new alloy without convection mixing the melt.",
+          "labHours": 8,
+          "deadlineHours": 16,
+          "reward": 4.5,
+          "penalty": 1.2
+        },
+        {
+          "id": "seed-germination",
+          "title": "Seed germination study",
+          "sponsor": "Northmere Agricultural Institute",
+          "description": "Watch wheat and lentil seeds sprout in orbit. Slow, patient, well paid.",
+          "labHours": 20,
+          "deadlineHours": 40,
+          "reward": 10,
+          "penalty": 2.5
+        },
+        {
+          "id": "fibre-draw",
+          "title": "Fibre optic draw trial",
+          "sponsor": "Lumen Fibreworks",
+          "description": "Draw a short run of exotic glass fibre. Quick work if the lab stays cool.",
+          "labHours": 6,
+          "deadlineHours": 10,
+          "reward": 3.5,
+          "penalty": 1,
+          "stable": true
+        },
+        {
+          "id": "dosimetry",
+          "title": "Radiation dosimetry survey",
+          "sponsor": "Aster Coast Space Agency",
+          "description": "Log radiation doses across a long run of orbits for crew safety research.",
+          "labHours": 30,
+          "deadlineHours": 60,
+          "reward": 14,
+          "penalty": 4
+        },
+        {
+          "id": "tissue-culture",
+          "title": "Tissue culture endurance run",
+          "sponsor": "Calder Medical Research Trust",
+          "description": "Keep living tissue samples growing under observation. They do not forgive a power cut.",
+          "labHours": 16,
+          "deadlineHours": 28,
+          "reward": 9,
+          "penalty": 3,
+          "stable": true
+        }
+      ]
+    }
+  },
   "layout": [
     { "id": "core-1", "module": "core" },
     { "id": "array-1", "module": "solar-array", "attach": { "to": "core-1", "port": "starboard", "via": "base" } },

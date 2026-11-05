@@ -50,9 +50,12 @@ export function diagnose(s: DiagnosisInput): StationWarning[] {
   // Power: shedding happens when the arrays and batteries can't cover the load.
   const supplyDown = s.modules.filter((m) => (m.kind === 'solar' || m.kind === 'battery') && outOfService(m)).map(whyDown);
   for (const tier of ['commercial', 'essential', 'critical'] as const) {
-    // The tier flag follows battery level; with no battery at all, loads are shed one by one instead.
-    if (!s.power.shedTiers[tier] && !s.modules.some((m) => m.tier === tier && m.status === 'shed')) continue;
-    add({ key: `shed:${tier}`, kind: 'loadShed', severity: TIER_SEVERITY[tier], tier, causes: keys([s.orbit.sunlit ? null : eclipse(), ...supplyDown]) });
+    // The tier flag follows battery level. Loads shed without it were shed one by one because the arrays and
+    // batteries together couldn't deliver that much power at once: no battery, or batteries at their power limit.
+    const byFlag = s.power.shedTiers[tier];
+    if (!byFlag && !s.modules.some((m) => m.tier === tier && m.status === 'shed')) continue;
+    const limit = !byFlag && s.power.capacityKwh > 0 ? add({ key: 'batteryLimit', kind: 'batteryLimit', severity: 'info', causes: [] }) : null;
+    add({ key: `shed:${tier}`, kind: 'loadShed', severity: TIER_SEVERITY[tier], tier, causes: keys([s.orbit.sunlit ? null : eclipse(), limit, ...supplyDown]) });
   }
 
   // Heat: the loop runs hot when the radiators can't keep up.
@@ -82,6 +85,21 @@ export function diagnose(s: DiagnosisInput): StationWarning[] {
     const why = [ls.alarms.co2Danger ? 'co2' : null, ls.alarms.o2Out ? 'o2' : null, ls.alarms.waterOut ? 'water' : null];
     add({ key: 'crew', kind: 'crewCondition', severity: 'alarm', value: ls.health, causes: keys(why) });
   }
+
+  // Money: guests only pay while their habitat runs, and contracts need their lab.
+  for (const m of s.modules) {
+    if (m.kind !== 'habitat' || running(m)) continue;
+    const value = s.economy.guestIncomePerDay[m.id] ?? 0;
+    add({ key: `guestsIdle:${m.id}`, kind: 'guestsIdle', severity: 'warn', moduleId: m.id, value, causes: keys([whyDown(m)]) });
+  }
+  const labs = s.modules.filter((m) => m.kind === 'lab');
+  for (const c of s.economy.active) {
+    if (!c.atRisk) continue;
+    // Labs not running, and for contracts that need a steady loop, a throttled loop.
+    const why = labs.filter((m) => !running(m) || (c.stable && m.status === 'throttled')).map((m) => (running(m) ? 'loopHot' : whyDown(m)));
+    add({ key: `risk:${c.uid}`, kind: 'contractAtRisk', severity: 'warn', contractId: c.uid, label: c.title, value: c.hoursLeft, causes: keys(why) });
+  }
+  if (s.economy.cash < 0) add({ key: 'overdrawn', kind: 'overdrawn', severity: 'alarm', value: s.economy.cash, causes: [] });
 
   // Keep only links to warnings that exist (a status and its tier flag can disagree for a tick).
   const list = [...out.values()];

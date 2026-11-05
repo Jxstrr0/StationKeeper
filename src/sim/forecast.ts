@@ -21,6 +21,8 @@ export interface Forecast {
   people: number;
   /** Chance that at least one module fails during the run, 0..1, from wear and temperature. */
   failureChance: number;
+  /** Money made minus running costs over the run, $M. Leaves out the price of the change itself. */
+  netIncome: number;
 }
 
 /**
@@ -30,6 +32,8 @@ export interface Forecast {
 export function forecast(sim: Simulation, minutes: number, change?: SimCommand): Forecast | null {
   const f = sim.fork({ failures: false });
   if (change && !f.command(change).ok) return null;
+  // Show a new module's effect once it has docked, not the hours it spends on the way up.
+  f.deliverAll();
   const start = f.snapshot();
   const out: Forecast = {
     minutes,
@@ -43,8 +47,10 @@ export function forecast(sim: Simulation, minutes: number, change?: SimCommand):
     waterChangeKg: 0,
     people: start.lifeSupport.people,
     failureChance: 0,
+    netIncome: 0,
   };
   const exposure0 = f.failureExposure;
+  const books0 = { ...f.lifetimeLedger };
   let last = start;
   for (let i = 0; i < minutes; i++) {
     f.tick();
@@ -60,5 +66,9 @@ export function forecast(sim: Simulation, minutes: number, change?: SimCommand):
   }
   out.waterChangeKg = last.lifeSupport.waterKg - start.lifeSupport.waterKg;
   out.failureChance = 1 - Math.exp(-(f.failureExposure - exposure0));
+  const books = f.lifetimeLedger;
+  out.netIncome = (Object.keys(books) as (keyof typeof books)[])
+    .filter((k) => k !== 'construction')
+    .reduce((sum, k) => sum + books[k] - books0[k], 0);
   return out;
 }

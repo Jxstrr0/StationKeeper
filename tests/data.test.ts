@@ -53,4 +53,20 @@ describe('data files', () => {
     worn.reliability.initialWear['radiator-1'] = 1.2;
     expect(() => parseScenario(worn)).toThrow(/radiator-1/);
   });
+
+  it('reject bad economy data', () => {
+    type Econ = { economy: { contracts: { pool: { id: string; labHours: number; deadlineHours: number }[] }; loan: { ratePerQuarter: number } } };
+    const short = structuredClone(scenarioJson) as Econ;
+    short.economy.contracts.pool[0]!.deadlineHours = short.economy.contracts.pool[0]!.labHours - 1;
+    expect(() => parseScenario(short)).toThrow(/shorter than the lab time/);
+    const twice = structuredClone(scenarioJson) as Econ;
+    twice.economy.contracts.pool.push({ ...twice.economy.contracts.pool[0]! });
+    expect(() => parseScenario(twice)).toThrow(/duplicate contract/);
+    const rate = structuredClone(scenarioJson) as Econ;
+    rate.economy.loan.ratePerQuarter = 2;
+    expect(() => parseScenario(rate)).toThrow(/ratePerQuarter/);
+    const price = structuredClone(modulesJson) as { modules: { id: string; price?: number }[] };
+    price.modules.find((m) => m.id === 'radiator')!.price = -3;
+    expect(() => parseModuleDefs(price)).toThrow(/price/);
+  });
 });
