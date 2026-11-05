@@ -6,7 +6,7 @@ export type Vec3 = readonly [number, number, number];
 export type Tier = 'critical' | 'essential' | 'commercial';
 export const TIERS: readonly Tier[] = ['critical', 'essential', 'commercial'];
 
-export type ModuleKind = 'core' | 'solar' | 'battery' | 'habitat';
+export type ModuleKind = 'core' | 'solar' | 'battery' | 'habitat' | 'radiator';
 
 export interface PortDef {
   id: string;
@@ -28,6 +28,15 @@ export interface PowerSpec {
   maxDischargeKw?: number;
 }
 
+export interface ThermalSpec {
+  /** How far above the coolant loop this module runs per kW of heat it makes, °C/kW. */
+  riseCPerKw: number;
+  /** Radiators: heat rejected to space in full eclipse, kW. */
+  rejectKw?: number;
+  /** Radiators: fraction of `rejectKw` left in full sunlight (sun and Earth glare warm the panels). */
+  sunlitFactor?: number;
+}
+
 /** Visual-only hints for the grey-box builder. The sim ignores these. */
 export interface GreyboxSpec {
   shape: string;
@@ -45,6 +54,7 @@ export interface ModuleDef {
   kind: ModuleKind;
   description: string;
   power: PowerSpec;
+  thermal: ThermalSpec;
   ports: PortDef[];
   greybox: GreyboxSpec;
   /** Optional .glb path relative to the site root, e.g. "models/core.glb". */
@@ -76,6 +86,27 @@ export interface TierThreshold {
   restoreAbove: number;
 }
 
+/** Hysteresis band on a temperature: trip above `above`, clear below `below`, °C. */
+export interface TempBand {
+  above: number;
+  below: number;
+}
+
+export interface ThermalConfig {
+  /** Loop temperature the radiator valves hold when they have capacity to spare, °C. */
+  setpointC: number;
+  initialC: number;
+  /** Heat capacity of the coolant loop, kWh per °C. */
+  loopKwhPerC: number;
+  /** How fast module temperatures follow their target, minutes. */
+  moduleLagMinutes: number;
+  /** Commercial loads run at this fraction of their draw while throttled. */
+  throttleFactor: number;
+  throttle: TempBand;
+  /** Per-tier overheat trips. Cooling modules (radiators) are never tripped. */
+  trip: Record<Tier, TempBand>;
+}
+
 export interface OrbitConfig {
   altitudeKm: number;
   /** Angle between the orbit plane and the sun direction. 0 gives the longest eclipse. */
@@ -93,10 +124,12 @@ export interface ScenarioDef {
     initialChargeFraction: number;
     thresholds: Record<Tier, TierThreshold>;
   };
+  thermal: ThermalConfig;
   layout: LayoutEntry[];
 }
 
-export type ModuleStatus = 'powered' | 'shed' | 'off';
+/** powered: running. throttled: running slow to save heat. shed: no power. overheated: tripped by heat. off: switched off. */
+export type ModuleStatus = 'powered' | 'throttled' | 'shed' | 'overheated' | 'off';
 
 export interface ModuleSnapshot {
   id: string;
@@ -115,6 +148,12 @@ export interface ModuleSnapshot {
   storedKwh: number;
   capacityKwh: number;
   enabled: boolean;
+  /** Module temperature, °C. */
+  tempC: number;
+  /** Heat this module adds to the loop, kW. */
+  heatKw: number;
+  /** Heat this module rejects to space, kW (radiators). */
+  rejectKw: number;
 }
 
 export interface OrbitSnapshot {
@@ -143,6 +182,22 @@ export interface PowerSnapshot {
   shedTiers: Record<Tier, boolean>;
 }
 
+export interface ThermalSnapshot {
+  loopC: number;
+  setpointC: number;
+  /** Heat flowing into the loop, kW. */
+  heatKw: number;
+  /** Heat rejected to space this tick, kW. */
+  rejectKw: number;
+  /** What the radiators could reject right now, kW. */
+  capacityKw: number;
+  throttled: boolean;
+  tripped: Record<Tier, boolean>;
+  throttleAboveC: number;
+  /** Lowest trip temperature (Commercial), for gauges. */
+  tripAboveC: number;
+}
+
 export interface SimSnapshot {
   /** Elapsed in-game minutes (ticks). */
   minutes: number;
@@ -150,5 +205,6 @@ export interface SimSnapshot {
   timeMs: number;
   orbit: OrbitSnapshot;
   power: PowerSnapshot;
+  thermal: ThermalSnapshot;
   modules: ModuleSnapshot[];
 }

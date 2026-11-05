@@ -3,6 +3,7 @@ import type { EventBus, SimEvents } from '../events';
 import { solveNetwork, type NetworkLoad } from '../network';
 import type { Station } from '../station';
 import type { ModuleStatus, Tier, TierThreshold } from '../types';
+import { isCooler, type ThermalLimits } from './thermal';
 
 export interface PowerModuleState {
   enabled: boolean;
@@ -72,11 +73,15 @@ export interface PowerStepOptions {
   dtHours: number;
   /** When false, update statuses and totals but leave stored energy untouched (used for the first snapshot). */
   commitEnergy?: boolean;
+  /** Throttle and overheat trips from the thermal system (last tick). */
+  thermal?: ThermalLimits;
   events?: EventBus<SimEvents>;
 }
 
+const running = (s: ModuleStatus) => s === 'powered' || s === 'throttled';
+
 export function stepPower(state: PowerState, station: Station, opts: PowerStepOptions): void {
-  const { sunlight, thresholds, dtHours, events } = opts;
+  const { sunlight, thresholds, dtHours, events, thermal } = opts;
   const commitEnergy = opts.commitEnergy ?? true;
 
   let supply = 0;
@@ -86,6 +91,9 @@ export function stepPower(state: PowerState, station: Station, opts: PowerStepOp
   let maxOut = 0;
   const loads: NetworkLoad[] = [];
   const batteries: { id: string; capacity: number }[] = [];
+  const demandKw = new Map<string, number>();
+  const tripped = new Set<string>();
+  const throttled = new Set<string>();
 
   for (const m of station.modules) {
     const p = m.def.power;
@@ -99,7 +107,18 @@ export function stepPower(state: PowerState, station: Station, opts: PowerStepOp
       maxOut += p.maxDischargeKw ?? 0;
       batteries.push({ id: m.id, capacity: p.storageKwh ?? 0 });
     }
-    if (s.enabled && p.drawKw > 0) loads.push({ id: m.id, demand: p.drawKw, tier: p.tier });
+    if (!s.enabled) continue;
+    if (thermal?.tripped[p.tier] && !isCooler(m.def)) {
+      tripped.add(m.id);
+      continue;
+    }
+    let demand = p.drawKw;
+    if (thermal?.throttled && p.tier === 'commercial' && demand > 0) {
+      demand *= thermal.throttleFactor;
+      throttled.add(m.id);
+    }
+    demandKw.set(m.id, demand);
+    if (demand > 0) loads.push({ id: m.id, demand, tier: p.tier });
   }
 
   const result = solveNetwork({
@@ -128,10 +147,20 @@ export function stepPower(state: PowerState, station: Station, opts: PowerStepOp
   for (const m of station.modules) {
     const s = moduleState(state, m.id);
     const before = s.status;
-    s.status = !s.enabled ? 'off' : result.shed.has(m.id) ? 'shed' : 'powered';
-    s.actualDrawKw = s.status === 'powered' ? m.def.power.drawKw : 0;
-    if (before === 'powered' && s.status === 'shed') events?.emit('moduleShed', { moduleId: m.id, tier: m.def.power.tier });
-    if (before === 'shed' && s.status === 'powered') events?.emit('moduleRestored', { moduleId: m.id, tier: m.def.power.tier });
+    const tier = m.def.power.tier;
+    s.status = !s.enabled
+      ? 'off'
+      : tripped.has(m.id)
+        ? 'overheated'
+        : result.shed.has(m.id)
+          ? 'shed'
+          : throttled.has(m.id)
+            ? 'throttled'
+            : 'powered';
+    s.actualDrawKw = running(s.status) ? (demandKw.get(m.id) ?? 0) : 0;
+    if (running(before) && s.status === 'shed') events?.emit('moduleShed', { moduleId: m.id, tier });
+    if (before === 'shed' && running(s.status)) events?.emit('moduleRestored', { moduleId: m.id, tier });
+    if (before !== 'overheated' && s.status === 'overheated') events?.emit('moduleOverheated', { moduleId: m.id, tier });
   }
 
   state.totals = {

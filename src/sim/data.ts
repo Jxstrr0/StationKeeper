@@ -9,6 +9,9 @@ import {
   type PortDef,
   type PowerSpec,
   type ScenarioDef,
+  type TempBand,
+  type ThermalConfig,
+  type ThermalSpec,
   type Tier,
   type TierThreshold,
   type Vec3,
@@ -60,7 +63,7 @@ function tier(v: unknown, path: string): Tier {
   return s as Tier;
 }
 
-const KINDS: readonly ModuleKind[] = ['core', 'solar', 'battery', 'habitat'];
+const KINDS: readonly ModuleKind[] = ['core', 'solar', 'battery', 'habitat', 'radiator'];
 
 function kind(v: unknown, path: string): ModuleKind {
   const s = str(v, path);
@@ -91,6 +94,19 @@ function power(v: unknown, path: string): PowerSpec {
   return spec;
 }
 
+function thermal(v: unknown, path: string): ThermalSpec {
+  const o = obj(v, path);
+  const spec: ThermalSpec = { riseCPerKw: num(o.riseCPerKw, `${path}.riseCPerKw`) };
+  const rejectKw = optNum(o.rejectKw, `${path}.rejectKw`);
+  const sunlitFactor = optNum(o.sunlitFactor, `${path}.sunlitFactor`);
+  if (rejectKw !== undefined) spec.rejectKw = rejectKw;
+  if (sunlitFactor !== undefined) {
+    if (sunlitFactor < 0 || sunlitFactor > 1) fail(`${path}.sunlitFactor`, 'expected a fraction 0..1');
+    spec.sunlitFactor = sunlitFactor;
+  }
+  return spec;
+}
+
 function greybox(v: unknown, path: string): GreyboxSpec {
   const o = obj(v, path);
   const spec: GreyboxSpec = { shape: str(o.shape, `${path}.shape`), light: vec3(o.light, `${path}.light`) };
@@ -118,6 +134,7 @@ export function parseModuleDefs(raw: unknown): ModuleDef[] {
       kind: kind(o.kind, `${path}.kind`),
       description: str(o.description, `${path}.description`),
       power: power(o.power, `${path}.power`),
+      thermal: thermal(o.thermal, `${path}.thermal`),
       ports: arr(o.ports, `${path}.ports`).map((p, j) => port(p, `${path}.ports[${j}]`)),
       greybox: greybox(o.greybox, `${path}.greybox`),
     };
@@ -133,6 +150,35 @@ export function parseModuleDefs(raw: unknown): ModuleDef[] {
 function threshold(v: unknown, path: string): TierThreshold {
   const o = obj(v, path);
   return { shedBelow: num(o.shedBelow, `${path}.shedBelow`), restoreAbove: num(o.restoreAbove, `${path}.restoreAbove`) };
+}
+
+function band(v: unknown, path: string): TempBand {
+  const o = obj(v, path);
+  const b = { above: num(o.above, `${path}.above`), below: num(o.below, `${path}.below`) };
+  if (b.below > b.above) fail(path, '"below" must not be higher than "above"');
+  return b;
+}
+
+function thermalConfig(v: unknown): ThermalConfig {
+  const o = obj(v, 'thermal');
+  const trip = obj(o.trip, 'thermal.trip');
+  const throttleFactor = num(o.throttleFactor, 'thermal.throttleFactor');
+  if (throttleFactor <= 0 || throttleFactor > 1) fail('thermal.throttleFactor', 'expected a fraction in (0, 1]');
+  const loopKwhPerC = num(o.loopKwhPerC, 'thermal.loopKwhPerC');
+  if (loopKwhPerC <= 0) fail('thermal.loopKwhPerC', 'expected a positive number');
+  return {
+    setpointC: num(o.setpointC, 'thermal.setpointC'),
+    initialC: num(o.initialC, 'thermal.initialC'),
+    loopKwhPerC,
+    moduleLagMinutes: num(o.moduleLagMinutes, 'thermal.moduleLagMinutes'),
+    throttleFactor,
+    throttle: band(o.throttle, 'thermal.throttle'),
+    trip: {
+      critical: band(trip.critical, 'thermal.trip.critical'),
+      essential: band(trip.essential, 'thermal.trip.essential'),
+      commercial: band(trip.commercial, 'thermal.trip.commercial'),
+    },
+  };
 }
 
 function attachment(v: unknown, path: string): Attachment {
@@ -169,6 +215,7 @@ export function parseScenario(raw: unknown): ScenarioDef {
         commercial: threshold(th.commercial, 'power.thresholds.commercial'),
       },
     },
+    thermal: thermalConfig(o.thermal),
     layout,
   };
 }
