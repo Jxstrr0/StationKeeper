@@ -1,7 +1,7 @@
 // Bottom sheet with details for the tapped module.
 import type { ModuleSnapshot, SimSnapshot } from '../sim/types';
 import { el, setClass, setText } from './dom';
-import { KIND_LABEL, STATUS_LABEL, TIER_LABEL, kw } from './format';
+import { KIND_LABEL, STATUS_LABEL, TIER_LABEL, celsius, kw } from './format';
 
 export interface ModuleSheetHandlers {
   onClose(): void;
@@ -19,6 +19,9 @@ export class ModuleSheet {
   private readonly statusText = el('span');
   private readonly outputRow: HTMLElement;
   private readonly output = el('dd');
+  private readonly outputLabel = el('dt', '', ['Output']);
+  private readonly temp = el('dd');
+  private readonly heat = el('dd');
   private readonly storedRow: HTMLElement;
   private readonly stored = el('dd');
   private readonly toggle = el('button', 'sheet-toggle');
@@ -39,7 +42,7 @@ export class ModuleSheet {
     });
 
     const row = (label: string, value: HTMLElement) => el('div', 'sheet-row', [el('dt', '', [label]), value]);
-    this.outputRow = row('Output', this.output);
+    this.outputRow = el('div', 'sheet-row', [this.outputLabel, this.output]);
     this.storedRow = row('Stored', this.stored);
     const head = el('div', 'sheet-head', [el('div', '', [this.kind, this.title]), close]);
 
@@ -53,6 +56,8 @@ export class ModuleSheet {
         row('Status', el('dd', 'status', [this.statusDot, this.statusText])),
         this.outputRow,
         this.storedRow,
+        row('Temperature', this.temp),
+        row('Heat to loop', this.heat),
       ]),
       this.toggle,
     ]);
@@ -96,15 +101,30 @@ export class ModuleSheet {
     setText(this.kind, `${KIND_LABEL[m.kind]} · ${m.id}`);
     setText(this.title, m.name);
     setText(this.desc, this.descriptions.get(m.defId) ?? '');
-    setText(this.draw, m.status === 'powered' ? `${kw(m.actualDrawKw)} kW` : `0.0 kW (needs ${kw(m.drawKw)})`);
+    setText(
+      this.draw,
+      m.status === 'powered'
+        ? `${kw(m.actualDrawKw)} kW`
+        : m.status === 'throttled'
+          ? `${kw(m.actualDrawKw)} kW (throttled from ${kw(m.drawKw)})`
+          : `0.0 kW (needs ${kw(m.drawKw)})`,
+    );
     setText(this.tier, TIER_LABEL[m.tier]);
     this.tier.className = `chip tier-${m.tier}`;
     setText(this.statusText, STATUS_LABEL[m.status]);
     this.statusDot.className = `status-dot ${m.status}`;
 
-    const hasOutput = m.kind === 'solar';
+    const hasOutput = m.kind === 'solar' || m.kind === 'radiator';
     setClass(this.outputRow, 'hidden', !hasOutput);
-    if (hasOutput) setText(this.output, `${kw(m.generationKw)} kW`);
+    if (m.kind === 'solar') {
+      setText(this.outputLabel, 'Output');
+      setText(this.output, `${kw(m.generationKw)} kW`);
+    } else if (m.kind === 'radiator') {
+      setText(this.outputLabel, 'Rejecting');
+      setText(this.output, `${kw(m.rejectKw)} kW of heat`);
+    }
+    setText(this.temp, `${celsius(m.tempC)} °C`);
+    setText(this.heat, `${kw(m.heatKw)} kW`);
     const hasStore = m.capacityKwh > 0;
     setClass(this.storedRow, 'hidden', !hasStore);
     if (hasStore) setText(this.stored, `${m.storedKwh.toFixed(2)} / ${m.capacityKwh.toFixed(1)} kWh (${Math.round((m.storedKwh / m.capacityKwh) * 100)}%)`);

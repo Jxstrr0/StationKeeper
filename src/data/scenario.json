@@ -11,10 +11,24 @@
       "critical": { "shedBelow": 0, "restoreAbove": 0 }
     }
   },
+  "thermal": {
+    "setpointC": 18,
+    "initialC": 18,
+    "loopKwhPerC": 0.25,
+    "moduleLagMinutes": 8,
+    "throttleFactor": 0.6,
+    "throttle": { "above": 24, "below": 21 },
+    "trip": {
+      "commercial": { "above": 30, "below": 25 },
+      "essential": { "above": 36, "below": 30 },
+      "critical": { "above": 45, "below": 38 }
+    }
+  },
   "layout": [
     { "id": "core-1", "module": "core" },
     { "id": "array-1", "module": "solar-array", "attach": { "to": "core-1", "port": "starboard", "via": "base" } },
     { "id": "battery-1", "module": "battery-pack", "attach": { "to": "core-1", "port": "nadir", "via": "top" } },
-    { "id": "habitat-1", "module": "habitat", "attach": { "to": "core-1", "port": "fore", "via": "aft" } }
+    { "id": "habitat-1", "module": "habitat", "attach": { "to": "core-1", "port": "fore", "via": "aft" } },
+    { "id": "radiator-1", "module": "radiator", "attach": { "to": "core-1", "port": "port", "via": "base" } }
   ]
 }
