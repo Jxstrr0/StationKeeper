@@ -93,6 +93,15 @@ describe('data files', () => {
     expect(bad({ kind: 'cash', amount: 0 })).toThrow(/goal.amount/);
     expect(bad({ kind: 'contracts', count: 2.5 })).toThrow(/goal.count/);
     expect(bad({ kind: 'repayLoan', days: -1 })).toThrow(/goal.days/);
+    expect(bad({ kind: 'reviews', stars: 6 })).toThrow(/goal.stars/);
+    expect(bad({ kind: 'reviews', stars: 3.5 })).toThrow(/goal.stars/);
+    // Guests at their happiest here give four stars (a "guests.base" of 0.75), so five can never be earned.
+    expect(bad({ kind: 'reviews', stars: 5 })).toThrow(/at most 4 stars/);
+    expect(parseScenario({ ...(structuredClone(scenarioJson) as object), goal: { kind: 'reviews', stars: 4, days: 8 } }).goal).toEqual({
+      kind: 'reviews',
+      stars: 4,
+      days: 8,
+    });
     expect(parseScenario({ ...(structuredClone(scenarioJson) as object), goal: { kind: 'cash', amount: 90, days: 4 } }).goal).toEqual({
       kind: 'cash',
       amount: 90,
