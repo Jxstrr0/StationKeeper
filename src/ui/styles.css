@@ -297,6 +297,111 @@ button {
   color: #e0b38a;
 }
 
+/* Coolant loop row */
+
+.thermal-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid var(--line);
+}
+
+.loop-stat {
+  flex: none;
+}
+
+.loop-gauge {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.loop-bar {
+  position: relative;
+  height: 5px;
+  border-radius: 3px;
+  background: #2c2a26;
+}
+
+.loop-bar i {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: 3px;
+  background: var(--lilac);
+  transition: width 0.4s ease, background 0.3s ease;
+}
+
+.loop-bar .tick {
+  position: absolute;
+  top: -3px;
+  width: 2px;
+  height: 11px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--muted);
+  opacity: 0.6;
+}
+
+.loop-bar.warm i {
+  background: #e6b48c;
+}
+
+.loop-bar.hot i {
+  background: var(--clay);
+}
+
+.loop-gauge .stat-flow {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.heat-toggle {
+  flex: none;
+  height: 34px;
+  padding: 0 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.heat-toggle.active {
+  background: var(--purple);
+  border-color: var(--purple);
+  color: var(--ivory);
+}
+
+.heat-legend {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.heat-legend.visible {
+  display: flex;
+}
+
+.heat-legend i {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+}
+
 .shed-note {
   display: none;
   margin-top: 8px;
@@ -474,6 +579,17 @@ button {
   animation: blink 0.9s steps(2, start) infinite;
 }
 
+.status-dot.throttled {
+  background: #e6b48c;
+  box-shadow: 0 0 8px #e6b48c;
+}
+
+.status-dot.overheated {
+  background: #ff5a3c;
+  box-shadow: 0 0 8px #ff5a3c;
+  animation: blink 0.9s steps(2, start) infinite;
+}
+
 @keyframes blink {
   to {
     visibility: hidden;
@@ -538,7 +654,8 @@ button {
 @media (prefers-reduced-motion: reduce) {
   .sheet,
   .toast,
-  .battery-bar i {
+  .battery-bar i,
+  .loop-bar i {
     transition: none;
   }
 }

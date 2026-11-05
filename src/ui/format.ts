@@ -33,7 +33,9 @@ export const TIER_LABEL: Record<Tier, string> = {
 
 export const STATUS_LABEL: Record<ModuleStatus, string> = {
   powered: 'Powered',
+  throttled: 'Throttled (running hot)',
   shed: 'Shed',
+  overheated: 'Tripped: overheating',
   off: 'Switched off',
 };
 
@@ -42,4 +44,9 @@ export const KIND_LABEL: Record<ModuleKind, string> = {
   solar: 'Power generation',
   battery: 'Energy storage',
   habitat: 'Habitat',
+  radiator: 'Thermal control',
 };
+
+export function celsius(v: number): string {
+  return v.toFixed(1);
+}

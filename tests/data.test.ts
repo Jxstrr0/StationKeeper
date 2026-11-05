@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { parseModuleDefs } from '../src/sim/data';
+import { parseModuleDefs, parseScenario } from '../src/sim/data';
+import scenarioJson from '../src/data/scenario.json';
 import { baseScenario, defs } from './helpers';
 
 describe('data files', () => {
@@ -18,5 +19,14 @@ describe('data files', () => {
         modules: [{ id: 'x', name: 'X', kind: 'core', description: '', power: { drawKw: 1, tier: 'vip' }, ports: [], greybox: { shape: 'core', light: [0, 0, 0] } }],
       }),
     ).toThrow(/unknown tier/);
+  });
+
+  it('reject inverted temperature bands and bad throttle factors', () => {
+    const bad = structuredClone(scenarioJson) as { thermal: { throttle: { above: number; below: number }; throttleFactor: number } };
+    bad.thermal.throttle = { above: 20, below: 25 };
+    expect(() => parseScenario(bad)).toThrow(/below/);
+    const bad2 = structuredClone(scenarioJson) as { thermal: { throttleFactor: number } };
+    bad2.thermal.throttleFactor = 0;
+    expect(() => parseScenario(bad2)).toThrow(/throttleFactor/);
   });
 });

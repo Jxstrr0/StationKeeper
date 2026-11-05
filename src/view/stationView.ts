@@ -2,11 +2,14 @@
 // turns the solar wings toward the sun, and answers "which module did I tap?".
 import * as THREE from 'three';
 import type { ModuleDef, ModuleSnapshot, ModuleStatus, SimSnapshot } from '../sim/types';
+import { heatRgb } from './heatScale';
 import type { ModuleModel, ModuleModelSource } from './moduleModels';
 
 const STATUS_COLORS: Record<ModuleStatus, number> = {
   powered: 0xb48ce8, // lilac: healthy
+  throttled: 0xe0b38a, // pale clay: running slow
   shed: 0xd97757, // clay: warning
+  overheated: 0xff5a3c, // hot red-orange: tripped by heat
   off: 0x5a5852,
 };
 
@@ -18,6 +21,9 @@ interface Entry {
   lightCore: THREE.Mesh;
   halo: THREE.Sprite;
   status: ModuleStatus | null;
+  /** Heat overlay: this module's tint material, and the materials it replaced. */
+  heatMaterial: THREE.MeshStandardMaterial;
+  swapped: { mesh: THREE.Mesh; material: THREE.Material | THREE.Material[] }[];
 }
 
 function makeHaloTexture(): THREE.Texture {
@@ -50,6 +56,7 @@ export class StationView {
   private selection: THREE.BoxHelper | null = null;
   private selectedId: string | null = null;
   private blink = 0;
+  private heatOverlay = false;
   /** Fires when a module finishes loading, so the caller can re-frame the camera. */
   onModuleAdded: (() => void) | null = null;
 
@@ -112,8 +119,35 @@ export class StationView {
     model.statusLight.add(halo);
 
     this.root.add(object);
-    this.entries.set(m.id, { id: m.id, def, object, model, lightCore, halo, status: null });
+    const heatMaterial = new THREE.MeshStandardMaterial({ roughness: 0.65, metalness: 0, side: THREE.DoubleSide });
+    const entry: Entry = { id: m.id, def, object, model, lightCore, halo, status: null, heatMaterial, swapped: [] };
+    this.entries.set(m.id, entry);
+    if (this.heatOverlay) this.applyHeat(entry, true);
     this.onModuleAdded?.();
+  }
+
+  /** Show or hide the Heat overlay: every module is tinted by its temperature. */
+  setHeatOverlay(on: boolean): void {
+    if (on === this.heatOverlay) return;
+    this.heatOverlay = on;
+    for (const e of this.entries.values()) this.applyHeat(e, on);
+  }
+
+  get heatOverlayOn(): boolean {
+    return this.heatOverlay;
+  }
+
+  private applyHeat(e: Entry, on: boolean): void {
+    if (on) {
+      e.model.root.traverse((o) => {
+        if (!(o instanceof THREE.Mesh) || o === e.lightCore) return;
+        e.swapped.push({ mesh: o, material: o.material });
+        o.material = e.heatMaterial;
+      });
+    } else {
+      for (const s of e.swapped) s.mesh.material = s.material;
+      e.swapped = [];
+    }
   }
 
   /** Centre and radius of the station, for framing the camera. */
@@ -134,9 +168,17 @@ export class StationView {
         const color = STATUS_COLORS[m.status];
         (e.lightCore.material as THREE.MeshBasicMaterial).color.setHex(color);
         (e.halo.material as THREE.SpriteMaterial).color.setHex(color);
-        for (const g of e.model.glowMaterials) g.emissiveIntensity = m.status === 'powered' ? 1.6 : 0.02;
+        const glow = m.status === 'powered' ? 1.6 : m.status === 'throttled' ? 0.8 : 0.02;
+        for (const g of e.model.glowMaterials) g.emissiveIntensity = glow;
       }
-      const visible = m.status !== 'shed' || blinkOn;
+      if (this.heatOverlay) {
+        const [r, g, b] = heatRgb(m.tempC);
+        e.heatMaterial.color.setRGB(r, g, b, THREE.SRGBColorSpace);
+        // A little self-light so the tint still reads on the night side.
+        e.heatMaterial.emissive.setRGB(r * 0.6, g * 0.6, b * 0.6, THREE.SRGBColorSpace);
+      }
+      const alarm = m.status === 'shed' || m.status === 'overheated';
+      const visible = !alarm || blinkOn;
       e.lightCore.visible = visible;
       e.halo.visible = visible && m.status !== 'off';
       if (e.model.gimbal) this.trackSun(e, sunDirWorld);

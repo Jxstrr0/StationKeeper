@@ -6,6 +6,7 @@
       "kind": "core",
       "description": "Command deck, avionics, and the primary life support racks. If this goes dark, so does everyone.",
       "power": { "drawKw": 5.0, "tier": "critical" },
+      "thermal": { "riseCPerKw": 0.9 },
       "ports": [
         { "id": "fore", "position": [4, 0, 0], "direction": [1, 0, 0] },
         { "id": "aft", "position": [-4, 0, 0], "direction": [-1, 0, 0] },
@@ -22,6 +23,7 @@
       "kind": "solar",
       "description": "Two sun-tracking wings on a short truss. Generates only in sunlight; the gimbal drives draw a little power of their own.",
       "power": { "drawKw": 0.4, "tier": "essential", "generationKw": 22 },
+      "thermal": { "riseCPerKw": 2.0 },
       "gimbalAxis": [0, 0, 1],
       "panelNormal": [1, 0, 0],
       "ports": [{ "id": "base", "position": [0, 0, 0], "direction": [0, 0, -1] }],
@@ -33,6 +35,7 @@
       "kind": "battery",
       "description": "Lithium-ion storage that carries the station through eclipse. Its own thermal control is critical: cold cells are dead cells.",
       "power": { "drawKw": 0.3, "tier": "critical", "storageKwh": 9, "maxChargeKw": 8, "maxDischargeKw": 15 },
+      "thermal": { "riseCPerKw": 5.0 },
       "ports": [{ "id": "top", "position": [0, 0, 0], "direction": [0, 1, 0] }],
       "greybox": { "shape": "battery", "size": [2.6, 1.8, 2.6], "light": [1.35, -0.6, 0] }
     },
@@ -42,11 +45,22 @@
       "kind": "habitat",
       "description": "Four paying guests, one large window, and a coffee machine that draws more power than it should. Commercial load: first to go when power runs short.",
       "power": { "drawKw": 6.0, "tier": "commercial" },
+      "thermal": { "riseCPerKw": 0.8 },
       "ports": [
         { "id": "aft", "position": [0, 0, 0], "direction": [-1, 0, 0] },
         { "id": "fore", "position": [7, 0, 0], "direction": [1, 0, 0] }
       ],
       "greybox": { "shape": "habitat", "length": 7, "radius": 2.4, "light": [3.5, 2.55, 0] }
+    },
+    {
+      "id": "radiator",
+      "name": "Radiator Array",
+      "kind": "radiator",
+      "description": "Ammonia loop panels that dump the station's heat to deep space. They work best in Earth's shadow; in sunlight they are fighting the Sun as well as the coffee machine.",
+      "power": { "drawKw": 0.8, "tier": "essential" },
+      "thermal": { "riseCPerKw": 1.0, "rejectKw": 15, "sunlitFactor": 0.66 },
+      "ports": [{ "id": "base", "position": [0, 0, 0], "direction": [0, 0, 1] }],
+      "greybox": { "shape": "radiator", "length": 6, "wingLength": 7, "wingWidth": 2.2, "light": [0, 0.75, -1.2] }
     }
   ]
 }
