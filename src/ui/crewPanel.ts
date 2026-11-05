@@ -32,6 +32,8 @@ export function crewDuties(snap: SimSnapshot): string {
   const n = (k: number, one: string, many: string) => `${k} ${k === 1 ? one : many}`;
   const teams = c.engineers === 0 ? 'no repairs possible' : n(c.engineers, 'repair team', 'repair teams');
   const labs = c.labs === 0 ? ', no labs yet' : ` for ${n(c.labs, 'lab', 'labs')}`;
+  // A station with no labs and nobody to run one: scientists don't come into it.
+  if (c.scientists === 0 && c.labs === 0) return `${n(c.engineers, 'engineer', 'engineers')}, ${teams}`;
   return `${n(c.engineers, 'engineer', 'engineers')}, ${teams} · ${n(c.scientists, 'scientist', 'scientists')}${labs}`;
 }
 
@@ -51,13 +53,15 @@ export class CrewPanel {
   constructor(
     parent: HTMLElement,
     private readonly handlers: CrewPanelHandlers,
+    /** Roles this station hires: no scientists where there are no labs to be had. */
+    roles: readonly CrewRole[] = ['engineer', 'scientist'],
   ) {
     const close = el('button', 'sheet-close', ['×']);
     close.type = 'button';
     close.setAttribute('aria-label', 'Close crew');
     close.addEventListener('click', () => handlers.onClose());
 
-    const hireCards = (['engineer', 'scientist'] as const).map((role) => {
+    const hireCards = roles.map((role) => {
       const b = el('button', 'warn-act primary crew-hire', [`Hire ${ROLE[role].label.toLowerCase()}`]);
       b.type = 'button';
       b.addEventListener('click', () => handlers.onHire(role));

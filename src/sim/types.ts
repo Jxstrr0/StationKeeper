@@ -204,6 +204,8 @@ export interface ScenarioDef {
   economy: EconomyConfig;
   endings: EndingsConfig;
   crew: CrewConfig;
+  /** Module ids this station can order. Without it, every module with a price is for sale. */
+  catalogue?: string[];
   layout: LayoutEntry[];
 }
 

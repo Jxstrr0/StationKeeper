@@ -1368,6 +1368,21 @@ dd.worn .wear-text {
   color: var(--lilac);
 }
 
+.picker-record {
+  margin: -4px 0 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.picker-record.won::before {
+  content: '✓ ';
+  color: var(--lilac);
+}
+
+.picker-record.hidden {
+  display: none;
+}
+
 .picker-foot {
   display: flex;
   align-items: center;

@@ -178,6 +178,11 @@ export class Simulation {
     this.defList = defs;
     this.defs = indexDefs(defs);
     this.station = buildStation(this.defs, layout);
+    for (const id of scenario.catalogue ?? []) {
+      const def = this.defs.get(id);
+      if (!def) throw new Error(`Scenario catalogue lists unknown module "${id}"`);
+      if (def.price === undefined) throw new Error(`Scenario catalogue lists "${id}", which has no price`);
+    }
     this.orbit = createOrbit(scenario.orbit);
     this.rng = new Rng(scenario.seed);
     const start = Date.parse(scenario.startDate);
@@ -336,13 +341,20 @@ export class Simulation {
     }
   }
 
+  /** Whether this station can order `defId`: it has a price, and the scenario's catalogue (if any) lists it. */
+  forSale(defId: string): boolean {
+    const def = this.defs.get(defId);
+    if (def?.price === undefined) return false;
+    return this.scenario.catalogue?.includes(defId) ?? true;
+  }
+
   /** Why `defId` can't be built on `to`'s `port`, or null if it can. Sim rules only: the view checks for collisions. */
   buildProblem(defId: string, to: string, port: string): string | null {
     const def = this.defs.get(defId);
     if (!def) return `Unknown module "${defId}"`;
     const via = mountPort(def);
     if (!via) return `${def.name} has no port to mount by`;
-    if (def.price === undefined) return `${def.name} is not for sale`;
+    if (def.price === undefined || !this.forSale(defId)) return `${def.name} is not for sale to this station`;
     if (this.deliveries.some((d) => d.to === to && d.port === port)) return 'A module is already on its way to that port';
     const problem = attachProblem(this.station, this.defs, { id: this.nextId(defId), module: defId, attach: { to, port, via } });
     if (problem) return problem;

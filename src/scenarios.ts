@@ -1,10 +1,11 @@
 // Every scenario the game ships with, parsed once. The first is the one a brand-new player starts on.
+import halyard from './data/scenarios/halyard.json';
 import kittiwake from './data/scenarios/kittiwake.json';
 import longlightOne from './data/scenarios/longlight-one.json';
 import { parseScenario } from './sim/data';
 import type { ScenarioDef } from './sim/types';
 
-export const SCENARIOS: readonly ScenarioDef[] = [longlightOne, kittiwake].map(parseScenario);
+export const SCENARIOS: readonly ScenarioDef[] = [longlightOne, kittiwake, halyard].map(parseScenario);
 
 const ids = new Set<string>();
 for (const s of SCENARIOS) {
