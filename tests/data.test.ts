@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { parseModuleDefs, parseScenario } from '../src/sim/data';
 import modulesJson from '../src/data/modules.json';
-import scenarioJson from '../src/data/scenario.json';
+import scenarioJson from '../src/data/scenarios/longlight-one.json';
+import { SCENARIOS } from '../src/scenarios';
+import { Simulation } from '../src/sim/simulation';
 import { baseScenario, defs } from './helpers';
 
 describe('data files', () => {
@@ -68,5 +70,33 @@ describe('data files', () => {
     const price = structuredClone(modulesJson) as { modules: { id: string; price?: number }[] };
     price.modules.find((m) => m.id === 'radiator')!.price = -3;
     expect(() => parseModuleDefs(price)).toThrow(/price/);
+  });
+
+  it('every shipped scenario parses, has a unique id, and starts a sim', () => {
+    expect(SCENARIOS.length).toBeGreaterThanOrEqual(2);
+    expect(new Set(SCENARIOS.map((s) => s.id)).size).toBe(SCENARIOS.length);
+    for (const s of SCENARIOS) {
+      const sim = new Simulation(defs, s);
+      sim.run(60);
+      expect(sim.snapshot().ending.goal.kind).toBe(s.goal.kind);
+    }
+  });
+
+  it('rejects goals it does not understand', () => {
+    type Goal = { goal: Record<string, unknown> };
+    const bad = (goal: Record<string, unknown>) => {
+      const s = structuredClone(scenarioJson) as unknown as Goal;
+      s.goal = goal;
+      return () => parseScenario(s);
+    };
+    expect(bad({ kind: 'world-peace' })).toThrow(/goal.kind/);
+    expect(bad({ kind: 'cash', amount: 0 })).toThrow(/goal.amount/);
+    expect(bad({ kind: 'contracts', count: 2.5 })).toThrow(/goal.count/);
+    expect(bad({ kind: 'repayLoan', days: -1 })).toThrow(/goal.days/);
+    expect(parseScenario({ ...(structuredClone(scenarioJson) as object), goal: { kind: 'cash', amount: 90, days: 4 } }).goal).toEqual({
+      kind: 'cash',
+      amount: 90,
+      days: 4,
+    });
   });
 });

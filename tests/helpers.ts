@@ -1,5 +1,5 @@
 import modulesJson from '../src/data/modules.json';
-import scenarioJson from '../src/data/scenario.json';
+import scenarioJson from '../src/data/scenarios/longlight-one.json';
 import { parseModuleDefs, parseScenario } from '../src/sim/data';
 import { Simulation, type SimOptions } from '../src/sim/simulation';
 import type { ModuleDef, ScenarioDef } from '../src/sim/types';
