@@ -517,11 +517,76 @@ So the deadline asks one thing of the player: notice that the lab needs power th
 - No crew needs beyond air, water and pay: no morale, food or rest.
 - New hires always cost the same; the market for engineers is suspiciously calm.
 
+## Session 11: a third scenario, catalogues, and a record of wins
+
+### What was built
+
+- **Halyard Sunward** (`src/data/scenarios/halyard.json`), a hotel on an orbit that never enters Earth's shadow:
+  - 520 km at beta 78°;
+  - $30M cash and a $40M loan;
+  - guests pay $2.2M a day each;
+  - two engineers and no scientists;
+  - the goal is $90M in cash within 10 days.
+  - Power is never short, but radiators only shed 66% of their rating in sunlight, and here it is always sunlight. The starting station already runs too hot for its one radiator, so the habitat throttles within hours.
+- **Catalogues.** A scenario can list the modules it sells (`catalogue`). Without one, everything with a price is for sale.
+  - Halyard sells no Research Lab and offers no contracts. Its Finance sheet leaves the contracts section out, and its crew sheet only hires engineers.
+  - The sim refuses a catalogue that names an unknown or unpriced module. `buildProblem` explains a module that isn't sold ("not for sale to this station").
+  - The build tray only shows what's for sale.
+- **Contract pools can be empty.** A scenario with a contracts goal and an empty pool is refused when loaded.
+- **A record of wins** (`src/records.ts`, localStorage key `stationkeeper.records`). For each scenario it keeps:
+  - wins;
+  - the fastest win, in game time;
+  - losses, and how the last one ended.
+  - The record outlives saves: starting a new station doesn't touch it.
+  - Each scenario card in the picker shows a line such as "✓ Won once, fastest in 4 d 5 h · 1 station lost".
+- **HUD:** an orbit with no shadow reads "No eclipse on this orbit" instead of "Eclipse in —".
+- **Tests (156):**
+  - catalogue parsing, the sale rules, and bad catalogues;
+  - a contracts goal with no pool is refused;
+  - Halyard: never in shadow, no labs, offers or scientists, and too hot for one radiator;
+  - records: counting, the fastest win, junk in storage, and the picker text.
+
+### Balance (by design)
+
+Halyard was simulated over 10 days on four seeds:
+
+| Strategy | Result |
+| --- | --- |
+| Neglect | Evacuated in 1.3–2.3 days; the heat trips everything. |
+| Repairs only | About $62M at day 10; the board replaces you. |
+| A second radiator | About $56–67M; still replaced. |
+| A radiator, then a second habitat | Goal reached in 8.2–9.2 days. |
+| A radiator, a habitat, then a third radiator | Goal reached in 8.6–10.0 days. |
+| Two radiators before the habitat | Replaced at $73–88M; the habitat came too late. |
+| A second habitat before any radiator | Evacuated in 5.4–7.8 days. |
+| A third habitat (plus life support and a node) | Worse: it costs more than it earns back in 10 days. |
+
+The lesson is to get the second habitat up early, with just enough cooling for it.
+
+### How to test on a phone
+
+1. Finance → Start a new station → Halyard Sunward.
+2. The top bar says there is no eclipse. Within a few hours the coolant passes 24 °C and the habitat throttles.
+3. Build: the tray has no Research Lab. Buy a Radiator Array, then a Guest Habitat when cash allows.
+4. Win or lose any scenario, then open the picker again. Its card shows the record.
+
+### Choices made
+
+- **Records are per device, like the save.** There's no account to sync them to.
+- **A win is counted when the goal is reached**, even if the player keeps going and loses later. That later loss is counted too.
+- **The catalogue is a plain allowlist**, not per-scenario prices. Different prices can come if a scenario needs them.
+- **The third scenario reuses the existing modules.** What makes it different is the orbit, the catalogue and the goal, so no new art was needed.
+
+### Known gaps
+
+- Hiring a scientist is still possible where labs are for sale but none is built; that is intended.
+- The picker is a plain list. With many more scenarios it would want sorting or an unlock order.
+
 ## Next
 
 The planned slices are done. Candidates for what's next, roughly in order of value:
 
-1. **Play-testing on a real phone** to tune pace, readability, and the first ten minutes.
-2. **More scenarios**, with their own contract pools or modules, and a record of which have been won.
-3. **Crew needs**: rest, morale, and individual health.
+1. **Play-testing on a real phone** to tune pace, readability, and the first ten minutes (and Halyard's opening hours).
+2. **Crew needs**: rest, morale, and individual health.
+3. **More scenarios**, perhaps with their own modules (say, an observation cupola for a hotel) or prices.
 4. **Art**: Blender models replacing the grey-boxes (the loader already prefers them).
