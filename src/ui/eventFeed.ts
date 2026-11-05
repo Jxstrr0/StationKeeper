@@ -109,6 +109,19 @@ export function connectEventFeed(
     }
   });
 
+  const roleName = (r: string) => (r === 'engineer' ? 'an engineer' : 'a scientist');
+  events.on('crewHired', ({ name, role, hours }) => {
+    toasts.show(`${name} signed on as ${roleName(role)}. On the next flight up, aboard in ${Math.round(hours)} h.`, 'ok');
+  });
+  events.on('crewArrived', ({ name, role }) => {
+    toasts.show(
+      role === 'engineer' ? `${name} is aboard, and the repair rota has another name on it.` : `${name} is aboard and already rearranging the lab.`,
+      'ok',
+    );
+  });
+  events.on('crewLeft', ({ name, wasAboard }) => {
+    toasts.show(wasAboard ? `${name} has gone home. Their mug stays.` : `${name}'s flight up is cancelled.`, 'warn');
+  });
   events.on('moduleFailed', ({ moduleId, tier }) => {
     const what = FAILED[moduleKindOf(moduleId)] ?? 'It will need a repair.';
     toasts.show(`${tier === 'commercial' ? '' : 'ALARM: '}${moduleName(moduleId)} failed. ${what}`, tier === 'commercial' ? 'warn' : 'alarm');

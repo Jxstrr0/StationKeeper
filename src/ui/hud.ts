@@ -15,6 +15,8 @@ const HEAT_ICON =
 export interface HudHandlers {
   onSpeed(speed: Speed): void;
   onHeatOverlay(on: boolean): void;
+  /** The crew reading was tapped. */
+  onCrew(): void;
 }
 
 export class Hud {
@@ -113,12 +115,29 @@ export class Hud {
           mini('CO₂', this.co2, 'mmHg'),
           mini('O₂', this.o2, '%'),
           mini('Water', this.water, '%'),
-          mini('Crew', this.crew, '%', this.aboard),
+          this.crewCell(mini('Crew', this.crew, '%', this.aboard), handlers.onCrew),
         ]),
         this.shedNote,
       ]),
     ]);
     parent.append(this.root);
+  }
+
+  /** The crew reading doubles as the way into the crew sheet. */
+  private crewCell(cell: HTMLElement, onCrew: () => void): HTMLElement {
+    cell.classList.add('crew-cell');
+    cell.setAttribute('role', 'button');
+    cell.tabIndex = 0;
+    cell.setAttribute('aria-label', 'Crew: open the crew sheet');
+    cell.addEventListener('click', onCrew);
+    cell.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        e.stopPropagation();
+        onCrew();
+      }
+    });
+    return cell;
   }
 
   update(snap: SimSnapshot, speed: Speed): void {
