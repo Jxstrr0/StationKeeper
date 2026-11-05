@@ -49,7 +49,22 @@ import {
   type ReliabilityModuleState,
   type ReliabilityState,
 } from './systems/reliability';
-import { countAboard, countFit, createCrewState, crewSnapshot, dismiss, hire, hireProblem, stepCrew, stepNeeds, wagesPerDay, type CrewState } from './systems/crew';
+import {
+  bonusProblem,
+  comfortLift,
+  countAboard,
+  countFit,
+  createCrewState,
+  crewSnapshot,
+  dismiss,
+  hire,
+  hireProblem,
+  payBonus,
+  stepCrew,
+  stepNeeds,
+  wagesPerDay,
+  type CrewState,
+} from './systems/crew';
 import {
   addThermalModule,
   createThermalState,
@@ -76,7 +91,9 @@ export type SimCommand =
   /** Sign someone up; they fly up and arrive later. */
   | { type: 'hireCrew'; role: CrewRole }
   /** Send someone home, or cancel their flight up. */
-  | { type: 'dismissCrew'; crewId: string };
+  | { type: 'dismissCrew'; crewId: string }
+  /** A one-off bonus for everyone aboard, to lift morale. */
+  | { type: 'payBonus' };
 
 /** A module paid for and on its way up. Its port is reserved until it docks. */
 interface Delivery {
@@ -88,7 +105,7 @@ interface Delivery {
 }
 
 /** Bump when the save's shape changes; older saves are then discarded rather than misread. */
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 
 /** How the game stands: lost, goal reached, or how close the bank is. */
 interface EndingState {
@@ -257,6 +274,18 @@ export class Simulation {
     this.checkEnding();
   }
 
+  /** What the running comforts (a galley, say) add to the crew's morale. */
+  private comfort(): { lift: number; seats: number } {
+    const running = this.station.modules.filter((m) => {
+      const st = this.power.modules.get(m.id)?.status;
+      return m.def.comfort && (st === 'powered' || st === 'throttled');
+    });
+    return comfortLift(
+      running.map((m) => m.def.comfort!),
+      countAboard(this.crew, this.minutes),
+    );
+  }
+
   /** Shifts, fatigue, illness, and morale, from what the station asked of the crew this minute. */
   private stepCrewNeeds(): void {
     const teams = countFit(this.crew, this.minutes, 'engineer');
@@ -272,6 +301,7 @@ export class Simulation {
         demand: { engineer: Math.min(teams, this.reliability.queue.length), scientist: this.economy.active.length > 0 ? labsRunning : 0 },
         badAir: a.co2Warn || a.o2Low || a.waterLow,
         hot: this.thermal.throttled,
+        comfort: this.comfort().lift,
       },
       { now: this.minutes, dtHours: TICK_HOURS, rng: this.crewRng, events: this.events },
     );
@@ -353,6 +383,13 @@ export class Simulation {
         if (this.scenario.crew.arrivalHours <= 0) this.refreshPlant();
         this.solve(false);
         return { ok: true, crewId: m.id };
+      }
+      case 'payBonus': {
+        const problem = bonusProblem(this.crew, this.scenario.crew, this.economy.cash, this.minutes);
+        if (problem) return { ok: false, reason: problem };
+        book(this.economy, 'wages', -payBonus(this.crew, this.scenario.crew, this.minutes, this.events));
+        this.solve(false);
+        return { ok: true };
       }
       case 'dismissCrew': {
         if (!dismiss(this.crew, cmd.crewId, this.minutes, this.events)) return { ok: false, reason: 'No such crew member' };
@@ -714,7 +751,7 @@ export class Simulation {
       freePorts: freePorts(this.station).filter((p) => !this.deliveries.some((d) => d.to === p.moduleId && d.port === p.portId)),
       economy: this.economySnapshot(),
       ending: this.endingSnapshot(),
-      crew: crewSnapshot(this.crew, this.station, this.scenario.crew, this.minutes),
+      crew: crewSnapshot(this.crew, this.station, this.scenario.crew, this.minutes, this.comfort()),
     };
     return { ...snap, warnings: diagnose(snap) };
   }

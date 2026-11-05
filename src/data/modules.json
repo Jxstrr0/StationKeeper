@@ -77,6 +77,23 @@
       "greybox": { "shape": "habitat", "length": 5, "radius": 2.0, "light": [2.5, 2.15, 0] }
     },
     {
+      "id": "galley",
+      "name": "Galley",
+      "kind": "galley",
+      "description": "A galley, a table that folds out of the wall, and a coffee machine with opinions. Lifts crew morale while it runs. Seats six; Commercial load.",
+      "power": { "drawKw": 2.0, "tier": "commercial" },
+      "thermal": { "riseCPerKw": 0.9 },
+      "reliability": { "wearDays": 6, "failPerDay": 0.7, "serviceHours": 1.5 },
+      "price": 8,
+      "cabin": { "volumeM3": 30 },
+      "comfort": { "morale": 0.12, "seats": 6 },
+      "ports": [
+        { "id": "aft", "position": [0, 0, 0], "direction": [-1, 0, 0] },
+        { "id": "fore", "position": [4, 0, 0], "direction": [1, 0, 0] }
+      ],
+      "greybox": { "shape": "habitat", "length": 4, "radius": 1.8, "light": [2, 1.95, 0] }
+    },
+    {
       "id": "radiator",
       "name": "Radiator Array",
       "kind": "radiator",

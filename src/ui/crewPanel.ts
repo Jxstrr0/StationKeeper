@@ -8,6 +8,7 @@ export interface CrewPanelHandlers {
   onClose(): void;
   onHire(role: CrewRole): void;
   onDismiss(crewId: string): void;
+  onBonus(): void;
 }
 
 const ROLE: Record<CrewRole, { label: string; does: string }> = {
@@ -23,6 +24,24 @@ export function hireBlocked(snap: SimSnapshot): string | null {
   const c = snap.crew;
   if (c.bunksTaken >= c.bunks) return 'Every bunk is taken. Build Crew Quarters for four more.';
   if (snap.economy.cash < c.signingFee) return `Signing someone costs ${money(c.signingFee)}.`;
+  return null;
+}
+
+/** What the running comforts do for morale, and whether there are seats enough to go round. */
+export function comfortText(snap: SimSnapshot): string {
+  const c = snap.crew;
+  if (c.comfortSeats === 0) return 'Nothing to do off shift but stare at the Earth. A galley would lift morale.';
+  const lift = `Comforts lift morale ${Math.round(c.comfortLift * 100)}%`;
+  if (c.comfortSeats >= c.aboard) return `${lift} · seats for ${c.comfortSeats}`;
+  return `${lift}: ${c.comfortSeats} seats for ${c.aboard} aboard, so it is shared thin`;
+}
+
+/** Why a bonus can't be paid now, or null. Mirrors the sim's own check. */
+export function bonusBlocked(snap: SimSnapshot): string | null {
+  const c = snap.crew;
+  if (c.aboard === 0) return 'Nobody aboard to pay.';
+  if (c.bonusReadyInHours !== null) return `Next bonus in ${minutes(c.bonusReadyInHours * 60)}. Any sooner would set a precedent.`;
+  if (snap.economy.cash < c.bonusCost) return `A bonus all round costs ${money(c.bonusCost)}.`;
   return null;
 }
 
@@ -69,6 +88,9 @@ export class CrewPanel {
   private readonly blocked = el('p', 'fin-note crew-blocked');
   private readonly hireButtons = new Map<CrewRole, HTMLButtonElement>();
   private readonly terms = el('p', 'fin-note');
+  private readonly comforts = el('p', 'fin-note');
+  private readonly bonus = el('button', 'warn-act crew-bonus', ['Pay a bonus']);
+  private readonly bonusNote = el('p', 'fin-note');
   private rosterKey = '';
   private armed: { id: string; button: HTMLButtonElement; timer: ReturnType<typeof setTimeout> } | null = null;
   private readonly rows = new Map<string, { status: HTMLElement; readings: HTMLElement }>();
@@ -93,11 +115,15 @@ export class CrewPanel {
       return el('div', 'crew-hire-card', [el('div', 'crew-hire-text', [el('b', '', [ROLE[role].label]), el('span', '', [ROLE[role].does])]), b]);
     });
 
+    this.bonus.type = 'button';
+    this.bonus.addEventListener('click', () => handlers.onBonus());
+
     this.root.append(
       el('div', 'build-head', [el('h2', 'build-title', ['Crew']), close]),
       el('div', 'fin-scroll', [
         el('div', 'fin-section', [this.summary, this.duties]),
         el('div', 'fin-section', [el('h3', 'fin-h', ['Aboard and on the way']), this.list]),
+        el('div', 'fin-section', [el('h3', 'fin-h', ['Morale']), this.comforts, this.bonus, this.bonusNote]),
         el('div', 'fin-section', [el('h3', 'fin-h', ['Hire']), this.terms, ...hireCards, this.blocked]),
       ]),
     );
@@ -132,6 +158,12 @@ export class CrewPanel {
     for (const b of this.hireButtons.values()) if (b.disabled !== (blocked !== null)) b.disabled = blocked !== null;
     setText(this.blocked, blocked ?? '');
     setClass(this.blocked, 'hidden', blocked === null);
+
+    setText(this.comforts, comfortText(snap));
+    setText(this.bonus, `Pay everyone a bonus · ${money(c.bonusCost)}`);
+    const noBonus = bonusBlocked(snap);
+    if (this.bonus.disabled !== (noBonus !== null)) this.bonus.disabled = noBonus !== null;
+    setText(this.bonusNote, noBonus ?? `Lifts everyone's morale by ${Math.round(c.bonusMorale * 100)}%, once a day at most.`);
 
     const key = c.members.map((m) => `${m.id}:${m.arrivesInHours === null ? 'a' : 'f'}`).join(',');
     if (key !== this.rosterKey) {

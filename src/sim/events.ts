@@ -40,6 +40,8 @@ export interface SimEvents {
   crewExhausted: { crewId: string; name: string; role: CrewRole };
   crewFellIll: { crewId: string; name: string; role: CrewRole; hours: number };
   crewRecovered: { crewId: string; name: string; role: CrewRole };
+  /** Everyone aboard was paid a bonus. */
+  crewBonusPaid: { cost: number; people: number };
   /** The goal is reached. Fires once; play carries on. */
   goalReached: { minutes: number };
   /** The game is lost. The sim stops ticking after this. */
