@@ -4,6 +4,7 @@
 // penalised on failure. Business quarters are compressed (see EconomyConfig.quarterDays) because orbit time can't be.
 import type { EventBus, SimEvents } from '../events';
 import type { Rng } from '../rng';
+import { labCapacity } from './crew';
 import type { Station } from '../station';
 import type { ContractDef, ContractSnapshot, EconomyConfig, Ledger, LedgerCategory, ModuleStatus, QuarterReport } from '../types';
 import type { PowerState } from './power';
@@ -42,7 +43,7 @@ export interface EconomyState {
   stats: { contractsDone: number; contractsFailed: number; guestMinutes: number; guestMinutesPossible: number; failures: number };
 }
 
-const emptyLedger = (): Ledger => ({ guests: 0, contracts: 0, operations: 0, interest: 0, construction: 0, repairs: 0, penalties: 0 });
+const emptyLedger = (): Ledger => ({ guests: 0, contracts: 0, wages: 0, operations: 0, interest: 0, construction: 0, repairs: 0, penalties: 0 });
 const emptyStats = (): EconomyState['stats'] => ({ contractsDone: 0, contractsFailed: 0, guestMinutes: 0, guestMinutesPossible: 0, failures: 0 });
 
 export function createEconomyState(cfg: EconomyConfig, rng: Rng): EconomyState {
@@ -91,14 +92,23 @@ export function book(state: EconomyState, category: LedgerCategory, amount: numb
 const running = (s: ModuleStatus | undefined) => s === 'powered' || s === 'throttled';
 
 /** How many labs there are, and how much lab time each active contract gets this minute (0..1 per hour). */
-function labShare(station: Station, power: PowerState, def: ContractDef, activeCount: number, throttleFactor: number): number {
-  let capacity = 0;
+/** Who is aboard to do the work, and what they cost. */
+export interface Staffing {
+  scientists: number;
+  /** Share of its speed a lab works at with no scientist. */
+  unstaffedFactor: number;
+  wagesPerDay: number;
+}
+
+function labShare(station: Station, power: PowerState, def: ContractDef, activeCount: number, throttleFactor: number, staff: Staffing): number {
+  const speeds: number[] = [];
   for (const m of station.modules) {
     if (m.def.kind !== 'lab') continue;
     const status = power.modules.get(m.id)?.status;
-    if (status === 'powered') capacity += 1;
-    else if (status === 'throttled' && !def.stable) capacity += throttleFactor;
+    if (status === 'powered') speeds.push(1);
+    else if (status === 'throttled' && !def.stable) speeds.push(throttleFactor);
   }
+  const capacity = labCapacity(speeds, staff.scientists, staff.unstaffedFactor);
   return activeCount > 0 ? Math.min(1, capacity / activeCount) : 0;
 }
 
@@ -152,6 +162,7 @@ export interface EconomyStepOptions {
   dtHours: number;
   /** Commercial throttle factor from the thermal config: throttled labs work at this rate. */
   throttleFactor: number;
+  staff: Staffing;
   events?: EventBus<SimEvents>;
 }
 
@@ -171,6 +182,7 @@ export function stepEconomy(state: EconomyState, station: Station, power: PowerS
     }
   }
   book(state, 'operations', -cfg.operationsPerDay * dtDays);
+  book(state, 'wages', -opts.staff.wagesPerDay * dtDays);
   book(state, 'interest', -state.loan * cfg.loan.ratePerQuarter * (dtDays / cfg.quarterDays));
 
   // Contracts: lab time, completion, deadlines. Lab time is shared by the contracts under way at the start
@@ -178,7 +190,7 @@ export function stepEconomy(state: EconomyState, station: Station, power: PowerS
   const under = state.active.length;
   for (const c of [...state.active]) {
     const def = contractDef(cfg, c.defId);
-    c.progressHours = Math.min(def.labHours, c.progressHours + labShare(station, power, def, under, opts.throttleFactor) * dtHours);
+    c.progressHours = Math.min(def.labHours, c.progressHours + labShare(station, power, def, under, opts.throttleFactor, opts.staff) * dtHours);
     if (c.progressHours >= def.labHours - 1e-9) {
       state.active = state.active.filter((a) => a !== c);
       book(state, 'contracts', def.reward);
@@ -222,13 +234,21 @@ export function stepEconomy(state: EconomyState, station: Station, power: PowerS
 }
 
 /** Running income minus running costs right now, per day. */
-export function netPerDay(station: Station, power: PowerState, state: EconomyState, cfg: EconomyConfig): number {
+export function netPerDay(station: Station, power: PowerState, state: EconomyState, cfg: EconomyConfig, staff: Staffing): number {
   let guests = 0;
   for (const m of station.modules) if (running(power.modules.get(m.id)?.status)) guests += m.def.cabin?.guests ?? 0;
-  return guests * cfg.guestPerDay - cfg.operationsPerDay - (state.loan * cfg.loan.ratePerQuarter) / cfg.quarterDays;
+  return guests * cfg.guestPerDay - staff.wagesPerDay - cfg.operationsPerDay - (state.loan * cfg.loan.ratePerQuarter) / cfg.quarterDays;
 }
 
-export function contractSnapshots(state: EconomyState, station: Station, power: PowerState, cfg: EconomyConfig, now: number, throttleFactor: number) {
+export function contractSnapshots(
+  state: EconomyState,
+  station: Station,
+  power: PowerState,
+  cfg: EconomyConfig,
+  now: number,
+  throttleFactor: number,
+  staff: Staffing,
+) {
   const base = (def: ContractDef) => ({
     defId: def.id,
     title: def.title,
@@ -249,7 +269,7 @@ export function contractSnapshots(state: EconomyState, station: Station, power: 
     const hoursLeft = (c.dueAt - now) / 60;
     const workLeft = def.labHours - c.progressHours;
     // Little slack left, or the lab isn't working on it right now and the slack is thin.
-    const share = labShare(station, power, def, state.active.length, throttleFactor);
+    const share = labShare(station, power, def, state.active.length, throttleFactor, staff);
     const atRisk = workLeft > hoursLeft * 0.9 || (share < 0.5 && workLeft > hoursLeft * 0.6);
     return { ...base(def), uid: c.uid, progressHours: c.progressHours, hoursLeft, atRisk };
   });

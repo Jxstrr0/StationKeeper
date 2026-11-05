@@ -44,14 +44,14 @@ describe('data files', () => {
     raw.modules.find((m) => m.id === 'radiator')!.reliability!.wearDays = 0;
     expect(() => parseModuleDefs(raw)).toThrow(/wearDays/);
 
-    type Rel = { reliability: { repairTeams: number; initialWear: Record<string, number> } };
-    const teams = structuredClone(scenarioJson) as Rel;
-    teams.reliability.repairTeams = 0.5;
-    expect(() => parseScenario(teams)).toThrow(/repairTeams/);
-    const ghost = structuredClone(scenarioJson) as Rel;
+    type Rel = { reliability: { repairTeams?: number; initialWear: Record<string, number> } };
+    const teams = structuredClone(scenarioJson) as unknown as Rel;
+    teams.reliability.repairTeams = 2;
+    expect(() => parseScenario(teams)).toThrow(/engineers/);
+    const ghost = structuredClone(scenarioJson) as unknown as Rel;
     ghost.reliability.initialWear['ghost-1'] = 0.5;
     expect(() => parseScenario(ghost)).toThrow(/ghost-1/);
-    const worn = structuredClone(scenarioJson) as Rel;
+    const worn = structuredClone(scenarioJson) as unknown as Rel;
     worn.reliability.initialWear['radiator-1'] = 1.2;
     expect(() => parseScenario(worn)).toThrow(/radiator-1/);
   });

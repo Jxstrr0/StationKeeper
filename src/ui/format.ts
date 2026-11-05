@@ -51,6 +51,7 @@ export const KIND_LABEL: Record<ModuleKind, string> = {
   lifesupport: 'Life support',
   lab: 'Research',
   node: 'Structure',
+  quarters: 'Crew quarters',
 };
 
 export function celsius(v: number): string {

@@ -41,6 +41,12 @@ export function warningTitle(w: StationWarning, mod: (id: string) => ModuleSnaps
       return `${name} down: guests aren't paying (${money(w.value ?? 0)} a day)`;
     case 'contractAtRisk':
       return `Contract at risk: ${w.label ?? 'research'}`;
+    case 'noEngineers':
+      return 'No engineers aboard: repairs can\'t start';
+    case 'labUnstaffed': {
+      const n = w.value ?? 1;
+      return `${n === 1 ? 'A lab has' : `${n} labs have`} no scientist and ${n === 1 ? 'works' : 'work'} slowly`;
+    }
     case 'overdrawn':
       return w.final
         ? `Overdrawn by ${money(-(w.value ?? 0))}: end this quarter in the red and the bank takes the station`
