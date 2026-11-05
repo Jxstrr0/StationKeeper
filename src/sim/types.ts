@@ -196,7 +196,34 @@ export interface ScenarioDef {
   lifeSupport: LifeSupportConfig;
   reliability: ReliabilityConfig;
   economy: EconomyConfig;
+  endings: EndingsConfig;
   layout: LayoutEntry[];
+}
+
+/** How a game can end. The goal for now is fixed: pay off the loan. */
+export interface EndingsConfig {
+  /** Cash below minus this and the bank takes the station at once. $ millions. */
+  overdraftLimit: number;
+  /** Close this many quarters in a row overdrawn and the bank takes it too. */
+  overdrawnQuarters: number;
+  /** Crew health below this and they are evacuated: the station is abandoned. */
+  evacuateBelow: number;
+}
+
+/** Ways to lose. Reaching the goal is not an ending: play carries on. */
+export type Outcome = 'bankrupt' | 'evacuated';
+
+export interface EndingSnapshot {
+  /** Set once the game is lost; the sim stops ticking. */
+  outcome: Outcome | null;
+  endedAtMinutes: number | null;
+  /** When the loan was paid off, or null if it hasn't been. */
+  goalAtMinutes: number | null;
+  /** Quarters closed overdrawn in a row, so far. */
+  overdrawnCloses: number;
+  overdrawnQuarters: number;
+  overdraftLimit: number;
+  evacuateBelow: number;
 }
 
 /** Money is in $ millions throughout. */
@@ -452,6 +479,7 @@ export interface SimSnapshot {
   freePorts: { moduleId: string; portId: string }[];
   economy: EconomySnapshot;
   /** What is wrong, and why: a graph of problems, each naming the problems that cause it. */
+  ending: EndingSnapshot;
   warnings: StationWarning[];
 }
 
@@ -488,6 +516,10 @@ export interface StationWarning {
   label?: string;
   /** A reading for the text: mmHg for CO₂, a 0..1 fraction for tanks, crew condition, and wear. */
   value?: number;
+  /** A limit for the text to compare `value` with, such as the overdraft the bank allows. */
+  limit?: number;
+  /** The last warning before the game is lost, such as a final quarter in the red. */
+  final?: boolean;
   /** Keys of the warnings that cause this one. Empty for a root cause. */
   causes: string[];
 }

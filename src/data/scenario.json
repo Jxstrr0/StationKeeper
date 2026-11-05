@@ -134,6 +134,7 @@
       ]
     }
   },
+  "endings": { "overdraftLimit": 20, "overdrawnQuarters": 2, "evacuateBelow": 0.15 },
   "layout": [
     { "id": "core-1", "module": "core" },
     { "id": "array-1", "module": "solar-array", "attach": { "to": "core-1", "port": "starboard", "via": "base" } },
