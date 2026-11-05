@@ -56,6 +56,12 @@ export const KIND_LABEL: Record<ModuleKind, string> = {
   cupola: 'Crew comfort',
 };
 
+/** "★★☆☆☆" for 2 stars out of five. */
+export function stars(n: number): string {
+  const k = Math.min(5, Math.max(0, Math.round(n)));
+  return '★'.repeat(k) + '☆'.repeat(5 - k);
+}
+
 export function celsius(v: number): string {
   return v.toFixed(1);
 }

@@ -839,11 +839,56 @@ Traced on four seeds per line:
 
 - Guests don't care about anything else yet: heat, bad air, or a shed habitat cost them their fare but not their mood.
 
+## Session 17: guests remember their stay
+
+### What was built
+
+- **Guest reputation** (`src/sim/systems/guests.ts`). The station has one reputation, from 0 to 1. It drifts towards a target at `guests.perHour` (0.03 of the gap an hour, so a bad day takes most of a day to show). The target starts at `base` (0.75) and drops while guests put up with:
+  - a hot station (the coolant loop throttling): −0.2;
+  - bad air (the CO2 warning, low oxygen, or low water): −0.3;
+  - a habitat gone dark (shed, failed, off, or being serviced): −0.5, scaled by the share of guest places it holds.
+- **Fares follow reputation.** Fares are multiplied by `fare.worst` + (`fare.best` − `fare.worst`) × reputation, which is 0.75–1.25. Three stars (0.5) is the going rate. Comfort lifts multiply on top.
+- **Reviews.** At each quarter's close, guests post reviews: stars from the quarter's average reputation, and the complaint that lasted longest, if it applied for at least a tenth of the quarter. A toast quotes one, e.g. "Guest reviews are in: ★★☆☆☆. "Paid for a habitat, got a waiting room."".
+- **Warning:** "Guest reviews down to ★★☆☆☆: fares at 89% of the going rate". It turns on below `poor.below` (0.3) and off above `poor.above` (0.4). Its causes link to air, heat and dark-habitat warnings.
+- **UI:** the finance summary adds a Reviews line, e.g. "★★☆☆☆ · fares 89% · guests say it is too warm, the air is stale and a habitat is dark".
+- **Data:** each scenario has a `guests` block.
+- **Save:** now version 7. The save carries the guests' opinion, so a version 6 save won't load and the game starts fresh.
+- **Tests:** 199, up from 189. They cover the target and its penalties, fares and stars, drift and the poor band, reviews and their complaint, a dark habitat sinking the reviews and raising the warning, fares scaling the ledger, the save, the text, and data validation.
+
+### Balance (by design)
+
+Traced on four seeds per line:
+
+- **Halyard:** a well-run hotel sits at three to four stars, so fares run a little above the going rate.
+  - The plain winning line reaches the goal on all four seeds in 7.5–8.6 days, faster than before (three of four seeds, in 8.5–9.2 days).
+  - Cupola lines reach the goal in 6.8–7.9 days.
+  - Overbuilding radiators still loses. Idling still loses.
+- **Longlight and Kittiwake:** reviews sit at three stars and cash moves by under $1.5M. Neither is a hotel.
+
+### How to test on a phone
+
+1. Longlight: open Finance. The summary says "Reviews · ★★★☆☆ · fares 100%".
+2. Switch the habitat off and run at 20× for most of a day. The line goes to two stars and says a habitat is dark. A "Guest reviews down" warning appears, pointing at the habitat.
+3. At the quarter's close, a review toast quotes a guest.
+4. Switch the habitat back on: reputation climbs back over the next day.
+
+### Choices made
+
+- **One reputation for the station, not per guest.** It's easy to read, and it's the thing that sets fares.
+- **Reputation drifts slowly.** One eclipse shed shouldn't wreck the reviews. A day of neglect should.
+- **The base sits above three stars,** so a station run well earns a small premium, and the comfort lift and the review lift both reward care.
+- **Changing scenarios starts each with three stars,** whatever happened before.
+
+### Known gaps
+
+- Guests don't arrive or leave. Places are always full when the habitat runs.
+- Reviews don't yet show in the quarter report, only as a toast and in Finance.
+
 ## Next
 
 The planned slices are done. Candidates for what's next, roughly in order of value:
 
 1. **Play-testing on a real phone**, to tune pace, readability, the first ten minutes, and now how often illness and exhaustion bite.
-2. **Guest satisfaction**: guests who remember a hot or stuffy stay, with reviews that move future fares.
-3. **More scenarios**, perhaps with their own modules or prices.
+2. **More scenarios**, perhaps with their own modules or prices.
+3. **Reviews in the quarter report**, and guest bookings that rise and fall with them.
 4. **Art**: Blender models replacing the grey-boxes (the loader already prefers them).

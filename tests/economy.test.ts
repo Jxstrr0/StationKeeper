@@ -3,7 +3,7 @@ import { forecast } from '../src/sim/forecast';
 import type { SimEvents } from '../src/sim/events';
 import type { Simulation } from '../src/sim/simulation';
 import type { ModuleDef, ScenarioDef } from '../src/sim/types';
-import { baseScenario, defs, flatPace, makeSim, runUntil } from './helpers';
+import { baseScenario, defs, flatFares, flatPace, makeSim, runUntil } from './helpers';
 
 const econ = baseScenario.economy;
 const cash = (sim: Simulation) => sim.snapshot().economy.cash;
@@ -43,7 +43,7 @@ describe('money', () => {
   });
 
   it('guests pay by the minute while their habitat runs; crew and the loan cost by the minute', () => {
-    const sim = makeSim();
+    const sim = makeSim(flatFares);
     let guestMinutes = 0;
     for (let i = 0; i < 180; i++) {
       sim.tick();

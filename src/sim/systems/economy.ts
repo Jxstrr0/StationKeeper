@@ -166,8 +166,8 @@ export interface EconomyStepOptions {
   /** Commercial throttle factor from the thermal config: throttled labs work at this rate. */
   throttleFactor: number;
   staff: Staffing;
-  /** Share the running comforts add to every guest's fare. */
-  fareLift: number;
+  /** What every guest's fare is multiplied by: comforts and reputation together. */
+  fareFactor: number;
   events?: EventBus<SimEvents>;
 }
 
@@ -182,7 +182,7 @@ export function stepEconomy(state: EconomyState, station: Station, power: PowerS
     if (guests <= 0) continue;
     state.stats.guestMinutesPossible += 1;
     if (running(power.modules.get(m.id)?.status)) {
-      book(state, 'guests', guests * cfg.guestPerDay * (1 + opts.fareLift) * dtDays);
+      book(state, 'guests', guests * cfg.guestPerDay * opts.fareFactor * dtDays);
       state.stats.guestMinutes += 1;
     }
   }
@@ -249,10 +249,10 @@ export function fareLift(running: readonly { name: string; guestFare: number }[]
 }
 
 /** Running income minus running costs right now, per day. */
-export function netPerDay(station: Station, power: PowerState, state: EconomyState, cfg: EconomyConfig, staff: Staffing, fareLift: number): number {
+export function netPerDay(station: Station, power: PowerState, state: EconomyState, cfg: EconomyConfig, staff: Staffing, fareFactor: number): number {
   let guests = 0;
   for (const m of station.modules) if (running(power.modules.get(m.id)?.status)) guests += m.def.cabin?.guests ?? 0;
-  return guests * cfg.guestPerDay * (1 + fareLift) - staff.wagesPerDay - cfg.operationsPerDay - (state.loan * cfg.loan.ratePerQuarter) / cfg.quarterDays;
+  return guests * cfg.guestPerDay * fareFactor - staff.wagesPerDay - cfg.operationsPerDay - (state.loan * cfg.loan.ratePerQuarter) / cfg.quarterDays;
 }
 
 export function contractSnapshots(
