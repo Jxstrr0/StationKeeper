@@ -152,6 +152,57 @@ Heat is 12.5 kW with everything on, against 15 kW of rejection in eclipse and 9.
 - **Crew condition is one station-wide number for now.** Named crew with roles and individual health land with the crew slice.
 - **Station totals are shown on the rack's sheet.** There is only one rack; with several, the sheet should show each one's share.
 
-## Next slice: Build mode
+## Session 4 (Slice 4): build mode
 
-A module tray, valid ports highlighted, an effect preview, and confirmation. The sim needs an `addModule` command that validates ports (reuse `buildStation` checks). The plant figures (crew, volume, tanks) must be recomputed when the station changes, and thermal and power state must be created for the new module. The view already places modules port-to-port from snapshots (`StationView.sync`). The effect preview can run a copy of the sim forward headlessly (it is pure and deterministic) and show the power, heat, and CO₂ deltas before the player confirms.
+### What was built
+
+- **Sim:**
+  - **`addModule` command** (`{type: 'addModule', defId, to, port}`). `command()` now returns `{ok, moduleId}` or `{ok: false, reason}`, and `buildProblem()` gives the reason without changing anything.
+  - **Port checks are shared with layout loading** (`attachProblem` in `station.ts`), so a built station and a loaded one follow the same rules.
+  - **A new module mounts by its first port.** Modules are data, so the first port in `modules.json` is the docking end by convention.
+  - **New state for new modules:** power and thermal state are created for it, and the life support plant (people, volume, tanks) is recomputed. A new battery arrives half charged. A new rack's tanks add capacity but arrive empty.
+  - **`freePorts`** in the snapshot, and **`nextInstanceId`** (for example `battery-pack-2`).
+  - **`fork()`** copies the whole sim, rng included. **`forecast(sim, minutes, change?)`** runs a fork ahead and sums it up: lowest battery, hottest loop, minutes shed, throttled and tripped, peak CO₂, people, and water used.
+- **View:**
+  - **Collision check:** the sim decides port rules; the view checks that the new module's meshes don't run into anything (slightly shrunk world boxes, so touching at a port is fine).
+  - **Port markers:** glowing lilac markers on every port where the chosen module fits, with fingertip-sized invisible hit spheres. They pulse and grow with camera distance, so they stay easy to tap when zoomed out.
+  - **Ghost:** a see-through copy of the module at the chosen port. It turns clay if blocked.
+  - **Camera:** `focus()` eases the camera to the new module after it is built.
+- **UI (`src/ui/buildPanel.ts`):**
+  - A **Build** button.
+  - A **tray** of module cards with the two or three facts that matter.
+  - **"Tap a glowing port"** hint.
+  - An **effect preview** comparing two orbits with and without the module, with each row marked better or worse. Rows that don't change are hidden except battery and loop temperature.
+  - **Build / Back.**
+  - Escape leaves build mode. Toasts moved up to clear the Build button.
+- **Tests (62 total):**
+  - `tests/build.test.ts`: the command checks ports and ids; the new module gets power and thermal state; the plant is recomputed; the fork is independent and deterministic; the forecast matches running the sim.
+  - `tests/buildPanel.test.ts`: preview rows and card highlights.
+
+### The trade-offs the preview shows (by design)
+
+- **A second battery** ends the sunrise load shed (lowest charge 17% → 30%, shed 34 → 0 min). But the habitat now stays powered and warm through eclipse, so the loop runs hotter and throttling goes from 21 to 59 minutes.
+- **A second radiator** ends the sunset throttle but does nothing for the battery.
+- So the "right" next module depends on which problem you want gone first. Money (Slice 6) will make that a real choice.
+
+### How to test on a phone
+
+1. Tap **Build** (bottom right). Pick **Battery Pack**.
+2. Glowing markers appear on the free ports where it fits. Tap one; a ghost shows where it goes and the preview shows the effect over two orbits.
+3. Tap **Build**. The camera eases to the new module and a toast confirms it. Tap **Back** to try a different port, or × to leave.
+
+### Choices made
+
+- **Building is free and instant for now.** Cost, launch time and delivery come with Money and contracts (Slice 6).
+- **No removing modules yet.** Undocking needs rules for what is attached beyond the module, and life support has to cope with lost tanks.
+- **Collision is a view check, not a sim rule.** Sim modules have no geometry; the grey-box meshes are the only shape data. If modules gain sim-side sizes, the check should move into the sim.
+- **The preview runs on the main thread** (about 2 × 186 ticks, a few ms). It waits a frame so the ghost appears first.
+
+### Known gaps
+
+- Only the first port can mount. Modules with several ports can't be flipped end for end.
+- The preview doesn't account for module failures (none exist yet).
+
+## Next slice: Failures and warnings
+
+Wear per module, a failure chance that rises with wear and heat, and repairs. A warning feed that groups events by cause, and cause tracing: tapping a warning shows the chain, for example "Battery Pack failed → Habitat shed → guests unhappy". Use the seeded rng so failures replay exactly. The effect preview should then show risk.

@@ -50,6 +50,24 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
+      deployments: read
     steps:
+      # Main deploys queue (see concurrency), so any other Pages deployment still "in progress" here is stuck,
+      # and Pages refuses new ones until it is cancelled. Clear those first.
+      - name: Cancel stale Pages deployments
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          for sha in $(gh api "repos/$REPO/deployments?environment=github-pages&per_page=20" --jq '.[].sha' | sort -u); do
+            [ "$sha" = "$GITHUB_SHA" ] && continue
+            if gh api -X POST "repos/$REPO/pages/deployments/$sha/cancel" >/dev/null 2>&1; then
+              echo "Cancelled stale Pages deployment $sha"
+            fi
+          done
+
       - id: deployment
         uses: actions/deploy-pages@v4

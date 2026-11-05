@@ -18,6 +18,7 @@ export interface SimEvents {
   moduleOverheated: { moduleId: string; tier: Tier };
   /** A life support alarm raised or cleared. `value` is mmHg for CO2, a tank fraction for low tanks, kg for empty tanks, 0..1 for health. */
   lifeSupportAlarm: { alarm: LifeSupportAlarm; active: boolean; value: number };
+  moduleAdded: { moduleId: string; defId: string };
 }
 
 type Handler<T> = (payload: T) => void;
