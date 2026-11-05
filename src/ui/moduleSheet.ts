@@ -1,5 +1,5 @@
 // Bottom sheet with details for the tapped module.
-import type { ModuleSnapshot, SimSnapshot } from '../sim/types';
+import type { ModuleDef, ModuleSnapshot, SimSnapshot } from '../sim/types';
 import { el, setClass, setText } from './dom';
 import { KIND_LABEL, STATUS_LABEL, TIER_LABEL, celsius, kw } from './format';
 
@@ -25,11 +25,19 @@ export class ModuleSheet {
   private readonly storedRow: HTMLElement;
   private readonly stored = el('dd');
   private readonly toggle = el('button', 'sheet-toggle');
+  private readonly aboardRow: HTMLElement;
+  private readonly aboard = el('dd');
+  private readonly lsRows: HTMLElement[];
+  private readonly o2Made = el('dd');
+  private readonly co2Scrubbed = el('dd');
+  private readonly tanks = el('dd');
   private moduleId: string | null = null;
-  private descriptions = new Map<string, string>();
 
-  constructor(parent: HTMLElement, handlers: ModuleSheetHandlers, descriptions: Map<string, string>) {
-    this.descriptions = descriptions;
+  constructor(
+    parent: HTMLElement,
+    handlers: ModuleSheetHandlers,
+    private readonly defs: Map<string, ModuleDef>,
+  ) {
     const close = el('button', 'sheet-close', ['×']);
     close.type = 'button';
     close.setAttribute('aria-label', 'Close');
@@ -44,6 +52,8 @@ export class ModuleSheet {
     const row = (label: string, value: HTMLElement) => el('div', 'sheet-row', [el('dt', '', [label]), value]);
     this.outputRow = el('div', 'sheet-row', [this.outputLabel, this.output]);
     this.storedRow = row('Stored', this.stored);
+    this.aboardRow = row('Aboard', this.aboard);
+    this.lsRows = [row('O₂ made', this.o2Made), row('CO₂ scrubbed', this.co2Scrubbed), row('Tanks', this.tanks)];
     const head = el('div', 'sheet-head', [el('div', '', [this.kind, this.title]), close]);
 
     this.root = el('section', 'sheet', [
@@ -56,6 +66,8 @@ export class ModuleSheet {
         row('Status', el('dd', 'status', [this.statusDot, this.statusText])),
         this.outputRow,
         this.storedRow,
+        ...this.lsRows,
+        this.aboardRow,
         row('Temperature', this.temp),
         row('Heat to loop', this.heat),
       ]),
@@ -94,13 +106,14 @@ export class ModuleSheet {
     if (!this.moduleId) return;
     const m = snap.modules.find((x) => x.id === this.moduleId);
     if (!m) return this.close();
-    this.render(m);
+    this.render(m, snap);
   }
 
-  private render(m: ModuleSnapshot): void {
+  private render(m: ModuleSnapshot, snap: SimSnapshot): void {
+    const def = this.defs.get(m.defId);
     setText(this.kind, `${KIND_LABEL[m.kind]} · ${m.id}`);
     setText(this.title, m.name);
-    setText(this.desc, this.descriptions.get(m.defId) ?? '');
+    setText(this.desc, def?.description ?? '');
     setText(
       this.draw,
       m.status === 'powered'
@@ -122,6 +135,20 @@ export class ModuleSheet {
     } else if (m.kind === 'radiator') {
       setText(this.outputLabel, 'Rejecting');
       setText(this.output, `${kw(m.rejectKw)} kW of heat`);
+    }
+    const cabin = def?.cabin;
+    const people = [cabin?.crew && `${cabin.crew} crew`, cabin?.guests && `${cabin.guests} guests`].filter(Boolean).join(', ');
+    setClass(this.aboardRow, 'hidden', !people);
+    setText(this.aboard, people);
+
+    const rack = def?.lifeSupport;
+    for (const r of this.lsRows) setClass(r, 'hidden', !rack);
+    if (rack) {
+      // One rack today, so the station totals are this rack's work.
+      const ls = snap.lifeSupport;
+      setText(this.o2Made, `${ls.o2MadeKgPerDay.toFixed(1)} of ${rack.o2KgPerDay.toFixed(1)} kg/day`);
+      setText(this.co2Scrubbed, `${ls.co2RemovedKgPerDay.toFixed(1)} of ${rack.co2KgPerDay.toFixed(1)} kg/day`);
+      setText(this.tanks, `O₂ ${ls.o2Kg.toFixed(1)}/${ls.o2CapacityKg} kg · water ${Math.round(ls.waterKg)}/${ls.waterCapacityKg} kg`);
     }
     setText(this.temp, `${celsius(m.tempC)} °C`);
     setText(this.heat, `${kw(m.heatKw)} kW`);

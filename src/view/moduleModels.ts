@@ -274,12 +274,32 @@ function buildRadiator(def: ModuleDef, group: THREE.Group): Partial<ModuleModel>
   return {};
 }
 
+/** A short pressurised module running aft along -X, with O2 spheres and a water tank strapped to it. */
+function buildLifeSupport(def: ModuleDef, group: THREE.Group): Partial<ModuleModel> {
+  const L = def.greybox.length ?? 4.4;
+  const r = def.greybox.radius ?? 1.7;
+  const mid = -L / 2;
+  group.add(cylinderAlong(r, L - 0.5, shared.hull, [mid, 0, 0], [1, 0, 0], 32));
+  for (const x of [-0.25, -L + 0.25]) group.add(cylinderAlong(r * 0.9, 0.5, shared.slate, [x, 0, 0], [1, 0, 0], 32));
+  group.add(cylinderAlong(r * 1.015, 0.3, shared.stripe, [mid + 0.7, 0, 0], [1, 0, 0], 32));
+  // O2 spheres either side, a water tank underneath.
+  const sphere = new THREE.SphereGeometry(0.62, 20, 14);
+  for (const z of [1, -1]) {
+    group.add(mesh(sphere, shared.hull, [mid - 0.6, 0.35, z * (r + 0.45)]));
+    group.add(mesh(new THREE.BoxGeometry(0.5, 0.12, 0.6), shared.slate, [mid - 0.6, 0.35, z * (r + 0.05)]));
+  }
+  group.add(cylinderAlong(0.55, 2.6, shared.dark, [mid, -r - 0.35, 0], [1, 0, 0], 20));
+  group.add(mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), shared.slate, [mid, -r - 0.05, 0]));
+  return {};
+}
+
 const BUILDERS: Record<string, (def: ModuleDef, group: THREE.Group) => Partial<ModuleModel>> = {
   core: buildCore,
   solar: buildSolar,
   battery: buildBattery,
   habitat: buildHabitat,
   radiator: buildRadiator,
+  lifesupport: buildLifeSupport,
 };
 
 function addStatusLight(group: THREE.Group, at: Vec3): THREE.Object3D {

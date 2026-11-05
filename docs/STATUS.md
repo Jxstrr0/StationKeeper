@@ -103,6 +103,55 @@ Heat is 12.5 kW with everything on, against 15 kW of rejection in eclipse and 9.
 - The overlay tints modules evenly; there are no per-part hot spots.
 - The Pages deploy needs a check on a real device.
 
-## Next slice: Life support
+## Session 3 (Slice 3): life support
 
-Oxygen, CO2, and water, with power and water costs, plus a crew count that consumes them. The likely approach is to put each consumable on `network.ts` (O2 generation as supply, tanks as stores, crew as loads), with crew health effects when tanks run dry. Add a life-support rack module whose power and heat feed the existing systems, so a power or thermal problem becomes a breathing problem.
+### What was built
+
+- **Sim (`src/sim/systems/lifeSupport.ts`):**
+  - **People:** 7 aboard (3 crew in the core, 4 guests in the habitat), counted from each module's `cabin`.
+  - **Use per person per day:** 0.84 kg O₂, 1.0 kg CO₂ breathed out, and 3.5 kg of water (`scenario.json` → `lifeSupport.perPerson`).
+  - **Life Support Rack** (new module, 2 kW **Essential**). While it has power, it:
+    - makes up to 7.2 kg O₂ a day by electrolysis, spending 1.125 kg of water per kg of O₂;
+    - scrubs up to 14 kg CO₂ a day, holding 2.0 mmHg;
+    - recovers 90% of used water.
+  - **Tanks:** 24 kg O₂ and 420 kg water.
+  - **CO₂ is stored as mass.** Partial pressure comes from the ideal gas law over the station's pressurised volume (185 m³, so 1 kg ≈ 2.26 mmHg), so a bigger station dilutes it.
+  - **Crew condition (0–100%):** falls with CO₂ above 8 mmHg (per mmHg over), much faster with no O₂, and slowly with no water. It recovers when CO₂ is under 4 mmHg.
+  - **Alarms with hysteresis:** CO₂ elevated (4) and dangerous (8), O₂ low (25%) and empty, water low (20%) and empty, crew condition low (50%).
+- **Timescales (by design):**
+  - With the rack off, CO₂ climbs about 0.66 mmHg an hour, so it's dangerous in about 9 hours. With the rack back on it falls at the same rate.
+  - O₂ lasts about 3 days without electrolysis.
+  - Water drains about 10.6 kg a day even with recovery, roughly 30 days of supply. Resupply comes with traffic.
+- **Cascade:** the rack is Essential. A deep power shortage sheds it and a hot loop trips it, and either way the air goes stale. Both cases are tested.
+- **Balance:** the core drops from 5 kW to 3 kW (its description had claimed the life support racks), so total draw and heat are unchanged and the Slice 1–2 orbit cycle still holds.
+- **Fix:** the network solver now snaps rounding crumbs in a store to exactly zero, so "empty" is empty everywhere.
+- **View:** a Life Support Rack grey-box on the core's aft port: a short pressurised can with two O₂ spheres and a water tank.
+- **UI:**
+  - **Power card:** a life support row with CO₂ mmHg, O₂ %, water %, and crew condition plus who's aboard. Values turn peach for a warning and clay for an alarm.
+  - **Notes and toasts:** life support alarms.
+  - **Sheet:** the rack shows O₂ made, CO₂ scrubbed, and tank levels; the core and habitat show who's aboard.
+- **Tests (`tests/lifeSupport.test.ts`, 50 total):**
+  - Head count and cabin volume.
+  - The rack holds CO₂ and refills O₂.
+  - Water use matches recovery plus electrolysis.
+  - With the rack off, O₂ use and CO₂ rise match the per-person rates and the ideal-gas conversion.
+  - Alarms fire in order; crew condition falls and then recovers.
+  - Running out of O₂ is worse than high CO₂ alone.
+  - Power-shortage and overheat cascades.
+  - A bigger cabin dilutes CO₂.
+
+### How to test on a phone
+
+1. The power card's bottom row shows CO₂ 2.0 mmHg, O₂, water, and crew 100%.
+2. Tap the Life Support Rack (the short can aft of the core with white spheres) and switch it off. Press **20×**. CO₂ turns peach at 4 mmHg and clay at 8, crew condition starts to fall, and toasts fire. Switch the rack back on and watch CO₂ come down and the crew recover.
+
+### Choices made
+
+- **Life support doesn't use `network.ts`.** Tier shedding of breathing makes no sense, and CO₂ is a level rather than a supply. Each consumable is a tank or air mass with set-point control, like the coolant loop. `network.ts` stays the solver for tiered loads (power).
+- **Guests count as occupants whatever the habitat's power state.** People don't leave when the lights go out.
+- **Crew condition is one station-wide number for now.** Named crew with roles and individual health land with the crew slice.
+- **Station totals are shown on the rack's sheet.** There is only one rack; with several, the sheet should show each one's share.
+
+## Next slice: Build mode
+
+A module tray, valid ports highlighted, an effect preview, and confirmation. The sim needs an `addModule` command that validates ports (reuse `buildStation` checks). The plant figures (crew, volume, tanks) must be recomputed when the station changes, and thermal and power state must be created for the new module. The view already places modules port-to-port from snapshots (`StationView.sync`). The effect preview can run a copy of the sim forward headlessly (it is pure and deterministic) and show the power, heat, and CO₂ deltas before the player confirms.
