@@ -1004,11 +1004,43 @@ Traced on four seeds per line:
 
 - **Amenities are a separate field from comforts.** Comforts have seats and morale; an amenity has neither.
 
+## Session 22: Velvet Reach, a five-star posting
+
+### What was built
+
+- **A fifth scenario, Velvet Reach** (`src/data/scenarios/velvet-reach.json`). A working three-star hotel whose owners want five-star reviews within 9 days.
+  - Two arrays, one battery, one radiator, one habitat (fully booked) and life support.
+  - $30M cash and a $50M loan. Guests pay $2.5M a day each, the most of any posting.
+  - Every core port is taken: the first new module goes on the habitat's or the life support rack's free end.
+- **The Guest Lounge now lifts reputation by 0.2, not 0.15.** That puts the best target at 0.95 against the five-star line of 0.875.
+  - At 0.15 the best target was 0.9, too close to the line. A single radiator service or habitat service in a quarter cost the fifth star, so no plan got there.
+  - The build tray now reads "Guest reviews +0.8★".
+  - Session 21's Saltglass and Halyard lounge runs were measured at 0.15.
+- **Tests:** 219, up from 215. Four Velvet Reach tests: it opens at three stars, fully booked; left alone it never earns five stars; a lounge alone isn't enough; and a lounge, a radiator and a battery win inside the deadline.
+
+### Balance (scripted player, 8 seeds, failures on)
+
+- **Doing nothing, a lounge alone, or a lounge and a radiator: lost on every seed.**
+  - Without a second battery the lounge goes dark in eclipse.
+  - Without a second radiator the station runs hot while the radiator is serviced.
+- **Lounge first, then a radiator and a battery, in either order: won on all 16 runs, by day 4 to 7.**
+- **A radiator and a battery first, then the lounge: lost on every seed.** The two take the last free ports, and the scripted player never buys a docking node. A real player would; planning ports is part of the puzzle.
+
+### How to test on a phone
+
+1. Finance → Start a new station → Velvet Reach. Three stars, 4 of 4 places booked.
+2. Buy the Guest Lounge first, then a radiator. When the lounge has docked, buy a battery on its free port.
+3. Reviews reach four stars after a day or two, and five a few days later, if nothing goes dark or hot for long.
+
+### Choices made
+
+- **Five stars needs a near-perfect quarter.** The goal is to keep everything running for a whole day, not just to fix the station.
+
 ## Next
 
 The planned slices are done. Candidates for what's next, roughly in order of value:
 
 1. **Play-testing on a real phone**, to tune pace, readability, the first ten minutes, and now how often illness and exhaustion bite.
-2. **More scenarios**, perhaps with their own modules or prices. Saltglass shows the reviews goal; a crew-heavy posting where morale is the problem is another.
-3. **More for guests to want**: perhaps a choice of fare level. The Guest Lounge now makes five stars possible; a scenario that asks for them would use it.
+2. **More scenarios**, perhaps with their own modules or prices. Saltglass and Velvet Reach use the reviews goal; a crew-heavy posting where morale is the problem is another idea.
+3. **More for guests to want**: perhaps a choice of fare level, or a second amenity to stack with the lounge.
 4. **Art**: Blender models replacing the grey-boxes (the loader already prefers them).
