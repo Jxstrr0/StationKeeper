@@ -4,7 +4,7 @@
 // penalised on failure. Business quarters are compressed (see EconomyConfig.quarterDays) because orbit time can't be.
 import type { EventBus, SimEvents } from '../events';
 import type { Rng } from '../rng';
-import { labCapacity } from './crew';
+import { labRates } from './crew';
 import type { Station } from '../station';
 import type { ContractDef, ContractSnapshot, EconomyConfig, Ledger, LedgerCategory, ModuleStatus, QuarterReport } from '../types';
 import type { PowerState } from './power';
@@ -94,7 +94,8 @@ const running = (s: ModuleStatus | undefined) => s === 'powered' || s === 'throt
 /** How many labs there are, and how much lab time each active contract gets this minute (0..1 per hour). */
 /** Who is aboard to do the work, and what they cost. */
 export interface Staffing {
-  scientists: number;
+  /** Work paces of the scientists fit to run a lab, fastest first. */
+  scientistPaces: readonly number[];
   /** Share of its speed a lab works at with no scientist. */
   unstaffedFactor: number;
   wagesPerDay: number;
@@ -108,8 +109,10 @@ function labShare(station: Station, power: PowerState, def: ContractDef, activeC
     if (status === 'powered') speeds.push(1);
     else if (status === 'throttled' && !def.stable) speeds.push(throttleFactor);
   }
-  const capacity = labCapacity(speeds, staff.scientists, staff.unstaffedFactor);
-  return activeCount > 0 ? Math.min(1, capacity / activeCount) : 0;
+  // Each contract runs on one lab, so no contract goes faster than the best lab, however many stand idle.
+  const rates = labRates(speeds, staff.scientistPaces, staff.unstaffedFactor);
+  const capacity = rates.reduce((sum, r) => sum + r, 0);
+  return activeCount > 0 ? Math.min(rates[0] ?? 0, capacity / activeCount) : 0;
 }
 
 export function labCount(station: Station): number {

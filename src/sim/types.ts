@@ -278,6 +278,11 @@ export interface CrewNeedsConfig {
     /** Below this for `resignHours` straight, and they resign. */
     resignBelow: number;
     resignHours: number;
+    /**
+     * How fast people work, by morale: `floor` of full speed when miserable, full speed at `steadyAt`, and `best`
+     * when entirely content. Repairs and lab time go at this pace.
+     */
+    pace: { floor: number; steadyAt: number; best: number };
   };
   illness: {
     /** Chance per person per day of falling ill. */
@@ -310,6 +315,8 @@ export interface CrewMemberSnapshot {
   resignsInHours: number | null;
   /** Morale below the warning line. */
   moraleLow: boolean;
+  /** How fast they work at their current morale: 1 is full speed. */
+  pace: number;
 }
 
 export interface CrewSnapshot {
