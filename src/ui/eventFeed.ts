@@ -1,5 +1,6 @@
 // Turns sim events into toasts. Grounded, with the occasional dry aside.
 import type { EventBus, SimEvents } from '../sim/events';
+import type { ModuleKind } from '../sim/types';
 import type { Toasts } from './toasts';
 
 const COMMERCIAL_SHED = [
@@ -26,7 +27,21 @@ const TRIP_TEXT = {
   critical: 'Core systems tripped on overheat.',
 } as const;
 
-export function connectEventFeed(events: EventBus<SimEvents>, toasts: Toasts, moduleName: (id: string) => string): void {
+/** What a failure means, by module kind. */
+const FAILED: Partial<Record<ModuleKind, string>> = {
+  solar: 'Generation is down until the crew repairs it.',
+  battery: 'Its stored energy is locked away until it is repaired.',
+  radiator: 'Heat has nowhere to go. Expect the loop to climb.',
+  lifesupport: 'No O₂ generation and no CO₂ scrubbing until it is repaired.',
+  habitat: 'The guests have been moved to the core and are being very understanding about it.',
+};
+
+export function connectEventFeed(
+  events: EventBus<SimEvents>,
+  toasts: Toasts,
+  moduleName: (id: string) => string,
+  moduleKindOf: (id: string) => ModuleKind,
+): void {
   let quip = 0;
   const pct = (c: number) => `${Math.round(c * 100)}%`;
 
@@ -90,6 +105,24 @@ export function connectEventFeed(events: EventBus<SimEvents>, toasts: Toasts, mo
         else toasts.show('Crew condition is recovering.', 'ok');
         return;
     }
+  });
+
+  events.on('moduleFailed', ({ moduleId, tier }) => {
+    const what = FAILED[moduleKindOf(moduleId)] ?? 'It will need a repair.';
+    toasts.show(`${tier === 'commercial' ? '' : 'ALARM: '}${moduleName(moduleId)} failed. ${what}`, tier === 'commercial' ? 'warn' : 'alarm');
+  });
+
+  events.on('moduleWorn', ({ moduleId }) => {
+    toasts.show(`${moduleName(moduleId)} is due for service. A planned service is quicker than a repair.`, 'warn');
+  });
+
+  events.on('repairStarted', ({ moduleId, kind, hours }) => {
+    const time = hours >= 1 ? `${+hours.toFixed(1)} h` : `${Math.round(hours * 60)} min`;
+    toasts.show(`Crew ${kind === 'repair' ? 'repairing' : 'servicing'} the ${moduleName(moduleId)}: ${time}, offline until done.`, 'ok');
+  });
+
+  events.on('repairDone', ({ moduleId, kind }) => {
+    toasts.show(`${moduleName(moduleId)} ${kind === 'repair' ? 'repaired' : 'serviced'} and back to work, good as new.`, 'ok');
   });
 
   events.on('moduleRestored', ({ moduleId, tier }) => {

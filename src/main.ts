@@ -14,6 +14,7 @@ import { connectEventFeed } from './ui/eventFeed';
 import { Hud } from './ui/hud';
 import { ModuleSheet } from './ui/moduleSheet';
 import { Toasts } from './ui/toasts';
+import { WarningsPanel } from './ui/warningsPanel';
 import { BuildView, type PortRef } from './view/buildView';
 import { OrbitCamera } from './view/camera';
 import { ModuleModelLoader } from './view/moduleModels';
@@ -29,7 +30,10 @@ function byId<T extends HTMLElement>(id: string): T {
 async function start(): Promise<void> {
   const defs = parseModuleDefs(modulesJson);
   const defsById = indexDefs(defs);
-  const sim = new Simulation(defs, parseScenario(scenarioJson));
+  const scenario = parseScenario(scenarioJson);
+  const sim = new Simulation(defs, scenario);
+  // Dev server only: the sim on window, for poking at it from the console. Not in production builds.
+  if (import.meta.env.DEV) Object.assign(window, { __sim: sim });
   const clock = new Clock();
 
   const canvas = byId<HTMLCanvasElement>('scene');
@@ -59,22 +63,53 @@ async function start(): Promise<void> {
   const toasts = new Toasts(ui);
   const select = (id: string | null) => {
     stationView.select(id);
-    if (id) sheet.open(id);
-    else sheet.close();
+    if (id) {
+      sheet.open(id);
+      warnings.close();
+    } else sheet.close();
     sheet.update(snap);
+  };
+  /** Send a command from a button, refresh the snapshot, and say why if the sim refuses. */
+  const send = (cmd: Parameters<typeof sim.command>[0]) => {
+    const result = sim.command(cmd);
+    snap = sim.snapshot();
+    if (!result.ok) toasts.show(`${result.reason}.`, 'warn');
   };
   const sheet = new ModuleSheet(
     ui,
     {
       onClose: () => select(null),
-      onToggle: (moduleId, enabled) => {
-        sim.command({ type: 'setModuleEnabled', moduleId, enabled });
-        snap = sim.snapshot();
-      },
+      onToggle: (moduleId, enabled) => send({ type: 'setModuleEnabled', moduleId, enabled }),
+      onRepair: (moduleId) => send({ type: 'repair', moduleId }),
+      onCancelRepair: (moduleId) => send({ type: 'cancelRepair', moduleId }),
     },
     defsById,
+    scenario.reliability.repairFactor,
   );
-  connectEventFeed(sim.events, toasts, (id) => snap.modules.find((m) => m.id === id)?.name ?? id);
+  const moduleSnap = (id: string) => snap.modules.find((m) => m.id === id);
+  connectEventFeed(
+    sim.events,
+    toasts,
+    (id) => moduleSnap(id)?.name ?? id,
+    (id) => moduleSnap(id)?.kind ?? 'core',
+  );
+  const warnings = new WarningsPanel(ui, defsById, scenario.reliability.repairFactor, {
+    onOpen: () => {
+      exitBuild();
+      select(null);
+      warnings.open();
+      warnings.update(snap);
+    },
+    onClose: () => warnings.close(),
+    onShow: (moduleId) => {
+      select(moduleId);
+      const c = stationView.moduleCenter(moduleId);
+      if (c) cam.focus(c);
+    },
+    onRepair: (moduleId) => send({ type: 'repair', moduleId }),
+    onCancelRepair: (moduleId) => send({ type: 'cancelRepair', moduleId }),
+    onSwitchOn: (moduleId) => send({ type: 'setModuleEnabled', moduleId, enabled: true }),
+  });
 
   // ---- Build mode: tray → tap a port → preview → build ----
   const PREVIEW_MINUTES = Math.ceil(sim.orbit.periodMinutes * 2);
@@ -118,6 +153,7 @@ async function start(): Promise<void> {
   const buildPanel = new BuildPanel(ui, defs, {
     onOpen: () => {
       select(null);
+      warnings.close();
       buildPanel.showTray();
     },
     onClose: exitBuild,
@@ -171,6 +207,7 @@ async function start(): Promise<void> {
       clock.togglePause();
     } else if (e.key === 'Escape') {
       if (build || buildPanel.isOpen) exitBuild();
+      else if (warnings.isOpen) warnings.close();
       else select(null);
     } else if (/^[1-4]$/.test(e.key)) {
       clock.setSpeed(SPEEDS[Number(e.key) - 1] as Speed);
@@ -202,6 +239,7 @@ async function start(): Promise<void> {
     cam.update(dt);
     hud.update(snap, clock.speed);
     sheet.update(snap);
+    warnings.update(snap);
     env.render();
     env.adapt(dt);
     requestAnimationFrame(loop);
