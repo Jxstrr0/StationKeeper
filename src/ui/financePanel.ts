@@ -13,7 +13,12 @@ export interface FinancePanelHandlers {
   onAbandon(uid: string): void;
   /** Amount in $ millions; the sim caps it at the loan and the cash on hand. */
   onRepay(amount: number): void;
+  /** Scrap this station and start again. Only called after the player confirms. */
+  onNewGame(): void;
 }
+
+/** How long the "tap again" confirmation on New station stays armed, ms. */
+const CONFIRM_MS = 4000;
 
 const LEDGER_ORDER: readonly { key: LedgerCategory; label: string }[] = [
   { key: 'guests', label: 'Guests' },
@@ -105,6 +110,8 @@ export class FinancePanel {
   private reportKey = '';
   private last: SimSnapshot | null = null;
   private isOpenNow = false;
+  private readonly newGame = el('button', 'warn-act fin-new', ['Start a new station']);
+  private newGameTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     parent: HTMLElement,
@@ -145,9 +152,26 @@ export class FinancePanel {
     this.deliveriesSection.append(el('h3', 'fin-h', ['Deliveries']), this.deliveries);
     this.reportSection.append(this.report);
 
+    // Starting over takes two taps, so a stray thumb can't scrap a station.
+    this.newGame.type = 'button';
+    this.newGame.addEventListener('click', () => {
+      if (this.newGameTimer === null) {
+        this.armNewGame(true);
+        this.newGameTimer = setTimeout(() => this.armNewGame(false), CONFIRM_MS);
+      } else {
+        this.armNewGame(false);
+        handlers.onNewGame();
+      }
+    });
+    const stationSection = el('div', 'fin-section fin-station', [
+      el('h3', 'fin-h', ['Station']),
+      el('p', 'fin-note', ['Saved automatically on this device.']),
+      this.newGame,
+    ]);
+
     this.root.append(
       el('div', 'build-head', [el('h2', 'build-title', ['Finance']), close]),
-      el('div', 'fin-scroll', [summary, quarterSection, contractsSection, this.deliveriesSection, this.reportSection]),
+      el('div', 'fin-scroll', [summary, quarterSection, contractsSection, this.deliveriesSection, this.reportSection, stationSection]),
     );
     this.root.setAttribute('aria-hidden', 'true');
     parent.append(this.root, this.button);
@@ -166,10 +190,20 @@ export class FinancePanel {
   }
 
   close(): void {
+    this.armNewGame(false);
     this.isOpenNow = false;
     this.root.classList.remove('open');
     this.root.setAttribute('aria-hidden', 'true');
     setClass(this.button, 'active', false);
+  }
+
+  private armNewGame(armed: boolean): void {
+    if (!armed && this.newGameTimer !== null) {
+      clearTimeout(this.newGameTimer);
+      this.newGameTimer = null;
+    }
+    setClass(this.newGame, 'armed', armed);
+    this.newGame.textContent = armed ? 'Tap again to scrap this station' : 'Start a new station';
   }
 
   update(snap: SimSnapshot): void {

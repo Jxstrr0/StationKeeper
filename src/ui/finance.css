@@ -456,3 +456,15 @@
     animation: none;
   }
 }
+
+/* Station: autosave note and starting over */
+
+.fin-new {
+  width: 100%;
+  color: var(--muted);
+}
+
+.fin-new.armed {
+  border-color: var(--clay);
+  color: var(--clay);
+}

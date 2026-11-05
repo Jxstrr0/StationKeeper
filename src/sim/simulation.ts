@@ -17,7 +17,16 @@ import {
   stepEconomy,
   type EconomyState,
 } from './systems/economy';
-import { addPowerModule, createPowerState, setModuleEnabled, setOutage, stepPower, storageTotals, type PowerState } from './systems/power';
+import {
+  addPowerModule,
+  createPowerState,
+  setModuleEnabled,
+  setOutage,
+  stepPower,
+  storageTotals,
+  type PowerModuleState,
+  type PowerState,
+} from './systems/power';
 import {
   co2MmHg,
   createLifeSupportState,
@@ -36,9 +45,17 @@ import {
   repairProblem,
   repairSnapshot,
   stepReliability,
+  type ReliabilityModuleState,
   type ReliabilityState,
 } from './systems/reliability';
-import { addThermalModule, createThermalState, stepThermal, thermalLimits, type ThermalState } from './systems/thermal';
+import {
+  addThermalModule,
+  createThermalState,
+  stepThermal,
+  thermalLimits,
+  type ThermalModuleState,
+  type ThermalState,
+} from './systems/thermal';
 import { MINUTE_MS } from './time';
 import type { LayoutEntry, Ledger, ModuleDef, ModuleSnapshot, ScenarioDef, SimSnapshot } from './types';
 import { diagnose } from './warnings';
@@ -62,6 +79,41 @@ interface Delivery {
   to: string;
   port: string;
   arrivesAt: number;
+}
+
+/** Bump when the save's shape changes; older saves are then discarded rather than misread. */
+export const SAVE_VERSION = 1;
+
+/** A system's state with its per-module map stored as a plain object, so it survives JSON. */
+type Saved<T, V> = Omit<T, 'modules'> & { modules: Record<string, V> };
+
+/** Everything needed to rebuild a sim exactly as it was. Plain JSON, so it can go in localStorage. */
+export interface SimSave {
+  version: typeof SAVE_VERSION;
+  /** The scenario's seed, as a check that the save belongs to this scenario. */
+  seed: number;
+  minutes: number;
+  rng: number;
+  layout: LayoutEntry[];
+  power: Saved<PowerState, PowerModuleState>;
+  thermal: Saved<ThermalState, ThermalModuleState>;
+  life: LifeSupportState;
+  reliability: Saved<ReliabilityState, ReliabilityModuleState>;
+  economy: EconomyState;
+  deliveries: Delivery[];
+}
+
+const toRecord = <V>(m: Map<string, V>): Record<string, V> => Object.fromEntries(m);
+
+/** Rebuild a module map from a save, in station order, refusing a save that is missing a module. */
+function toMap<V>(rec: Record<string, V>, ids: readonly string[], what: string): Map<string, V> {
+  const map = new Map<string, V>();
+  for (const id of ids) {
+    const v = rec[id];
+    if (v === undefined) throw new Error(`Save has no ${what} state for "${id}"`);
+    map.set(id, v);
+  }
+  return map;
 }
 
 export interface SimOptions {
@@ -267,17 +319,57 @@ export class Simulation {
    * which module breaks and when.
    */
   fork(options: SimOptions = {}): Simulation {
-    const copy = new Simulation(this.defList, this.scenario, this.layout(), { failures: options.failures ?? this.failures });
-    copy.minutes = this.minutes;
-    copy.rng.setState(this.rng.getState());
-    copy.power = structuredClone(this.power);
-    copy.thermal = structuredClone(this.thermal);
-    copy.life = structuredClone(this.life);
-    copy.reliability = structuredClone(this.reliability);
-    copy.economy = structuredClone(this.economy);
-    copy.deliveries = structuredClone(this.deliveries);
-    copy.solve(false);
-    return copy;
+    return Simulation.fromSave(this.defList, this.scenario, this.save(), { failures: options.failures ?? this.failures });
+  }
+
+  /** The whole sim state as plain JSON-safe data. A copy: later ticks don't change it. */
+  save(): SimSave {
+    const clone = structuredClone({
+      power: this.power,
+      thermal: this.thermal,
+      life: this.life,
+      reliability: this.reliability,
+      economy: this.economy,
+      deliveries: this.deliveries,
+    });
+    return {
+      version: SAVE_VERSION,
+      seed: this.scenario.seed,
+      minutes: this.minutes,
+      rng: this.rng.getState(),
+      layout: this.layout(),
+      power: { ...clone.power, modules: toRecord(clone.power.modules) },
+      thermal: { ...clone.thermal, modules: toRecord(clone.thermal.modules) },
+      life: clone.life,
+      reliability: { ...clone.reliability, modules: toRecord(clone.reliability.modules) },
+      economy: clone.economy,
+      deliveries: clone.deliveries,
+    };
+  }
+
+  /**
+   * Rebuild a sim from `save()`'s output. Throws if the save is from another version or scenario, or names a
+   * module the data no longer has. The save is copied, so the caller keeps its own.
+   */
+  static fromSave(defs: readonly ModuleDef[], scenario: ScenarioDef, saved: SimSave, options: SimOptions = {}): Simulation {
+    if (saved.version !== SAVE_VERSION) throw new Error(`Save is version ${String(saved.version)}, expected ${SAVE_VERSION}`);
+    if (saved.seed !== scenario.seed) throw new Error('Save is from a different scenario');
+    const s = structuredClone(saved);
+    const sim = new Simulation(defs, scenario, s.layout, options);
+    const ids = sim.station.modules.map((m) => m.id);
+    sim.minutes = s.minutes;
+    sim.rng.setState(s.rng);
+    sim.power = { ...s.power, modules: toMap(s.power.modules, ids, 'power') };
+    sim.thermal = { ...s.thermal, modules: toMap(s.thermal.modules, ids, 'thermal') };
+    sim.life = s.life;
+    sim.reliability = { ...s.reliability, modules: toMap(s.reliability.modules, ids, 'reliability') };
+    sim.economy = s.economy;
+    sim.deliveries = s.deliveries;
+    for (const d of sim.deliveries) {
+      if (!sim.defs.has(d.defId)) throw new Error(`Save has an order for unknown module "${d.defId}"`);
+    }
+    sim.solve(false);
+    return sim;
   }
 
   /** Total failure hazard × days run so far. Forecasts turn its growth into a chance of failure. */

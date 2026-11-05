@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import modulesJson from './data/modules.json';
 import scenarioJson from './data/scenario.json';
 import { parseModuleDefs, parseScenario } from './sim/data';
+import { clearGame, loadGame, saveGame } from './persist';
 import { forecast } from './sim/forecast';
 import { phaseAt, sunlightAt } from './sim/orbit';
 import { Simulation } from './sim/simulation';
@@ -13,7 +14,7 @@ import { Clock, SPEEDS, type Speed } from './sim/time';
 import { BuildPanel, previewRows } from './ui/buildPanel';
 import { connectEventFeed } from './ui/eventFeed';
 import { FinancePanel } from './ui/financePanel';
-import { money } from './ui/format';
+import { formatDate, money } from './ui/format';
 import { Hud } from './ui/hud';
 import { ModuleSheet } from './ui/moduleSheet';
 import { ReportSheet } from './ui/reportSheet';
@@ -35,8 +36,12 @@ async function start(): Promise<void> {
   const defs = parseModuleDefs(modulesJson);
   const defsById = indexDefs(defs);
   const scenario = parseScenario(scenarioJson);
-  const sim = new Simulation(defs, scenario);
+  // Pick up a saved game if there is one; it starts paused so the player can get their bearings.
+  const loaded = loadGame(defs, scenario);
+  const sim = loaded.kind === 'loaded' ? loaded.sim : new Simulation(defs, scenario);
   const clock = new Clock();
+  if (loaded.kind === 'loaded') clock.setSpeed(0);
+  if (loaded.kind === 'discarded') console.warn(`Saved game discarded: ${loaded.reason}`);
 
   const canvas = byId<HTMLCanvasElement>('scene');
   const ui = byId<HTMLDivElement>('ui');
@@ -134,6 +139,11 @@ async function start(): Promise<void> {
     onAccept: (uid) => send({ type: 'acceptContract', uid }),
     onAbandon: (uid) => send({ type: 'abandonContract', uid }),
     onRepay: (amount) => send({ type: 'repayLoan', amount }),
+    onNewGame: () => {
+      saving = false;
+      clearGame();
+      location.reload();
+    },
   });
 
   // The books close each quarter: pause on the report until the player carries on.
@@ -266,6 +276,33 @@ async function start(): Promise<void> {
   });
   window.addEventListener('resize', () => env.resize());
 
+  // ---- Saving: every few seconds while the clock runs, and whenever the page is hidden or closed ----
+  const SAVE_EVERY_MS = 5000;
+  let saving = true;
+  let savedAt = sim.elapsedMinutes;
+  let lastSaveMs = performance.now();
+  let warnedNoSave = false;
+  const autosave = (force = false) => {
+    if (!saving) return;
+    if (!force && sim.elapsedMinutes === savedAt) return;
+    if (!saveGame(sim) && !warnedNoSave) {
+      warnedNoSave = true;
+      toasts.show("This browser won't keep a save, so the station won't survive a reload.", 'warn');
+    }
+    savedAt = sim.elapsedMinutes;
+    lastSaveMs = performance.now();
+  };
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') autosave(true);
+  });
+  window.addEventListener('pagehide', () => autosave(true));
+
+  if (loaded.kind === 'loaded') {
+    toasts.show(`Welcome back. Your station is as you left it, paused on ${formatDate(snap.timeMs)}. Press play to carry on.`, 'ok');
+  } else if (loaded.kind === 'discarded') {
+    toasts.show("Your saved station couldn't be loaded after an update, so here's a fresh one.", 'warn');
+  }
+
   // ---- Frame loop ----
   let last = performance.now();
   const loop = (now: number) => {
@@ -303,6 +340,7 @@ async function start(): Promise<void> {
     finance.update(snap);
     buildPanel.setCash(snap.economy.cash);
     void stationView.syncOrders(snap.economy.deliveries);
+    if (now - lastSaveMs > SAVE_EVERY_MS) autosave();
     env.render();
     env.adapt(dt);
     requestAnimationFrame(loop);
