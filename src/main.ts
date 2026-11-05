@@ -51,7 +51,6 @@ async function start(): Promise<void> {
     onHeatOverlay: (on) => stationView.setHeatOverlay(on),
   });
   const toasts = new Toasts(ui);
-  const descriptions = new Map(defs.map((d) => [d.id, d.description]));
   const select = (id: string | null) => {
     stationView.select(id);
     if (id) sheet.open(id);
@@ -67,7 +66,7 @@ async function start(): Promise<void> {
         snap = sim.snapshot();
       },
     },
-    descriptions,
+    defsById,
   );
   connectEventFeed(sim.events, toasts, (id) => snap.modules.find((m) => m.id === id)?.name ?? id);
 
