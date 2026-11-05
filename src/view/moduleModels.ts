@@ -74,6 +74,34 @@ function getPanelMaterial(): THREE.MeshStandardMaterial {
   return panelMaterial;
 }
 
+let radiatorMaterial: THREE.MeshStandardMaterial | null = null;
+function getRadiatorMaterial(): THREE.MeshStandardMaterial {
+  if (radiatorMaterial) return radiatorMaterial;
+  // White panels with the ammonia flow tubes showing as fine grey lines.
+  const c = document.createElement('canvas');
+  c.width = 128;
+  c.height = 32;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#ecebe6';
+  g.fillRect(0, 0, c.width, c.height);
+  g.fillStyle = '#b9b6ad';
+  for (let x = 4; x < c.width; x += 8) g.fillRect(x, 0, 1.5, c.height);
+  g.fillRect(0, 0, c.width, 2);
+  g.fillRect(0, c.height - 2, c.width, 2);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  // Edge-on to the Sun by design, so they only ever see earthshine; a touch of self-light keeps them reading as white.
+  radiatorMaterial = new THREE.MeshStandardMaterial({
+    map: tex,
+    roughness: 0.7,
+    metalness: 0.05,
+    emissive: 0x57554e,
+    side: THREE.DoubleSide,
+  });
+  return radiatorMaterial;
+}
+
 const UP = new THREE.Vector3(0, 1, 0);
 
 function v3(v: Vec3): THREE.Vector3 {
@@ -209,11 +237,49 @@ function buildHabitat(def: ModuleDef, group: THREE.Group): Partial<ModuleModel> 
   return { glowMaterials: [windowMat] };
 }
 
+/** Truss out along -Z from the base port, then a T of radiator panels that face the orbit normal (edge-on to the Sun). */
+function buildRadiator(def: ModuleDef, group: THREE.Group): Partial<ModuleModel> {
+  const L = def.greybox.length ?? 6;
+  const wingL = def.greybox.wingLength ?? 7;
+  const wingW = def.greybox.wingWidth ?? 2.2;
+  const m = new THREE.Matrix4();
+  const rails = new THREE.InstancedMesh(new THREE.BoxGeometry(0.16, 0.16, L), shared.slate, 4);
+  [
+    [-0.4, -0.4],
+    [0.4, -0.4],
+    [-0.4, 0.4],
+    [0.4, 0.4],
+  ].forEach(([x, y], i) => rails.setMatrixAt(i, m.makeTranslation(x!, y!, -L / 2)));
+  group.add(rails);
+  const braceCount = Math.floor(L / 1.2);
+  const braces = new THREE.InstancedMesh(new THREE.BoxGeometry(0.9, 0.9, 0.08), shared.hull, braceCount);
+  for (let i = 0; i < braceCount; i++) braces.setMatrixAt(i, m.makeTranslation(0, 0, -0.6 - i * 1.2));
+  group.add(braces);
+  group.add(mesh(new THREE.BoxGeometry(1.2, 1.2, 0.9), shared.hull, [0, 0, -0.45]));
+
+  // Pump box and manifold at the tip, then two wings of three panels each along ±X.
+  group.add(mesh(new THREE.BoxGeometry(1.4, 1.0, 1.0), shared.foil, [0, 0, -L - 0.3]));
+  group.add(mesh(new THREE.BoxGeometry(wingL * 2 + 1.6, 0.22, 0.22), shared.slate, [0, wingW / 2 + 0.15, -L - 0.3]));
+  const segs = 3;
+  const segL = (wingL - (segs - 1) * 0.15) / segs;
+  const panels = new THREE.InstancedMesh(new THREE.BoxGeometry(segL, wingW, 0.05), getRadiatorMaterial(), segs * 2);
+  let k = 0;
+  for (const side of [1, -1]) {
+    for (let i = 0; i < segs; i++) {
+      const x = side * (0.8 + segL / 2 + i * (segL + 0.15));
+      panels.setMatrixAt(k++, m.makeTranslation(x, 0, -L - 0.3));
+    }
+  }
+  group.add(panels);
+  return {};
+}
+
 const BUILDERS: Record<string, (def: ModuleDef, group: THREE.Group) => Partial<ModuleModel>> = {
   core: buildCore,
   solar: buildSolar,
   battery: buildBattery,
   habitat: buildHabitat,
+  radiator: buildRadiator,
 };
 
 function addStatusLight(group: THREE.Group, at: Vec3): THREE.Object3D {

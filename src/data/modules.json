@@ -6,7 +6,7 @@
       "kind": "core",
       "description": "Command deck, avionics, and the primary life support racks. If this goes dark, so does everyone.",
       "power": { "drawKw": 5.0, "tier": "critical" },
-      "thermal": { "riseCPerKw": 1.2 },
+      "thermal": { "riseCPerKw": 0.9 },
       "ports": [
         { "id": "fore", "position": [4, 0, 0], "direction": [1, 0, 0] },
         { "id": "aft", "position": [-4, 0, 0], "direction": [-1, 0, 0] },
@@ -45,7 +45,7 @@
       "kind": "habitat",
       "description": "Four paying guests, one large window, and a coffee machine that draws more power than it should. Commercial load: first to go when power runs short.",
       "power": { "drawKw": 6.0, "tier": "commercial" },
-      "thermal": { "riseCPerKw": 1.0 },
+      "thermal": { "riseCPerKw": 0.8 },
       "ports": [
         { "id": "aft", "position": [0, 0, 0], "direction": [-1, 0, 0] },
         { "id": "fore", "position": [7, 0, 0], "direction": [1, 0, 0] }
