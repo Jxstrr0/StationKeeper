@@ -26,11 +26,35 @@ export function hireBlocked(snap: SimSnapshot): string | null {
   return null;
 }
 
-/** "1 engineer, 1 repair team · 2 scientists for 1 lab". */
+/** "Aboard · On shift", "Ill, back in 9 h", "Arrives in 3 h": what someone is doing now. */
+export function memberStatusText(m: CrewMemberSnapshot): string {
+  switch (m.status) {
+    case 'inFlight':
+      return `Arrives in ${minutes((m.arrivesInHours ?? 0) * 60)}`;
+    case 'onShift':
+      return m.tired ? 'On shift, tiring' : 'On shift';
+    case 'resting':
+      return 'Off shift';
+    case 'exhausted':
+      return 'Exhausted, resting';
+    case 'sick':
+      return `Ill, back in ${minutes((m.sickHoursLeft ?? 0) * 60)}`;
+  }
+}
+
+/** "Fatigue 40% · Morale 72%", plus a resignation countdown when there is one. */
+export function memberReadings(m: CrewMemberSnapshot): string {
+  const pct = (v: number) => `${Math.round(v * 100)}%`;
+  const base = `Fatigue ${pct(m.fatigue)} · Morale ${pct(m.morale)}`;
+  return m.resignsInHours === null ? base : `${base} · resigns in ${minutes(m.resignsInHours * 60)}`;
+}
+
+/** "1 engineer, 1 repair team · 2 scientists for 1 lab". Only those fit to work make a repair team. */
 export function crewDuties(snap: SimSnapshot): string {
   const c = snap.crew;
   const n = (k: number, one: string, many: string) => `${k} ${k === 1 ? one : many}`;
-  const teams = c.engineers === 0 ? 'no repairs possible' : n(c.engineers, 'repair team', 'repair teams');
+  const teams =
+    c.engineers === 0 ? 'no repairs possible' : c.fitEngineers === 0 ? 'none fit to work' : n(c.fitEngineers, 'repair team', 'repair teams');
   const labs = c.labs === 0 ? ', no labs yet' : ` for ${n(c.labs, 'lab', 'labs')}`;
   // A station with no labs and nobody to run one: scientists don't come into it.
   if (c.scientists === 0 && c.labs === 0) return `${n(c.engineers, 'engineer', 'engineers')}, ${teams}`;
@@ -47,7 +71,7 @@ export class CrewPanel {
   private readonly terms = el('p', 'fin-note');
   private rosterKey = '';
   private armed: { id: string; button: HTMLButtonElement; timer: ReturnType<typeof setTimeout> } | null = null;
-  private arrivals = new Map<string, HTMLElement>();
+  private readonly rows = new Map<string, { status: HTMLElement; readings: HTMLElement }>();
   private openNow = false;
 
   constructor(
@@ -113,18 +137,23 @@ export class CrewPanel {
     if (key !== this.rosterKey) {
       this.rosterKey = key;
       this.disarm();
-      this.arrivals.clear();
+      this.rows.clear();
       this.list.replaceChildren(...c.members.map((m) => this.memberRow(m, c.engineers)));
     }
     for (const m of c.members) {
-      const where = this.arrivals.get(m.id);
-      if (where && m.arrivesInHours !== null) setText(where, `Arrives in ${minutes(m.arrivesInHours * 60)}`);
+      const row = this.rows.get(m.id);
+      if (!row) continue;
+      setText(row.status, memberStatusText(m));
+      setClass(row.status, 'bad', m.status === 'sick' || m.status === 'exhausted');
+      setText(row.readings, m.status === 'inFlight' ? '' : memberReadings(m));
+      setClass(row.readings, 'bad', m.moraleLow || m.resignsInHours !== null);
     }
   }
 
   private memberRow(m: CrewMemberSnapshot, engineers: number): HTMLElement {
-    const where = el('span', 'crew-where', [m.arrivesInHours === null ? 'Aboard' : `Arrives in ${minutes(m.arrivesInHours * 60)}`]);
-    if (m.arrivesInHours !== null) this.arrivals.set(m.id, where);
+    const status = el('span', 'crew-where', [memberStatusText(m)]);
+    const readings = el('span', 'crew-readings', [m.status === 'inFlight' ? '' : memberReadings(m)]);
+    this.rows.set(m.id, { status, readings });
     const label = m.arrivesInHours === null ? 'Send home' : 'Cancel flight';
     const b = el('button', 'warn-act crew-dismiss', [label]);
     b.type = 'button';
@@ -143,7 +172,7 @@ export class CrewPanel {
       b.dataset.label = label;
     });
     return el('li', 'crew-member', [
-      el('div', 'crew-who', [el('b', '', [m.name]), el('span', '', [`${ROLE[m.role].label} · `, where])]),
+      el('div', 'crew-who', [el('b', '', [m.name]), el('span', '', [`${ROLE[m.role].label} · `, status]), readings]),
       b,
     ]);
   }
