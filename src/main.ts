@@ -12,6 +12,7 @@ import { Simulation } from './sim/simulation';
 import { indexDefs, mountPort } from './sim/station';
 import { Clock, SPEEDS, type Speed } from './sim/time';
 import { BuildPanel, previewRows } from './ui/buildPanel';
+import { EndSheet, type EndKind } from './ui/endSheet';
 import { connectEventFeed } from './ui/eventFeed';
 import { FinancePanel } from './ui/financePanel';
 import { formatDate, money } from './ui/format';
@@ -69,7 +70,7 @@ async function start(): Promise<void> {
   const hud = new Hud(ui, {
     // The quarterly report holds the game paused until Continue.
     onSpeed: (s) => {
-      if (!report.isOpen) clock.setSpeed(s);
+      if (!report.isOpen && !ending.isOpen && !sim.ended) clock.setSpeed(s);
     },
     onHeatOverlay: (on) => stationView.setHeatOverlay(on),
   });
@@ -139,12 +140,13 @@ async function start(): Promise<void> {
     onAccept: (uid) => send({ type: 'acceptContract', uid }),
     onAbandon: (uid) => send({ type: 'abandonContract', uid }),
     onRepay: (amount) => send({ type: 'repayLoan', amount }),
-    onNewGame: () => {
-      saving = false;
-      clearGame();
-      location.reload();
-    },
+    onNewGame: () => newGame(),
   });
+  const newGame = () => {
+    saving = false;
+    clearGame();
+    location.reload();
+  };
 
   // The books close each quarter: pause on the report until the player carries on.
   const report = new ReportSheet(ui);
@@ -155,7 +157,42 @@ async function start(): Promise<void> {
     select(null);
     warnings.close();
     finance.close();
-    report.show(r, () => clock.setSpeed(resume));
+    report.show(r, () => {
+      if (!sim.ended && !ending.isOpen) clock.setSpeed(resume);
+    });
+  });
+
+  // The end of the game, or the goal reached. A loss holds the game for good; the goal lets play carry on.
+  let goalResume: Speed = 1;
+  const ending = new EndSheet(ui, {
+    onKeepGoing: () => {
+      if (!report.isOpen) clock.setSpeed(goalResume);
+    },
+    onNewGame: () => newGame(),
+  });
+  const showEnding = (kind: EndKind) => {
+    clock.setSpeed(0);
+    exitBuild();
+    select(null);
+    warnings.close();
+    finance.close();
+    const s = sim.snapshot();
+    ending.show(kind, {
+      days: s.minutes / 1440,
+      cash: s.economy.cash,
+      loan: s.economy.loan,
+      modules: s.modules.length,
+      lifetimeNet: Object.values(sim.lifetimeLedger).reduce((a, b) => a + b, 0),
+    });
+  };
+  sim.events.on('gameOver', ({ outcome }) => {
+    if (report.isOpen) report.close(); // its Continue won't restart a lost game
+    showEnding(outcome);
+    autosave(true);
+  });
+  sim.events.on('goalReached', () => {
+    goalResume = clock.speed === 0 ? 1 : clock.speed;
+    showEnding('goal');
   });
   // A module docks on a later tick than it was ordered, so the 3D view catches up in the frame loop.
   let needsSync = false;
@@ -256,6 +293,12 @@ async function start(): Promise<void> {
   };
 
   window.addEventListener('keydown', (e) => {
+    if (ending.isOpen) {
+      // A loss takes a deliberate tap on New station; the goal sheet closes with Escape or Enter.
+      e.preventDefault();
+      if (e.key === 'Escape' || e.key === 'Enter') ending.keepGoing();
+      return;
+    }
     if (report.isOpen) {
       // Nothing behind the report gets a key: Escape or Enter is Continue, and the rest do nothing.
       e.preventDefault();
@@ -297,7 +340,9 @@ async function start(): Promise<void> {
   });
   window.addEventListener('pagehide', () => autosave(true));
 
-  if (loaded.kind === 'loaded') {
+  if (sim.ended) {
+    showEnding(sim.snapshot().ending.outcome ?? 'bankrupt');
+  } else if (loaded.kind === 'loaded') {
     toasts.show(`Welcome back. Your station is as you left it, paused on ${formatDate(snap.timeMs)}. Press play to carry on.`, 'ok');
   } else if (loaded.kind === 'discarded') {
     toasts.show("Your saved station couldn't be loaded after an update, so here's a fresh one.", 'warn');
