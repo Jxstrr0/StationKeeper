@@ -1,6 +1,6 @@
 // Words for the sim's warnings. The sim says what is wrong and why; this says it in plain English.
 import type { ModuleSnapshot, StationWarning } from '../sim/types';
-import { TIER_LABEL, minutes, money } from './format';
+import { TIER_LABEL, minutes, money, stars } from './format';
 
 const pct = (v: number | undefined) => `${Math.round((v ?? 0) * 100)}%`;
 
@@ -55,6 +55,8 @@ export function warningTitle(w: StationWarning, mod: (id: string) => ModuleSnaps
       const n = w.value ?? 1;
       return `${n === 1 ? 'A lab has' : `${n} labs have`} no scientist and ${n === 1 ? 'works' : 'work'} slowly`;
     }
+    case 'reviewsPoor':
+      return `Guest reviews down to ${stars(w.value ?? 1)}: fares at ${pct(w.limit)} of the going rate`;
     case 'overdrawn':
       return w.final
         ? `Overdrawn by ${money(-(w.value ?? 0))}: end this quarter in the red and the bank takes the station`
