@@ -12,7 +12,7 @@
   - `network.ts`: a generic resource network solver (supply, a store, tiered loads). Tier shedding uses hysteresis on the stored fraction (Commercial below 25%, back above 40%; Essential below 10%, back above 20%). It also enforces a hard limit: Commercial, then Essential, are shed if supply plus the battery's discharge limit can't cover demand. Critical is shed only when the store is empty *and* supply is short.
   - `systems/power.ts`: arrays generate `generationKw × sunlight`, batteries pool their charge, and every module carries one load on a tier.
   - `time.ts` (fixed tick = 1 in-game minute; pause / 1× / 5× / 20×), `rng.ts` (seeded Mulberry32), `events.ts` (typed bus), `simulation.ts` (owns state, `tick()`, `command()`, `snapshot()`).
-- **Data:** `src/data/modules.json` (core, solar array, battery pack, guest habitat; power stats, ports, grey-box hints) and `src/data/scenario.json` (start date, orbit, thresholds, layout). Both are validated at load.
+- **Data:** `src/data/modules.json` (core, solar array, battery pack, guest habitat; power stats, ports, grey-box hints) and `src/data/scenario.json` (start date, orbit, thresholds, layout; since session 9, `src/data/scenarios/longlight-one.json`). Both are validated at load.
 - **View (`src/view`):** a procedural shader Earth with clouds, terminator, city lights and an atmosphere rim; a starfield; and a sun sprite plus directional light that track the orbit. The station is placed port-to-port. Status lights are lilac when powered, blink clay when shed, and turn grey when switched off. Habitat windows go dark when shed, and the solar wings track the sun. The camera is touch-first: drag to orbit, pinch to zoom, tap to select. It has limits so it never goes inside Earth.
 - **Module models:** `ModuleModelLoader` loads a `.glb` when a module has a `"model"` path and falls back to grey-box otherwise. See `public/models/README.md` for node naming (`status_light`, `gimbal`, `glow*`).
 - **UI (`src/ui`, HTML/CSS overlay):** the top bar shows date and time (UTC), speed buttons, sunlight/eclipse with a countdown, generation, load, battery %, and charge/discharge, plus a load-shedding banner. Tapping a module opens a bottom sheet (draw, tier, status, output/stored, switch off/on; swipe down to close). Toasts report shed and restore events, with a little dry humour.
@@ -408,11 +408,67 @@ A station left completely alone (5 seeds) is lost to **evacuation in 23–42 hou
 - No score or high-score table.
 - No warning dedicated to an overdraft getting near the bank's limit; the overdrawn alarm says the limit instead.
 
+## Session 9: goals per scenario, and a second scenario
+
+### What was built
+
+- **Goals in scenario data (`"goal"`):** one of the following, each with optional `days`:
+  - `repayLoan`;
+  - `cash` (reach an `amount`);
+  - `contracts` (deliver a `count`, counted over the whole game, not per quarter).
+- **Board takeover:** a goal with `days` that isn't met by then ends the game with a new outcome, `replaced` ("The board has replaced you"). A goal met in time stays met. The goal sheet's wording follows the goal.
+- **Sim:** the snapshot's `ending.goal` gives the kind, where the station stands, the target, progress from 0 to 1, and the deadline. Saves are keyed by scenario id instead of seed, so `SAVE_VERSION` is now 3.
+- **Scenarios** now live in `src/data/scenarios/`, each with an `id` and a `blurb`, and are listed in `src/scenarios.ts`:
+  - **Longlight One** (as before): $40M cash, a $60M loan, no deadline. Goal: pay off the loan.
+  - **Kittiwake Outpost** (new):
+    - a lab already aboard;
+    - $25M cash and a $20M loan;
+    - beta 50°, so shorter eclipses;
+    - different starting wear (the battery is the weak point).
+    - Goal: deliver 6 contracts within 6 days.
+- **Scenario picker:** "Start a new station" (in Finance or on the end sheet) now opens "Choose a posting". Each card shows the name, blurb, goal, cash and loan. The choice is stored for the reload that starts it. A brand-new player still starts on Longlight One.
+- **Goal in Finance:** a Goal section at the top, with the goal, a progress bar, the progress, and time left (clay in the last day). A new game opens with a toast naming the goal.
+- **Tests (135):**
+  - cash and contracts goals;
+  - the deadline and its takeover;
+  - a goal met in time;
+  - every shipped scenario loads and runs;
+  - bad goals are refused;
+  - the goal wording.
+
+### Balance (by design)
+
+Kittiwake traces, 5 seeds:
+
+- **Left alone:** evacuated in 1.0–2.8 days.
+- **Repairing only, never signing a contract:** replaced at day 6 every time.
+- **Repairing and keeping the lab busy, but building nothing:** only 1–3 of 6 delivered. A lone battery sheds the lab every eclipse, so most contracts fail.
+- **Buying a battery and then a radiator first, then the same:** goal reached in 3.2–5.0 days (the deadline was 5 days for this trace), with 7–10 delivered.
+
+So the deadline asks one thing of the player: notice that the lab needs power through the eclipse. The bot just made it on one seed against 5 days, and a human plays less tightly, so the deadline is 6.
+
+### How to test on a phone
+
+1. Finance → Start a new station → tap again. Pick Kittiwake Outpost.
+2. Finance → Goal shows 0 of 6 and the time left. Sign a contract and watch the lab.
+3. Order a battery early. Without one, the lab goes dark each eclipse.
+
+### Choices made
+
+- **The goal is fixed per scenario, not chosen by the player.** A posting is the challenge.
+- **Contracts count over the whole game.** Quarter stats reset each day, so the goal keeps its own count.
+- **No picker on the very first launch.** A new player lands straight in Longlight One; choosing comes with the second game.
+
+### Known gaps
+
+- Two scenarios only, and neither changes the module list or contract pool.
+- No record of which scenarios have been won.
+
 ## Next
 
 The planned slices are done. Candidates for what's next, roughly in order of value:
 
 1. **Play-testing on a real phone** to tune pace, readability, and the first ten minutes.
-2. **Goals per scenario**, and a second scenario to use them.
+2. **More scenarios**, with their own contract pools or modules, and a record of which have been won.
 3. **Crew**: health, skills, more repair teams, and crew needs.
 4. **Art**: Blender models replacing the grey-boxes (the loader already prefers them).
