@@ -36,13 +36,15 @@ export function warningTitle(w: StationWarning, mod: (id: string) => ModuleSnaps
     case 'water':
       return w.severity === 'alarm' ? 'Water tanks dry' : `Water low at ${pct(w.value)}`;
     case 'crewCondition':
-      return `Crew condition at ${pct(w.value)}`;
+      return w.limit === undefined ? `Crew condition at ${pct(w.value)}` : `Crew condition at ${pct(w.value)}: below ${pct(w.limit)} they're evacuated`;
     case 'guestsIdle':
       return `${name} down: guests aren't paying (${money(w.value ?? 0)} a day)`;
     case 'contractAtRisk':
       return `Contract at risk: ${w.label ?? 'research'}`;
     case 'overdrawn':
-      return `Overdrawn by ${money(-(w.value ?? 0))}`;
+      return w.final
+        ? `Overdrawn by ${money(-(w.value ?? 0))}: end this quarter in the red and the bank takes the station`
+        : `Overdrawn by ${money(-(w.value ?? 0))}: the bank takes the station past ${money(w.limit ?? 0)}`;
   }
 }
 

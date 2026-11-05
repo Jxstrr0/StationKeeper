@@ -57,7 +57,7 @@ import {
   type ThermalState,
 } from './systems/thermal';
 import { MINUTE_MS } from './time';
-import type { LayoutEntry, Ledger, ModuleDef, ModuleSnapshot, ScenarioDef, SimSnapshot } from './types';
+import type { EndingSnapshot, LayoutEntry, Ledger, ModuleDef, ModuleSnapshot, Outcome, ScenarioDef, SimSnapshot } from './types';
 import { diagnose } from './warnings';
 
 export type SimCommand =
@@ -82,7 +82,16 @@ interface Delivery {
 }
 
 /** Bump when the save's shape changes; older saves are then discarded rather than misread. */
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
+
+/** How the game stands: lost, goal reached, or how close the bank is. */
+interface EndingState {
+  outcome: Outcome | null;
+  endedAt: number | null;
+  goalAt: number | null;
+  /** Quarters closed overdrawn in a row. */
+  overdrawnCloses: number;
+}
 
 /** A system's state with its per-module map stored as a plain object, so it survives JSON. */
 type Saved<T, V> = Omit<T, 'modules'> & { modules: Record<string, V> };
@@ -101,6 +110,7 @@ export interface SimSave {
   reliability: Saved<ReliabilityState, ReliabilityModuleState>;
   economy: EconomyState;
   deliveries: Delivery[];
+  ending: EndingState;
 }
 
 const toRecord = <V>(m: Map<string, V>): Record<string, V> => Object.fromEntries(m);
@@ -148,6 +158,7 @@ export class Simulation {
   private reliability: ReliabilityState;
   private economy: EconomyState;
   private deliveries: Delivery[] = [];
+  private ending: EndingState = { outcome: null, endedAt: null, goalAt: null, overdrawnCloses: 0 };
   private readonly failures: boolean;
 
   /** `layout` defaults to the scenario's starting layout; forks pass the current one. */
@@ -177,6 +188,9 @@ export class Simulation {
     });
     this.events.on('repairDone', ({ moduleId }) => delete this.economy.partsOnJob[moduleId]);
     this.events.on('moduleFailed', () => this.economy.stats.failures++);
+    this.events.on('quarterReport', ({ report }) => {
+      this.ending.overdrawnCloses = report.cash < 0 ? this.ending.overdrawnCloses + 1 : 0;
+    });
     this.solve(false);
   }
 
@@ -184,7 +198,13 @@ export class Simulation {
     return this.minutes;
   }
 
+  /** True once the game is lost. The sim no longer ticks. */
+  get ended(): boolean {
+    return this.ending.outcome !== null;
+  }
+
   tick(): void {
+    if (this.ended) return;
     const wasShadow = isInShadowArc(this.orbit, phaseAt(this.orbit, this.minutes));
     this.minutes += 1;
     const isShadow = isInShadowArc(this.orbit, phaseAt(this.orbit, this.minutes));
@@ -192,6 +212,26 @@ export class Simulation {
     if (wasShadow && !isShadow) this.events.emit('sunrise', { minutes: this.minutes });
     this.deliverDue();
     this.solve(true);
+    this.checkEnding();
+  }
+
+  /** Has the goal been reached, or the game been lost? Called after every tick and loan repayment. */
+  private checkEnding(): void {
+    const e = this.ending;
+    if (e.outcome) return;
+    const cfg = this.scenario.endings;
+    if (e.goalAt === null && this.economy.loan <= 0) {
+      e.goalAt = this.minutes;
+      this.events.emit('goalReached', { minutes: this.minutes });
+    }
+    let outcome: Outcome | null = null;
+    if (this.life.health < cfg.evacuateBelow) outcome = 'evacuated';
+    else if (this.economy.cash < -cfg.overdraftLimit || e.overdrawnCloses >= cfg.overdrawnQuarters) outcome = 'bankrupt';
+    if (outcome) {
+      e.outcome = outcome;
+      e.endedAt = this.minutes;
+      this.events.emit('gameOver', { outcome, minutes: this.minutes });
+    }
   }
 
   /** Run many ticks at once (tests, fast-forward). */
@@ -200,6 +240,7 @@ export class Simulation {
   }
 
   command(cmd: SimCommand): CommandResult {
+    if (this.ended) return { ok: false, reason: 'The station is no longer yours to run' };
     switch (cmd.type) {
       case 'setModuleEnabled':
         if (!this.station.byId.has(cmd.moduleId)) return { ok: false, reason: `No module "${cmd.moduleId}"` };
@@ -241,6 +282,7 @@ export class Simulation {
         if (this.economy.loan <= 0) return { ok: false, reason: 'The loan is already paid off' };
         if (this.economy.cash <= 0) return { ok: false, reason: 'No cash to repay with' };
         repayLoan(this.economy, cmd.amount);
+        this.checkEnding();
         return { ok: true };
       }
     }
@@ -331,6 +373,7 @@ export class Simulation {
       reliability: this.reliability,
       economy: this.economy,
       deliveries: this.deliveries,
+      ending: this.ending,
     });
     return {
       version: SAVE_VERSION,
@@ -344,6 +387,7 @@ export class Simulation {
       reliability: { ...clone.reliability, modules: toRecord(clone.reliability.modules) },
       economy: clone.economy,
       deliveries: clone.deliveries,
+      ending: clone.ending,
     };
   }
 
@@ -365,6 +409,7 @@ export class Simulation {
     sim.reliability = { ...s.reliability, modules: toMap(s.reliability.modules, ids, 'reliability') };
     sim.economy = s.economy;
     sim.deliveries = s.deliveries;
+    sim.ending = s.ending;
     for (const d of sim.deliveries) {
       if (!sim.defs.has(d.defId)) throw new Error(`Save has an order for unknown module "${d.defId}"`);
     }
@@ -463,6 +508,19 @@ export class Simulation {
     return this.economy.lifetime;
   }
 
+  private endingSnapshot(): EndingSnapshot {
+    const cfg = this.scenario.endings;
+    return {
+      outcome: this.ending.outcome,
+      endedAtMinutes: this.ending.endedAt,
+      goalAtMinutes: this.ending.goalAt,
+      overdrawnCloses: this.ending.overdrawnCloses,
+      overdrawnQuarters: cfg.overdrawnQuarters,
+      overdraftLimit: cfg.overdraftLimit,
+      evacuateBelow: cfg.evacuateBelow,
+    };
+  }
+
   snapshot(): SimSnapshot {
     const { storedKwh, capacityKwh } = storageTotals(this.power, this.station);
     const t = this.power.totals;
@@ -540,6 +598,7 @@ export class Simulation {
       modules,
       freePorts: freePorts(this.station).filter((p) => !this.deliveries.some((d) => d.to === p.moduleId && d.port === p.portId)),
       economy: this.economySnapshot(),
+      ending: this.endingSnapshot(),
     };
     return { ...snap, warnings: diagnose(snap) };
   }

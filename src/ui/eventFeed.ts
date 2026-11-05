@@ -103,7 +103,7 @@ export function connectEventFeed(
         if (active) toasts.show('CRITICAL: the water tanks are dry.', 'alarm');
         return;
       case 'healthLow':
-        if (active) toasts.show(`Crew condition at ${Math.round(value * 100)}%. People are struggling.`, 'alarm');
+        if (active) toasts.show(`Crew condition at ${Math.round(value * 100)}%. People are struggling, and much lower means evacuating them.`, 'alarm');
         else toasts.show('Crew condition is recovering.', 'ok');
         return;
     }
