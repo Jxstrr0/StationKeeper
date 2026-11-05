@@ -695,13 +695,60 @@ Traced on four seeds per line:
 ### Known gaps
 
 - Only one comfort so far. A gym or a cupola could have different seats, power or heat.
-- Morale doesn't change work pace.
+- Morale doesn't change work pace. (Session 14 adds this.)
+
+## Session 14: morale sets the pace of work
+
+### What was built
+
+- **Work pace** (`workPace` in `src/sim/systems/crew.ts`). Each person's morale sets how fast they work:
+  - 60% of full speed at 0 morale.
+  - Full speed at 65%, about where a crew lives day to day.
+  - 120% when entirely content.
+  - The curve is linear either side of 65%. It is set per scenario in `crew.needs.morale.pace` (`floor`, `steadyAt`, `best`) and validated.
+- **Repairs:** each repair team works at its engineer's pace, and the fastest engineer takes the first job in the queue. A job under way shows clock time left at that pace; a queued job shows its work-hours.
+- **Labs:** each lab works at its scientist's pace, with the fastest scientist on the fastest lab. A contract is capped at its lab's rate, so a cheerful scientist can push a lab past 100%. An unstaffed lab still works at half speed.
+- **Snapshot:** each crew member carries `pace`.
+- **UI:**
+  - A crew member's readings add "pace 94%" whenever they aren't at full speed.
+  - The Morale section opens with the crew's average pace ("working slower than they could: 92% pace").
+  - The low-morale warning adds "and their work is slowing".
+- **Save:** unchanged at version 6. Pace comes from morale, which is already saved.
+- **Tests:** 184, up from 179.
+  - New `tests/pace.test.ts`: the curve; a glum engineer's slower service and its honest clock; a content crew's extra lab hours; the crew-sheet line; data validation.
+  - Tests that count exact work-hours now use `flatPace` from `tests/helpers.ts`, which holds pace at 1 whatever the morale.
+
+### Balance (by design)
+
+Traced on four seeds per line, against the same lines with pace held flat:
+
+- **Average pace without a galley is about 100%** (97–104% by run), so the change isn't a blanket nerf. A first try put full speed at 80% morale. That left everyday crews at 91–95% and added evacuations, so full speed moved down to 65%.
+- **A galley now pays its way where work matters.** Crews average 101–109% pace with one.
+  - Halyard with the galley: the goal was reached on all four seeds, in 8.6–9.8 days. With pace held flat, two of the four were evacuated.
+  - Halyard's plain winning line: three of four seeds still win, in 8.5–9.2 days. One seed (5581) was evacuated at day 8.4, just before the goal. Repairs land at different minutes now, and this station runs close to the edge.
+- **Kittiwake and Longlight lab lines** are within noise. The scripted policies there are crude, so they say little about a human player.
+
+### How to test on a phone
+
+1. Longlight: open the crew sheet. A fresh crew starts at 80% morale and works a little above full speed. The Morale section says so.
+2. Switch the Life Support Rack off for a few hours. As CO₂ climbs, morale falls, each person shows a pace under 100%, and a repair takes longer than its listed hours.
+3. Build a Galley. Morale settles higher, and the pace line climbs past 100%.
+
+### Choices made
+
+- **Full speed sits at everyday morale, not at 'nothing wrong'.** A crew with nothing wrong (80% morale) works about 9% fast, and the usual mix of tired shifts and warm loops brings that back to about 100%.
+- **The fastest worker takes the first job.** Who is actually on shift isn't tracked per job. Morale is nearly the same across a crew, so the difference is small and the rule is simple.
+- **Work-hours stay the unit of a job.** Pace changes the clock, not the size of the job, so a queued job still shows its listed hours.
+
+### Known gaps
+
+- Still only one comfort. A gym or a cupola could now earn its place by pace as well as by resignations.
 
 ## Next
 
 The planned slices are done. Candidates for what's next, roughly in order of value:
 
 1. **Play-testing on a real phone**, to tune pace, readability, the first ten minutes, and now how often illness and exhaustion bite.
-2. **Morale and work:** let low morale slow repairs and labs, so comforts pay for themselves; perhaps a second comfort (a gym or an observation cupola).
+2. **A second comfort** (a gym or an observation cupola), now that morale sets the pace of work, and how comforts stack.
 3. **More scenarios**, perhaps with their own modules (say, an observation cupola for a hotel) or prices.
 4. **Art**: Blender models replacing the grey-boxes (the loader already prefers them).

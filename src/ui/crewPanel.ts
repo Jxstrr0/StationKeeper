@@ -13,7 +13,7 @@ export interface CrewPanelHandlers {
 
 const ROLE: Record<CrewRole, { label: string; does: string }> = {
   engineer: { label: 'Engineer', does: 'One more repair team, so one more job can be worked on at a time.' },
-  scientist: { label: 'Scientist', does: 'Runs a lab at full speed. A lab with nobody to run it works at half pace.' },
+  scientist: { label: 'Scientist', does: 'Runs a lab at their own pace. A lab with nobody to run it works at half pace.' },
 };
 
 /** How long "Send home" stays armed for the second tap, ms. */
@@ -61,11 +61,21 @@ export function memberStatusText(m: CrewMemberSnapshot): string {
   }
 }
 
-/** "Fatigue 40% · Morale 72%", plus a resignation countdown when there is one. */
+/** "Fatigue 40% · Morale 72% · pace 95%": pace only when it is off full speed, and a resignation countdown when there is one. */
 export function memberReadings(m: CrewMemberSnapshot): string {
   const pct = (v: number) => `${Math.round(v * 100)}%`;
-  const base = `Fatigue ${pct(m.fatigue)} · Morale ${pct(m.morale)}`;
-  return m.resignsInHours === null ? base : `${base} · resigns in ${minutes(m.resignsInHours * 60)}`;
+  let line = `Fatigue ${pct(m.fatigue)} · Morale ${pct(m.morale)}`;
+  if (Math.round(m.pace * 100) !== 100) line += ` · pace ${pct(m.pace)}`;
+  return m.resignsInHours === null ? line : `${line} · resigns in ${minutes(m.resignsInHours * 60)}`;
+}
+
+/** How fast the crew aboard is working on average, and why it matters. */
+export function paceText(snap: SimSnapshot): string {
+  const here = snap.crew.members.filter((m) => m.arrivesInHours === null);
+  if (here.length === 0) return '';
+  const pace = Math.round((here.reduce((n, m) => n + m.pace, 0) / here.length) * 100);
+  const how = pace > 100 ? 'a little quicker than the book says' : pace < 100 ? 'slower than they could' : 'at full speed';
+  return `Morale sets how fast repairs and lab work go. The crew is working ${how}: ${pace}% pace.`;
 }
 
 /** "1 engineer, 1 repair team · 2 scientists for 1 lab". Only those fit to work make a repair team. */
@@ -89,6 +99,7 @@ export class CrewPanel {
   private readonly hireButtons = new Map<CrewRole, HTMLButtonElement>();
   private readonly terms = el('p', 'fin-note');
   private readonly comforts = el('p', 'fin-note');
+  private readonly pace = el('p', 'fin-note');
   private readonly bonus = el('button', 'warn-act crew-bonus', ['Pay a bonus']);
   private readonly bonusNote = el('p', 'fin-note');
   private rosterKey = '';
@@ -123,7 +134,7 @@ export class CrewPanel {
       el('div', 'fin-scroll', [
         el('div', 'fin-section', [this.summary, this.duties]),
         el('div', 'fin-section', [el('h3', 'fin-h', ['Aboard and on the way']), this.list]),
-        el('div', 'fin-section', [el('h3', 'fin-h', ['Morale']), this.comforts, this.bonus, this.bonusNote]),
+        el('div', 'fin-section', [el('h3', 'fin-h', ['Morale']), this.pace, this.comforts, this.bonus, this.bonusNote]),
         el('div', 'fin-section', [el('h3', 'fin-h', ['Hire']), this.terms, ...hireCards, this.blocked]),
       ]),
     );
@@ -159,6 +170,7 @@ export class CrewPanel {
     setText(this.blocked, blocked ?? '');
     setClass(this.blocked, 'hidden', blocked === null);
 
+    setText(this.pace, paceText(snap));
     setText(this.comforts, comfortText(snap));
     setText(this.bonus, `Pay everyone a bonus · ${money(c.bonusCost)}`);
     const noBonus = bonusBlocked(snap);
