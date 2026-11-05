@@ -184,7 +184,12 @@ export interface OrbitConfig {
 }
 
 export interface ScenarioDef {
+  /** Stable id, used to match a save to its scenario. */
+  id: string;
   name: string;
+  /** A line or two for the scenario picker. */
+  blurb: string;
+  goal: GoalDef;
   seed: number;
   startDate: string;
   orbit: OrbitConfig;
@@ -200,7 +205,18 @@ export interface ScenarioDef {
   layout: LayoutEntry[];
 }
 
-/** How a game can end. The goal for now is fixed: pay off the loan. */
+/**
+ * What the board wants from this station. With `days`, it must be done by then or the board replaces you;
+ * without, there's no rush.
+ */
+export type GoalDef =
+  | { kind: 'repayLoan'; days?: number }
+  | { kind: 'cash'; amount: number; days?: number }
+  | { kind: 'contracts'; count: number; days?: number };
+
+export type GoalKind = GoalDef['kind'];
+
+/** How a game can end, besides the goal. */
 export interface EndingsConfig {
   /** Cash below minus this and the bank takes the station at once. $ millions. */
   overdraftLimit: number;
@@ -211,14 +227,27 @@ export interface EndingsConfig {
 }
 
 /** Ways to lose. Reaching the goal is not an ending: play carries on. */
-export type Outcome = 'bankrupt' | 'evacuated';
+export type Outcome = 'bankrupt' | 'evacuated' | 'replaced';
+
+export interface GoalSnapshot {
+  kind: GoalKind;
+  /** Where the station stands: loan left for repayLoan, cash for cash, contracts delivered for contracts. */
+  current: number;
+  /** What it must reach: 0 loan, the cash amount, or the contract count. */
+  target: number;
+  /** 0..1, for a progress bar. */
+  progress: number;
+  /** The board's deadline, or null if there isn't one. */
+  deadlineAtMinutes: number | null;
+}
 
 export interface EndingSnapshot {
   /** Set once the game is lost; the sim stops ticking. */
   outcome: Outcome | null;
   endedAtMinutes: number | null;
-  /** When the loan was paid off, or null if it hasn't been. */
+  /** When the goal was reached, or null if it hasn't been. */
   goalAtMinutes: number | null;
+  goal: GoalSnapshot;
   /** Quarters closed overdrawn in a row, so far. */
   overdrawnCloses: number;
   overdrawnQuarters: number;
