@@ -34,8 +34,12 @@ export interface SimEvents {
   /** Someone was signed up and is on their way. */
   crewHired: { crewId: string; name: string; role: CrewRole; hours: number };
   crewArrived: { crewId: string; name: string; role: CrewRole };
-  /** Someone was sent home, or their flight up cancelled. */
-  crewLeft: { crewId: string; name: string; role: CrewRole; wasAboard: boolean };
+  /** Someone was sent home, their flight up cancelled, or they resigned. */
+  crewLeft: { crewId: string; name: string; role: CrewRole; wasAboard: boolean; reason: 'dismissed' | 'resigned' };
+  /** Someone worked until they couldn't, and is off duty until rested. */
+  crewExhausted: { crewId: string; name: string; role: CrewRole };
+  crewFellIll: { crewId: string; name: string; role: CrewRole; hours: number };
+  crewRecovered: { crewId: string; name: string; role: CrewRole };
   /** The goal is reached. Fires once; play carries on. */
   goalReached: { minutes: number };
   /** The game is lost. The sim stops ticking after this. */

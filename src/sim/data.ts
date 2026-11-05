@@ -6,6 +6,7 @@ import {
   type CabinSpec,
   type ContractDef,
   type CrewConfig,
+  type CrewNeedsConfig,
   type CrewRole,
   type EconomyConfig,
   type EndingsConfig,
@@ -372,6 +373,38 @@ function role(v: unknown, path: string): CrewRole {
   return s as CrewRole;
 }
 
+function crewNeeds(raw: unknown): CrewNeedsConfig {
+  const o = obj(raw, 'crew.needs');
+  const m = obj(o.morale, 'crew.needs.morale');
+  const p = obj(m.penalties, 'crew.needs.morale.penalties');
+  const ill = obj(o.illness, 'crew.needs.illness');
+  const pen = (k: string) => fraction(p[k], `crew.needs.morale.penalties.${k}`);
+  const needs: CrewNeedsConfig = {
+    fatiguePerWorkHour: positive(o.fatiguePerWorkHour, 'crew.needs.fatiguePerWorkHour'),
+    restPerHour: positive(o.restPerHour, 'crew.needs.restPerHour'),
+    tiredAbove: fraction(o.tiredAbove, 'crew.needs.tiredAbove'),
+    restedBelow: fraction(o.restedBelow, 'crew.needs.restedBelow'),
+    morale: {
+      start: fraction(m.start, 'crew.needs.morale.start'),
+      base: fraction(m.base, 'crew.needs.morale.base'),
+      perHour: positive(m.perHour, 'crew.needs.morale.perHour'),
+      penalties: { tired: pen('tired'), exhausted: pen('exhausted'), sick: pen('sick'), badAir: pen('badAir'), hot: pen('hot') },
+      low: band(m.low, 'crew.needs.morale.low'),
+      resignBelow: fraction(m.resignBelow, 'crew.needs.morale.resignBelow'),
+      resignHours: positive(m.resignHours, 'crew.needs.morale.resignHours'),
+    },
+    illness: {
+      perDay: nonNegative(ill.perDay, 'crew.needs.illness.perDay'),
+      tiredFactor: positive(ill.tiredFactor, 'crew.needs.illness.tiredFactor'),
+      badAirFactor: positive(ill.badAirFactor, 'crew.needs.illness.badAirFactor'),
+      hours: positive(ill.hours, 'crew.needs.illness.hours'),
+    },
+  };
+  if (!(needs.restedBelow < needs.tiredAbove && needs.tiredAbove < 1)) fail('crew.needs', 'expected restedBelow < tiredAbove < 1');
+  if (needs.morale.resignBelow >= needs.morale.low.below) fail('crew.needs.morale', 'resignBelow must sit under the low-morale warning');
+  return needs;
+}
+
 function crewConfig(raw: unknown): CrewConfig {
   const o = obj(raw, 'crew');
   const roster = arr(o.roster, 'crew.roster').map((r, i) => {
@@ -388,6 +421,7 @@ function crewConfig(raw: unknown): CrewConfig {
     wagePerDay: nonNegative(o.wagePerDay, 'crew.wagePerDay'),
     arrivalHours: nonNegative(o.arrivalHours, 'crew.arrivalHours'),
     unstaffedLabFactor: fraction(o.unstaffedLabFactor, 'crew.unstaffedLabFactor'),
+    needs: crewNeeds(o.needs),
   };
 }
 
