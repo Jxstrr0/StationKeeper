@@ -203,6 +203,62 @@ Heat is 12.5 kW with everything on, against 15 kW of rejection in eclipse and 9.
 - Only the first port can mount. Modules with several ports can't be flipped end for end.
 - The preview doesn't account for module failures (none exist yet).
 
-## Next slice: Failures and warnings
+## Session 5 (Slice 5): failures and warnings
 
-Wear per module, a failure chance that rises with wear and heat, and repairs. A warning feed that groups events by cause, and cause tracing: tapping a warning shows the chain, for example "Battery Pack failed → Habitat shed → guests unhappy". Use the seeded rng so failures replay exactly. The effect preview should then show risk.
+### What was built
+
+- **Sim (`src/sim/systems/reliability.ts`):**
+  - **Wear.** Each module with a `reliability` block wears while it runs, from new (0) to fully worn (1) over `wearDays`. Switched-off, shed, or tripped modules don't wear.
+  - **Heat.** Wear and failure chance double for every 8 °C above 25 °C, so a hot loop ages the whole station.
+  - **Failure chance per day** = `failPerDay × (0.04 + 0.96 × wear²) × heat factor`. A new module fails at 4% of its worn rate, so worn modules are a gamble.
+  - **Failures** are rolled on the sim's seeded rng, one draw per running module per tick, so a run replays exactly from its seed. A failed module drops out of the network: no draw, no output, no storage, no heat rejection.
+  - **The crew's list.** `repair` services a working module (offline for `serviceHours`, wear back to 0) or repairs a failed one (2× as long). One team works through the list in order; queued modules keep running. If a module fails while its service waits, the job becomes a repair. `cancelRepair` drops a job and loses the work done.
+  - **The core never fails yet.** Its failure needs crew and attitude systems to mean anything.
+  - **Starting wear** comes from `scenario.json`. The life support rack starts at 62%, already due for service, so the first decision comes early.
+- **Cause tracing (`src/sim/warnings.ts`).** Each snapshot carries `warnings`: a small graph built from the snapshot alone.
+  - Every problem lists the problems that cause it, for example CO₂ high ← Essential tripped ← coolant loop hot ← radiator failed (and radiators in sunlight).
+  - Roots are failed, serviced, switched-off and worn modules, the eclipse, and sunlit radiators.
+  - `rootCauses()` and `effectsOf()` walk the graph.
+- **Forecasts** run with failures off. The fork shares the real sim's rng state, so with failures on, a preview would reveal which module breaks and when. Instead the forecast integrates hazard over the run and reports the **chance of a failure**, and the build preview shows it as a row.
+- **UI:**
+  - **Warnings button** (bottom left): the number of problems, peach for warnings and clay with a pulse for alarms. It opens a sheet that **groups problems by root cause**, with the cascade under each root ("This causes: …") and buttons for Repair, Service, Switch on, and Show (camera to the module and its sheet). A **Crew's list** shows work in progress with Cancel. The list is rebuilt only when the set of problems changes and text updates in place, so buttons don't jump under a finger at 20×.
+  - **Module sheet:** wear bar, failure chance a day, the crew's progress, and a Service/Repair/Cancel button beside the switch.
+  - **3D:** failed modules blink red-orange; modules under service pulse ivory.
+  - **Toasts** for failures (per module kind), due for service, work started, and work done. The HUD note lists failed modules.
+- **Dev hook:** on the dev server only, `window.__sim` exposes the sim for console poking. It is stripped from production builds.
+- **Deploy fix:** the deploy job cancels stale in-progress Pages deployments first. The very first deployment had stuck "in progress" and blocked every later one. **The site is live** at https://jxstrr0.github.io/StationKeeper/.
+- **Tests (84 total):**
+  - `tests/reliability.test.ts`: hazard maths; wear only while running; hot modules wear faster; seeded replay of failures; no failures with them off; service and repair timing; queue order; cancel; refusals; a queued service turning into a repair; batteries leaving and rejoining the store; forecasts reporting risk without breaking anything.
+  - `tests/warnings.test.ts`: the calm station; the full radiator → loop → trip → CO₂ chain; shedding blamed on a failed battery; a switched-off rack as root cause; no dangling links.
+  - `tests/warningsPanel.test.ts`: grouping by root.
+  - Data validation tests for the new blocks.
+  - Tests of other systems run with failures off (`makeSim` default), so a dice roll can't break them.
+
+### Balance (by design)
+
+- From the shipped start, the first failure lands at a median of about 8 in-game hours (about 24 minutes of play at 20×), with 10% inside 1.5 hours. The rack is first to fail a little over half the time unless serviced.
+- **One radiator is a single point of failure.** If it fails, the loop climbs past every trip (Commercial after about 20 minutes, Essential after about 30, Critical after about 75) and the station goes dark until the repair (4 h) finishes. The crew and the radiator's pumps keep going, so it recovers. A second radiator is the insurance, and the build preview shows that.
+- A planned service (2–2.5 h) is always quicker than a repair (4–5 h), and a module being serviced is offline on your schedule rather than the dice's.
+
+### How to test on a phone
+
+1. At start the warnings button shows **1**. Tap it: "Life Support Rack due for service (62% worn)". Tap **Service**. The rack pulses ivory, CO₂ creeps up while it's off, and in 2.5 h it is back like new.
+2. Play at **20×**. When something fails, a toast fires and the button turns clay. Open it to see what the failure caused, then tap **Repair**.
+3. Tap any module: its sheet shows wear, failure chance, and a Service button.
+
+### Choices made
+
+- **Failure means fully offline.** Partial failures (an array at half output, a leaking tank) can come later with more failure modes per kind.
+- **Repairs need no power, parts, or money yet.** Spare parts and their cost land with Money and contracts. Crew skills and health could speed repairs or slow them, once the crew slice lands.
+- **One repair team.** `repairTeams` is data, so more crew can mean more teams later.
+- **Warnings are derived, not stored.** The graph is rebuilt from each snapshot, so it can never disagree with the state. Toasts remain the history.
+- **The habitat failure toast jokes that guests moved to the core.** The sim doesn't move them; guests and their effect on money come with Slice 6.
+
+### Known gaps
+
+- No passive cooling: with every radiator down, the loop holds its temperature rather than drifting down.
+- Failure chance is shown per day while running. A module that's off shows the chance it would have.
+
+## Next slice: Money and contracts
+
+Research contracts that pay for keeping certain modules running (uptime), launch costs for new modules (build mode charges and takes delivery time), spare parts for repairs, a starting loan with interest, and a quarterly report. The build preview and the warnings feed should show money, for example "Habitat failed: guests refunded $X an hour".

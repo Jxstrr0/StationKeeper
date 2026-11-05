@@ -19,11 +19,16 @@ export interface Forecast {
   /** Change in stored water over the run, kg. */
   waterChangeKg: number;
   people: number;
+  /** Chance that at least one module fails during the run, 0..1, from wear and temperature. */
+  failureChance: number;
 }
 
-/** Fork `sim`, apply `change` (if any), and run it `minutes` ahead. Returns null if the change is refused. */
+/**
+ * Fork `sim`, apply `change` (if any), and run it `minutes` ahead. Returns null if the change is refused.
+ * Nothing fails in the fork (it would share the real sim's dice); failure risk is reported as a chance instead.
+ */
 export function forecast(sim: Simulation, minutes: number, change?: SimCommand): Forecast | null {
-  const f = sim.fork();
+  const f = sim.fork({ failures: false });
   if (change && !f.command(change).ok) return null;
   const start = f.snapshot();
   const out: Forecast = {
@@ -37,7 +42,9 @@ export function forecast(sim: Simulation, minutes: number, change?: SimCommand):
     peakGenerationKw: 0,
     waterChangeKg: 0,
     people: start.lifeSupport.people,
+    failureChance: 0,
   };
+  const exposure0 = f.failureExposure;
   let last = start;
   for (let i = 0; i < minutes; i++) {
     f.tick();
@@ -52,5 +59,6 @@ export function forecast(sim: Simulation, minutes: number, change?: SimCommand):
     last = s;
   }
   out.waterChangeKg = last.lifeSupport.waterKg - start.lifeSupport.waterKg;
+  out.failureChance = 1 - Math.exp(-(f.failureExposure - exposure0));
   return out;
 }

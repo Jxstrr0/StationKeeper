@@ -44,6 +44,15 @@
       "low": { "above": 0.6, "below": 0.5 }
     }
   },
+  "reliability": {
+    "ratedC": 25,
+    "doublingC": 8,
+    "newFailShare": 0.04,
+    "repairFactor": 2,
+    "repairTeams": 1,
+    "worn": { "above": 0.6, "below": 0.4 },
+    "initialWear": { "array-1": 0.3, "battery-1": 0.35, "habitat-1": 0.2, "radiator-1": 0.45, "life-support-1": 0.62 }
+  },
   "layout": [
     { "id": "core-1", "module": "core" },
     { "id": "array-1", "module": "solar-array", "attach": { "to": "core-1", "port": "starboard", "via": "base" } },

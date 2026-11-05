@@ -14,6 +14,7 @@ const base: Forecast = {
   peakGenerationKw: 22,
   waterChangeKg: -1.4,
   people: 7,
+  failureChance: 0.2,
 };
 
 describe('build panel helpers', () => {

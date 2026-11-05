@@ -22,7 +22,8 @@ export function kw(v: number): string {
 export function minutes(m: number): string {
   if (!Number.isFinite(m)) return '—';
   const whole = Math.max(1, Math.ceil(m));
-  return whole >= 60 ? `${Math.floor(whole / 60)} h ${whole % 60} min` : `${whole} min`;
+  if (whole < 60) return `${whole} min`;
+  return whole % 60 === 0 ? `${whole / 60} h` : `${Math.floor(whole / 60)} h ${whole % 60} min`;
 }
 
 export const TIER_LABEL: Record<Tier, string> = {
@@ -37,6 +38,8 @@ export const STATUS_LABEL: Record<ModuleStatus, string> = {
   shed: 'Shed',
   overheated: 'Tripped: overheating',
   off: 'Switched off',
+  failed: 'Failed',
+  servicing: 'Crew working on it',
 };
 
 export const KIND_LABEL: Record<ModuleKind, string> = {
