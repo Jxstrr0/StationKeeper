@@ -161,7 +161,7 @@ export class ModuleSheet {
       setText(this.output, `${kw(m.rejectKw)} kW of heat`);
     }
     const cabin = def?.cabin;
-    const people = [cabin?.crew && `${cabin.crew} crew`, cabin?.guests && `${cabin.guests} guests`].filter(Boolean).join(', ');
+    const people = [cabin?.bunks && `${cabin.bunks} bunks`, cabin?.guests && `${cabin.guests} guests`].filter(Boolean).join(', ');
     setClass(this.aboardRow, 'hidden', !people);
     setText(this.aboard, people);
 

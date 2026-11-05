@@ -24,6 +24,7 @@ const CONFIRM_MS = 4000;
 const LEDGER_ORDER: readonly { key: LedgerCategory; label: string }[] = [
   { key: 'guests', label: 'Guests' },
   { key: 'contracts', label: 'Research contracts' },
+  { key: 'wages', label: 'Crew wages' },
   { key: 'operations', label: 'Operations' },
   { key: 'interest', label: 'Loan interest' },
   { key: 'construction', label: 'Construction' },

@@ -13,6 +13,7 @@ import { indexDefs, mountPort } from './sim/station';
 import { Clock, SPEEDS, type Speed } from './sim/time';
 import { BuildPanel, previewRows } from './ui/buildPanel';
 import { EndSheet, type EndKind } from './ui/endSheet';
+import { CrewPanel } from './ui/crewPanel';
 import { connectEventFeed } from './ui/eventFeed';
 import { FinancePanel } from './ui/financePanel';
 import { formatDate, money } from './ui/format';
@@ -76,6 +77,16 @@ async function start(): Promise<void> {
       if (!report.isOpen && !ending.isOpen && !picker.isOpen && !sim.ended) clock.setSpeed(s);
     },
     onHeatOverlay: (on) => stationView.setHeatOverlay(on),
+    onCrew: () => {
+      if (crew.isOpen) return crew.close();
+      exitBuild();
+      select(null);
+      warnings.close();
+      finance.close();
+      crew.close();
+      crew.open();
+      crew.update(snap);
+    },
   });
   const toasts = new Toasts(ui);
   const select = (id: string | null) => {
@@ -84,6 +95,7 @@ async function start(): Promise<void> {
       sheet.open(id);
       warnings.close();
       finance.close();
+      crew.close();
     } else sheet.close();
     sheet.update(snap);
   };
@@ -93,6 +105,11 @@ async function start(): Promise<void> {
     snap = sim.snapshot();
     if (!result.ok) toasts.show(`${result.reason}.`, 'warn');
   };
+  const crew = new CrewPanel(ui, {
+    onClose: () => crew.close(),
+    onHire: (role) => send({ type: 'hireCrew', role }),
+    onDismiss: (crewId) => send({ type: 'dismissCrew', crewId }),
+  });
   const sheet = new ModuleSheet(
     ui,
     {
@@ -118,6 +135,7 @@ async function start(): Promise<void> {
       exitBuild();
       select(null);
       finance.close();
+      crew.close();
       warnings.open();
       warnings.update(snap);
     },
@@ -136,6 +154,7 @@ async function start(): Promise<void> {
       exitBuild();
       select(null);
       warnings.close();
+      crew.close();
       finance.open();
       finance.update(snap);
     },
@@ -154,6 +173,7 @@ async function start(): Promise<void> {
   const newGame = () => {
     clock.setSpeed(0);
     finance.close();
+    crew.close();
     picker.show();
   };
 
@@ -166,6 +186,7 @@ async function start(): Promise<void> {
     select(null);
     warnings.close();
     finance.close();
+    crew.close();
     report.show(r, () => {
       if (!sim.ended && !ending.isOpen) clock.setSpeed(resume);
     });
@@ -185,6 +206,7 @@ async function start(): Promise<void> {
     select(null);
     warnings.close();
     finance.close();
+    crew.close();
     const s = sim.snapshot();
     ending.show(kind, s.ending.goal, {
       days: s.minutes / 1440,
@@ -259,6 +281,7 @@ async function start(): Promise<void> {
       select(null);
       warnings.close();
       finance.close();
+      crew.close();
       buildPanel.showTray();
     },
     onClose: exitBuild,
@@ -326,6 +349,7 @@ async function start(): Promise<void> {
       if (build || buildPanel.isOpen) exitBuild();
       else if (warnings.isOpen) warnings.close();
       else if (finance.isOpen) finance.close();
+      else if (crew.isOpen) crew.close();
       else select(null);
     } else if (/^[1-4]$/.test(e.key)) {
       clock.setSpeed(SPEEDS[Number(e.key) - 1] as Speed);
@@ -400,6 +424,7 @@ async function start(): Promise<void> {
     sheet.update(snap);
     warnings.update(snap);
     finance.update(snap);
+    crew.update(snap);
     buildPanel.setCash(snap.economy.cash);
     void stationView.syncOrders(snap.economy.deliveries);
     if (now - lastSaveMs > SAVE_EVERY_MS) autosave();
