@@ -117,7 +117,7 @@
       "reliability": { "wearDays": 8, "failPerDay": 0.5, "serviceHours": 1 },
       "price": 12,
       "cabin": { "volumeM3": 40 },
-      "amenity": { "reputation": 0.15 },
+      "amenity": { "reputation": 0.2 },
       "ports": [{ "id": "aft", "position": [0, 0, 0], "direction": [-1, 0, 0] }, { "id": "fore", "position": [3.5, 0, 0], "direction": [1, 0, 0] }],
       "greybox": { "shape": "habitat", "length": 3.5, "radius": 2, "light": [1.75, 2.15, 0] }
     },
