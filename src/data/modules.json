@@ -1,0 +1,52 @@
+{
+  "modules": [
+    {
+      "id": "core",
+      "name": "Core Module",
+      "kind": "core",
+      "description": "Command deck, avionics, and the primary life support racks. If this goes dark, so does everyone.",
+      "power": { "drawKw": 5.0, "tier": "critical" },
+      "ports": [
+        { "id": "fore", "position": [4, 0, 0], "direction": [1, 0, 0] },
+        { "id": "aft", "position": [-4, 0, 0], "direction": [-1, 0, 0] },
+        { "id": "starboard", "position": [0, 0, 2], "direction": [0, 0, 1] },
+        { "id": "port", "position": [0, 0, -2], "direction": [0, 0, -1] },
+        { "id": "zenith", "position": [0, 2, 0], "direction": [0, 1, 0] },
+        { "id": "nadir", "position": [0, -2, 0], "direction": [0, -1, 0] }
+      ],
+      "greybox": { "shape": "core", "length": 8, "radius": 2, "light": [0, 2.15, 1.2] }
+    },
+    {
+      "id": "solar-array",
+      "name": "Solar Array",
+      "kind": "solar",
+      "description": "Two sun-tracking wings on a short truss. Generates only in sunlight; the gimbal drives draw a little power of their own.",
+      "power": { "drawKw": 0.4, "tier": "essential", "generationKw": 22 },
+      "gimbalAxis": [0, 0, 1],
+      "panelNormal": [1, 0, 0],
+      "ports": [{ "id": "base", "position": [0, 0, 0], "direction": [0, 0, -1] }],
+      "greybox": { "shape": "solar", "length": 11, "wingLength": 12, "wingWidth": 3.6, "light": [0, 0.75, 1.2] }
+    },
+    {
+      "id": "battery-pack",
+      "name": "Battery Pack",
+      "kind": "battery",
+      "description": "Lithium-ion storage that carries the station through eclipse. Its own thermal control is critical: cold cells are dead cells.",
+      "power": { "drawKw": 0.3, "tier": "critical", "storageKwh": 9, "maxChargeKw": 8, "maxDischargeKw": 15 },
+      "ports": [{ "id": "top", "position": [0, 0, 0], "direction": [0, 1, 0] }],
+      "greybox": { "shape": "battery", "size": [2.6, 1.8, 2.6], "light": [1.35, -0.6, 0] }
+    },
+    {
+      "id": "habitat",
+      "name": "Guest Habitat",
+      "kind": "habitat",
+      "description": "Four paying guests, one large window, and a coffee machine that draws more power than it should. Commercial load: first to go when power runs short.",
+      "power": { "drawKw": 6.0, "tier": "commercial" },
+      "ports": [
+        { "id": "aft", "position": [0, 0, 0], "direction": [-1, 0, 0] },
+        { "id": "fore", "position": [7, 0, 0], "direction": [1, 0, 0] }
+      ],
+      "greybox": { "shape": "habitat", "length": 7, "radius": 2.4, "light": [3.5, 2.55, 0] }
+    }
+  ]
+}
