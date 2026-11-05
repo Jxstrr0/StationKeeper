@@ -14,6 +14,7 @@ import {
   labCount,
   netPerDay,
   repayLoan,
+  type Staffing,
   stepEconomy,
   type EconomyState,
 } from './systems/economy';
@@ -48,6 +49,7 @@ import {
   type ReliabilityModuleState,
   type ReliabilityState,
 } from './systems/reliability';
+import { countAboard, createCrewState, crewSnapshot, dismiss, hire, hireProblem, stepCrew, wagesPerDay, type CrewState } from './systems/crew';
 import {
   addThermalModule,
   createThermalState,
@@ -57,7 +59,7 @@ import {
   type ThermalState,
 } from './systems/thermal';
 import { MINUTE_MS } from './time';
-import type { EndingSnapshot, GoalSnapshot, LayoutEntry, Ledger, ModuleDef, ModuleSnapshot, Outcome, ScenarioDef, SimSnapshot } from './types';
+import type { CrewRole, EndingSnapshot, GoalSnapshot, LayoutEntry, Ledger, ModuleDef, ModuleSnapshot, Outcome, ReliabilityConfig, ScenarioDef, SimSnapshot } from './types';
 import { diagnose } from './warnings';
 
 export type SimCommand =
@@ -70,7 +72,11 @@ export type SimCommand =
   | { type: 'acceptContract'; uid: string }
   | { type: 'abandonContract'; uid: string }
   /** Pay down the loan from cash. */
-  | { type: 'repayLoan'; amount: number };
+  | { type: 'repayLoan'; amount: number }
+  /** Sign someone up; they fly up and arrive later. */
+  | { type: 'hireCrew'; role: CrewRole }
+  /** Send someone home, or cancel their flight up. */
+  | { type: 'dismissCrew'; crewId: string };
 
 /** A module paid for and on its way up. Its port is reserved until it docks. */
 interface Delivery {
@@ -82,7 +88,7 @@ interface Delivery {
 }
 
 /** Bump when the save's shape changes; older saves are then discarded rather than misread. */
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 /** How the game stands: lost, goal reached, or how close the bank is. */
 interface EndingState {
@@ -113,6 +119,7 @@ export interface SimSave {
   economy: EconomyState;
   deliveries: Delivery[];
   ending: EndingState;
+  crew: CrewState;
 }
 
 const toRecord = <V>(m: Map<string, V>): Record<string, V> => Object.fromEntries(m);
@@ -133,7 +140,7 @@ export interface SimOptions {
   failures?: boolean;
 }
 
-export type CommandResult = { ok: true; moduleId?: string } | { ok: false; reason: string };
+export type CommandResult = { ok: true; moduleId?: string; crewId?: string } | { ok: false; reason: string };
 
 /** New batteries arrive half charged. */
 const NEW_BATTERY_CHARGE = 0.5;
@@ -159,6 +166,7 @@ export class Simulation {
   private life: LifeSupportState;
   private reliability: ReliabilityState;
   private economy: EconomyState;
+  private crew: CrewState;
   private deliveries: Delivery[] = [];
   private ending: EndingState = { outcome: null, endedAt: null, goalAt: null, overdrawnCloses: 0, contractsDone: 0 };
   private readonly failures: boolean;
@@ -177,9 +185,10 @@ export class Simulation {
     this.startMs = start;
     this.power = createPowerState(this.station, scenario.power.initialChargeFraction);
     this.thermal = createThermalState(this.station, scenario.thermal);
-    this.lifePlant = lifeSupportPlant(this.station, scenario.lifeSupport);
+    this.crew = createCrewState(scenario.crew);
+    this.lifePlant = lifeSupportPlant(this.station, scenario.lifeSupport, countAboard(this.crew, 0));
     this.life = createLifeSupportState(this.lifePlant, scenario.lifeSupport);
-    this.reliability = createReliabilityState(this.station, scenario.reliability);
+    this.reliability = createReliabilityState(this.station, this.rcfg);
     this.economy = createEconomyState(scenario.economy, this.rng);
     // Spare parts are paid for when a crew team picks a job up, and refunded if it is cancelled.
     this.events.on('repairStarted', ({ moduleId, kind }) => {
@@ -201,6 +210,24 @@ export class Simulation {
     return this.minutes;
   }
 
+  /** Reliability settings with one repair team per engineer aboard. */
+  private get rcfg(): ReliabilityConfig {
+    return { ...this.scenario.reliability, repairTeams: countAboard(this.crew, this.minutes, 'engineer') };
+  }
+
+  private staffing(): Staffing {
+    return {
+      scientists: countAboard(this.crew, this.minutes, 'scientist'),
+      unstaffedFactor: this.scenario.crew.unstaffedLabFactor,
+      wagesPerDay: wagesPerDay(this.crew, this.scenario.crew, this.minutes),
+    };
+  }
+
+  /** Cabins, tanks, and people aboard changed: rebuild the life support plant. The air and tanks keep what they hold. */
+  private refreshPlant(): void {
+    this.lifePlant = lifeSupportPlant(this.station, this.scenario.lifeSupport, countAboard(this.crew, this.minutes));
+  }
+
   /** True once the game is lost. The sim no longer ticks. */
   get ended(): boolean {
     return this.ending.outcome !== null;
@@ -214,6 +241,7 @@ export class Simulation {
     if (!wasShadow && isShadow) this.events.emit('eclipseBegan', { minutes: this.minutes });
     if (wasShadow && !isShadow) this.events.emit('sunrise', { minutes: this.minutes });
     this.deliverDue();
+    if (stepCrew(this.crew, this.minutes, this.events)) this.refreshPlant();
     this.solve(true);
     this.checkEnding();
   }
@@ -258,12 +286,12 @@ export class Simulation {
       case 'repair': {
         const problem = repairProblem(this.reliability, this.station, cmd.moduleId);
         if (problem) return { ok: false, reason: problem };
-        queueRepair(this.reliability, this.station, cmd.moduleId, this.scenario.reliability, this.events);
+        queueRepair(this.reliability, this.station, cmd.moduleId, this.rcfg, this.events);
         this.solve(false);
         return { ok: true };
       }
       case 'cancelRepair': {
-        if (!cancelRepair(this.reliability, cmd.moduleId, this.scenario.reliability, this.events)) {
+        if (!cancelRepair(this.reliability, cmd.moduleId, this.rcfg, this.events)) {
           return { ok: false, reason: `No work is planned on "${cmd.moduleId}"` };
         }
         const refund = this.economy.partsOnJob[cmd.moduleId];
@@ -282,6 +310,21 @@ export class Simulation {
       }
       case 'abandonContract':
         return abandonContract(this.economy, this.scenario.economy, cmd.uid, this.events) ? { ok: true } : { ok: false, reason: 'No such contract is running' };
+      case 'hireCrew': {
+        const problem = hireProblem(this.crew, this.station, this.scenario.crew, this.economy.cash);
+        if (problem) return { ok: false, reason: problem };
+        book(this.economy, 'wages', -this.scenario.crew.signingFee);
+        const m = hire(this.crew, this.scenario.crew, cmd.role, this.minutes, this.events);
+        if (this.scenario.crew.arrivalHours <= 0) this.refreshPlant();
+        this.solve(false);
+        return { ok: true, crewId: m.id };
+      }
+      case 'dismissCrew': {
+        if (!dismiss(this.crew, cmd.crewId, this.minutes, this.events)) return { ok: false, reason: 'No such crew member' };
+        this.refreshPlant();
+        this.solve(false);
+        return { ok: true };
+      }
       case 'repayLoan': {
         if (!(cmd.amount > 0)) return { ok: false, reason: 'Choose an amount to repay' };
         if (this.economy.loan <= 0) return { ok: false, reason: 'The loan is already paid off' };
@@ -350,7 +393,7 @@ export class Simulation {
     addThermalModule(this.thermal, d.moduleId);
     addReliabilityModule(this.reliability, d.moduleId);
     // New cabins, crew, and tanks change the plant; the air and tanks keep what they hold (new tanks arrive empty).
-    this.lifePlant = lifeSupportPlant(this.station, this.scenario.lifeSupport);
+    this.refreshPlant();
     this.events.emit('moduleAdded', { moduleId: d.moduleId, defId: d.defId });
   }
 
@@ -379,6 +422,7 @@ export class Simulation {
       economy: this.economy,
       deliveries: this.deliveries,
       ending: this.ending,
+      crew: this.crew,
     });
     return {
       version: SAVE_VERSION,
@@ -393,6 +437,7 @@ export class Simulation {
       economy: clone.economy,
       deliveries: clone.deliveries,
       ending: clone.ending,
+      crew: clone.crew,
     };
   }
 
@@ -415,6 +460,8 @@ export class Simulation {
     sim.economy = s.economy;
     sim.deliveries = s.deliveries;
     sim.ending = s.ending;
+    sim.crew = s.crew;
+    sim.refreshPlant();
     for (const d of sim.deliveries) {
       if (!sim.defs.has(d.defId)) throw new Error(`Save has an order for unknown module "${d.defId}"`);
     }
@@ -432,7 +479,7 @@ export class Simulation {
    * limits), then heat and life support from what actually ran.
    */
   private solve(commit: boolean): void {
-    const rcfg = this.scenario.reliability;
+    const rcfg = this.rcfg;
     if (commit) {
       stepReliability(this.reliability, this.station, this.power, this.thermal, {
         cfg: rcfg,
@@ -474,6 +521,7 @@ export class Simulation {
         now: this.minutes,
         dtHours: TICK_HOURS,
         throttleFactor: this.scenario.thermal.throttleFactor,
+        staff: this.staffing(),
         events: this.events,
       });
     }
@@ -490,9 +538,9 @@ export class Simulation {
       quarter: e.quarter,
       quarterProgress: (this.minutes % quarterMinutes) / quarterMinutes,
       ledger: { ...e.ledger },
-      netPerDay: netPerDay(this.station, this.power, e, cfg),
+      netPerDay: netPerDay(this.station, this.power, e, cfg, this.staffing()),
       lastReport: e.lastReport ? structuredClone(e.lastReport) : null,
-      ...contractSnapshots(e, this.station, this.power, cfg, this.minutes, this.scenario.thermal.throttleFactor),
+      ...contractSnapshots(e, this.station, this.power, cfg, this.minutes, this.scenario.thermal.throttleFactor, this.staffing()),
       labs: labCount(this.station),
       guestIncomePerDay: Object.fromEntries(
         this.station.modules.filter((m) => m.def.cabin?.guests).map((m) => [m.id, (m.def.cabin?.guests ?? 0) * cfg.guestPerDay]),
@@ -569,10 +617,10 @@ export class Simulation {
         heatKw: t.heatKw,
         rejectKw: t.rejectKw,
         wear: r.wear,
-        failChancePerDay: r.failed ? 0 : 1 - Math.exp(-hazardPerDay(m.def, r.wear, t.tempC, this.scenario.reliability)),
+        failChancePerDay: r.failed ? 0 : 1 - Math.exp(-hazardPerDay(m.def, r.wear, t.tempC, this.rcfg)),
         canFail: m.def.reliability !== undefined,
         dueForService: r.worn,
-        repair: repairSnapshot(this.reliability, m.id, this.scenario.reliability),
+        repair: repairSnapshot(this.reliability, m.id, this.rcfg),
       };
     });
     const snap: Omit<SimSnapshot, 'warnings'> = {
@@ -622,6 +670,7 @@ export class Simulation {
       freePorts: freePorts(this.station).filter((p) => !this.deliveries.some((d) => d.to === p.moduleId && d.port === p.portId)),
       economy: this.economySnapshot(),
       ending: this.endingSnapshot(),
+      crew: crewSnapshot(this.crew, this.station, this.scenario.crew, this.minutes),
     };
     return { ...snap, warnings: diagnose(snap) };
   }
