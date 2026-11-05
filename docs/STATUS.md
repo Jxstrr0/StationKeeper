@@ -464,11 +464,64 @@ So the deadline asks one thing of the player: notice that the lab needs power th
 - Two scenarios only, and neither changes the module list or contract pool.
 - No record of which scenarios have been won.
 
+## Session 10: crew
+
+### What was built
+
+- **A crew roster** (`scenario.json` → `crew`). Named people, each an **engineer** or a **scientist**. Both scenarios start with 1 engineer and 2 scientists.
+- **Engineers are the repair teams.** There is one team per engineer aboard, so `reliability.repairTeams` is gone from the data. With no engineer aboard, the repair queue stands still and an alarm says so.
+- **Scientists run the labs.** Each running lab needs one. The fastest labs get the scientists first; a lab with nobody works at `unstaffedLabFactor` (half pace). A warning appears when a contract is under way and a lab has no one.
+- **Wages.** Each person costs `wagePerDay` ($0.5M a day) in a new "Crew wages" line of the books. `operationsPerDay` dropped from 1.8 to 0.3, so the starting crew costs exactly what the old flat rate did and the balance is unchanged.
+- **Bunks instead of a crew count.** Modules have `cabin.bunks`, and the crew come from the roster. The Core sleeps four. The new **Crew Quarters** module ($10M, 1.5 kW Essential, 45 m³) adds four more.
+- **Hiring:** $1M to sign, then the flight up takes 6 h. A hire needs a free bunk (people in flight hold one). New hires take names from the scenario's list.
+- **Sending home:** frees the bunk and stops the pay at once. It also works on someone still in flight ("Cancel flight").
+- **Life support follows who is aboard.** Arrivals and departures rebuild the plant; the air and tanks keep what they hold.
+- **Sim:**
+  - `hireCrew` and `dismissCrew` commands;
+  - `crewHired`, `crewArrived` and `crewLeft` events;
+  - `snapshot.crew`;
+  - the roster is in the save. `SAVE_VERSION` is now 4.
+- **Crew sheet:** tap the crew reading in the top bar. It shows:
+  - who is aboard and in flight;
+  - bunks and wages;
+  - what each role does;
+  - hire buttons, with the reason when blocked;
+  - "Send home" (two taps; the last engineer gets a sharper confirm).
+- **Toasts** for hires, arrivals, and departures.
+- **Tests (144):**
+  - the starting roster;
+  - a hire's fee, flight and arrival;
+  - bunks, and quarters adding room;
+  - engineers as repair teams, and an idle queue with none aboard;
+  - lab staffing, at the unit level and in play;
+  - sending home and cancelling a flight;
+  - saves;
+  - the crew summary text.
+
+### How to test on a phone
+
+1. Tap the crew reading in the top bar.
+2. Hire an engineer. The Core's fourth bunk fills, and the hire buttons explain why they're now blocked.
+3. Six in-game hours later the engineer is aboard, and two repairs run at once.
+4. Send both scientists home with a lab running a contract. The lab warning appears and the contract slows down.
+
+### Choices made
+
+- **Two roles, not skills or levels.** Each role maps to a system that already exists (repairs and labs), so hiring is a clear trade.
+- **Crew condition stays shared.** Everyone breathes the same air; individual health can come later.
+- **No fatigue or shifts yet.** An engineer works around the clock. That's generous, but it keeps the repair numbers as they were.
+- **Sending someone home is free, and the signing fee is not refunded.**
+
+### Known gaps
+
+- No crew needs beyond air, water and pay: no morale, food or rest.
+- New hires always cost the same; the market for engineers is suspiciously calm.
+
 ## Next
 
 The planned slices are done. Candidates for what's next, roughly in order of value:
 
 1. **Play-testing on a real phone** to tune pace, readability, and the first ten minutes.
 2. **More scenarios**, with their own contract pools or modules, and a record of which have been won.
-3. **Crew**: health, skills, more repair teams, and crew needs.
+3. **Crew needs**: rest, morale, and individual health.
 4. **Art**: Blender models replacing the grey-boxes (the loader already prefers them).
