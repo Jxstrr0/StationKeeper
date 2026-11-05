@@ -81,12 +81,17 @@ function activeJob(state: ReliabilityState, id: string, cfg: ReliabilityConfig):
   return i >= 0 && i < cfg.repairTeams ? state.queue[i] : undefined;
 }
 
-export function repairSnapshot(state: ReliabilityState, id: string, cfg: ReliabilityConfig): RepairSnapshot | null {
+/**
+ * Where a module stands in the crew's queue. `pace` is each repair team's work pace, fastest first: a job under way
+ * shows the clock time left at its team's pace; a queued one shows its work-hours.
+ */
+export function repairSnapshot(state: ReliabilityState, id: string, cfg: ReliabilityConfig, pace: readonly number[] = []): RepairSnapshot | null {
   const i = state.queue.findIndex((j) => j.moduleId === id);
   if (i < 0) return null;
   const job = state.queue[i]!;
   const active = i < cfg.repairTeams;
-  return { kind: job.kind, active, hoursLeft: job.hoursLeft, queuePosition: active ? 0 : i - cfg.repairTeams + 1 };
+  const hoursLeft = active ? job.hoursLeft / (pace[i] ?? 1) : job.hoursLeft;
+  return { kind: job.kind, active, hoursLeft, queuePosition: active ? 0 : i - cfg.repairTeams + 1 };
 }
 
 function jobHours(def: ModuleDef, kind: RepairJob['kind'], cfg: ReliabilityConfig): number {
@@ -138,6 +143,8 @@ export interface ReliabilityStepOptions {
   rng: Rng;
   /** When false, wear still builds and hazard is still counted, but nothing breaks (forecasts). */
   failures: boolean;
+  /** Each repair team's work pace, fastest first; the first job in the queue gets the fastest. Missing means 1. */
+  pace?: readonly number[];
   events?: EventBus<SimEvents>;
 }
 
@@ -146,11 +153,11 @@ export interface ReliabilityStepOptions {
  * Uses last tick's power statuses and module temperatures, so it runs before the power solve.
  */
 export function stepReliability(state: ReliabilityState, station: Station, power: PowerState, thermal: ThermalState, opts: ReliabilityStepOptions): void {
-  const { cfg, dtHours, rng, events } = opts;
+  const { cfg, dtHours, rng, events, pace = [] } = opts;
   const dtDays = dtHours / 24;
 
   // Crew work.
-  for (const job of state.queue.slice(0, cfg.repairTeams)) job.hoursLeft -= dtHours;
+  state.queue.slice(0, cfg.repairTeams).forEach((job, i) => (job.hoursLeft -= dtHours * (pace[i] ?? 1)));
   const done = state.queue.filter((j, i) => i < cfg.repairTeams && j.hoursLeft <= 1e-9);
   if (done.length) {
     state.queue = state.queue.filter((j) => !done.includes(j));

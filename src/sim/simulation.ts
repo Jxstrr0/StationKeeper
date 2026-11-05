@@ -54,6 +54,7 @@ import {
   comfortLift,
   countAboard,
   countFit,
+  fitPaces,
   createCrewState,
   crewSnapshot,
   dismiss,
@@ -242,9 +243,14 @@ export class Simulation {
     return { ...this.scenario.reliability, repairTeams: countFit(this.crew, this.minutes, 'engineer') };
   }
 
+  /** Each repair team's work pace, fastest first. */
+  private repairPace(): number[] {
+    return fitPaces(this.crew, this.minutes, 'engineer', this.scenario.crew.needs);
+  }
+
   private staffing(): Staffing {
     return {
-      scientists: countFit(this.crew, this.minutes, 'scientist'),
+      scientistPaces: fitPaces(this.crew, this.minutes, 'scientist', this.scenario.crew.needs),
       unstaffedFactor: this.scenario.crew.unstaffedLabFactor,
       wagesPerDay: wagesPerDay(this.crew, this.scenario.crew, this.minutes),
     };
@@ -567,6 +573,7 @@ export class Simulation {
         dtHours: TICK_HOURS,
         rng: this.rng,
         failures: this.failures,
+        pace: this.repairPace(),
         events: this.events,
       });
     }
@@ -676,6 +683,7 @@ export class Simulation {
   snapshot(): SimSnapshot {
     const { storedKwh, capacityKwh } = storageTotals(this.power, this.station);
     const t = this.power.totals;
+    const pace = this.repairPace();
     const modules: ModuleSnapshot[] = this.station.modules.map((m) => {
       const s = this.power.modules.get(m.id)!;
       const t = this.thermal.modules.get(m.id)!;
@@ -701,7 +709,7 @@ export class Simulation {
         failChancePerDay: r.failed ? 0 : 1 - Math.exp(-hazardPerDay(m.def, r.wear, t.tempC, this.rcfg)),
         canFail: m.def.reliability !== undefined,
         dueForService: r.worn,
-        repair: repairSnapshot(this.reliability, m.id, this.rcfg),
+        repair: repairSnapshot(this.reliability, m.id, this.rcfg, pace),
       };
     });
     const snap: Omit<SimSnapshot, 'warnings'> = {

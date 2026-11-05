@@ -386,6 +386,7 @@ function crewNeeds(raw: unknown): CrewNeedsConfig {
   const o = obj(raw, 'crew.needs');
   const m = obj(o.morale, 'crew.needs.morale');
   const p = obj(m.penalties, 'crew.needs.morale.penalties');
+  const pace = obj(m.pace, 'crew.needs.morale.pace');
   const ill = obj(o.illness, 'crew.needs.illness');
   const pen = (k: string) => fraction(p[k], `crew.needs.morale.penalties.${k}`);
   const needs: CrewNeedsConfig = {
@@ -401,6 +402,11 @@ function crewNeeds(raw: unknown): CrewNeedsConfig {
       low: band(m.low, 'crew.needs.morale.low'),
       resignBelow: fraction(m.resignBelow, 'crew.needs.morale.resignBelow'),
       resignHours: positive(m.resignHours, 'crew.needs.morale.resignHours'),
+      pace: {
+        floor: positive(pace.floor, 'crew.needs.morale.pace.floor'),
+        steadyAt: fraction(pace.steadyAt, 'crew.needs.morale.pace.steadyAt'),
+        best: positive(pace.best, 'crew.needs.morale.pace.best'),
+      },
     },
     illness: {
       perDay: nonNegative(ill.perDay, 'crew.needs.illness.perDay'),
@@ -411,6 +417,9 @@ function crewNeeds(raw: unknown): CrewNeedsConfig {
   };
   if (!(needs.restedBelow < needs.tiredAbove && needs.tiredAbove < 1)) fail('crew.needs', 'expected restedBelow < tiredAbove < 1');
   if (needs.morale.resignBelow >= needs.morale.low.below) fail('crew.needs.morale', 'resignBelow must sit under the low-morale warning');
+  const wp = needs.morale.pace;
+  if (!(wp.floor <= 1 && 1 <= wp.best)) fail('crew.needs.morale.pace', 'expected floor <= 1 <= best');
+  if (!(wp.steadyAt > 0 && wp.steadyAt < 1)) fail('crew.needs.morale.pace.steadyAt', 'must be between 0 and 1, exclusive');
   return needs;
 }
 
