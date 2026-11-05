@@ -3,7 +3,7 @@ import { forecast } from '../src/sim/forecast';
 import type { Simulation } from '../src/sim/simulation';
 import { hazardPerDay, heatFactor } from '../src/sim/systems/reliability';
 import type { ModuleDef } from '../src/sim/types';
-import { baseScenario, defs, makeSim, runUntil } from './helpers';
+import { baseScenario, defs, flatPace, makeSim, runUntil } from './helpers';
 
 const mod = (sim: Simulation, id: string) => sim.snapshot().modules.find((m) => m.id === id)!;
 const cfg = baseScenario.reliability;
@@ -74,7 +74,7 @@ describe('reliability', () => {
   });
 
   it('a service takes the module offline for its service hours, then it runs like new', () => {
-    const sim = makeSim();
+    const sim = makeSim(flatPace);
     const started: string[] = [];
     const done: string[] = [];
     sim.events.on('repairStarted', ({ moduleId, kind }) => started.push(`${moduleId}:${kind}`));
@@ -93,7 +93,7 @@ describe('reliability', () => {
   });
 
   it('repairing a failure takes longer than a service', () => {
-    const sim = makeSim(undefined, onlyBreaks('radiator'), { failures: true });
+    const sim = makeSim(flatPace, onlyBreaks('radiator'), { failures: true });
     runUntil(sim, () => mod(sim, 'radiator-1').status === 'failed', 50);
     sim.command({ type: 'repair', moduleId: 'radiator-1' });
     const hours = defs.find((d) => d.id === 'radiator')!.reliability!.serviceHours;

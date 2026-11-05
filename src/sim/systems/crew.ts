@@ -5,7 +5,8 @@
 // Each person also has needs. Work tires them and time off rests them: a tired worker hands over to a rested
 // colleague if there is one, and someone who works to the end of their strength is exhausted and off duty until
 // rested. Morale drifts towards a level set by how they're living (bad air, a hot station, exhaustion, illness),
-// and someone miserable for long enough resigns. People fall ill now and then, more often when tired or breathing
+// and someone miserable for long enough resigns. Morale also sets how fast they work: a glum crew repairs and
+// runs labs slowly, a content one a little quicker. People fall ill now and then, more often when tired or breathing
 // bad air, and are off duty until they recover. Illness is rolled on the crew's own seeded rng, so the station's
 // failure rolls are unchanged by it.
 import type { EventBus, SimEvents } from '../events';
@@ -54,6 +55,21 @@ export function aboard(state: CrewState, now: number): CrewMember[] {
 
 export function countAboard(state: CrewState, now: number, role?: CrewRole): number {
   return aboard(state, now).filter((m) => role === undefined || m.role === role).length;
+}
+
+/** How fast someone works at this morale: 1 is full speed. Linear from `floor` at 0 to 1 at `steadyAt`, then to `best` at 1. */
+export function workPace(morale: number, needs: CrewNeedsConfig): number {
+  const { floor, steadyAt, best } = needs.morale.pace;
+  if (morale <= steadyAt) return floor + (1 - floor) * (morale / steadyAt);
+  return 1 + (best - 1) * ((morale - steadyAt) / (1 - steadyAt));
+}
+
+/** The work paces of those of `role` fit to work, fastest first: the order they're given the work in. */
+export function fitPaces(state: CrewState, now: number, role: CrewRole, needs: CrewNeedsConfig): number[] {
+  return state.members
+    .filter((m) => m.role === role && isFit(m, now))
+    .map((m) => workPace(m.morale, needs))
+    .sort((a, b) => b - a);
 }
 
 /** Aboard, not ill, and not exhausted. */
@@ -252,12 +268,18 @@ export function stepNeeds(
 }
 
 /**
- * How fast the labs work, as lab-equivalents: each running lab gives its speed (1, or the throttle share),
- * and the fastest labs get the scientists first. A lab nobody staffs works at the unstaffed share.
+ * How fast each running lab works, fastest first: its speed (1, or the throttle share) times the pace of the
+ * scientist running it. The fastest labs get the fastest scientists; a lab nobody staffs works at the unstaffed share.
  */
-export function labCapacity(labSpeeds: readonly number[], scientists: number, unstaffedFactor: number): number {
-  const sorted = [...labSpeeds].sort((a, b) => b - a);
-  return sorted.reduce((sum, speed, i) => sum + speed * (i < scientists ? 1 : unstaffedFactor), 0);
+export function labRates(labSpeeds: readonly number[], scientistPaces: readonly number[], unstaffedFactor: number): number[] {
+  const labs = [...labSpeeds].sort((a, b) => b - a);
+  const paces = [...scientistPaces].sort((a, b) => b - a);
+  return labs.map((speed, i) => speed * (paces[i] ?? unstaffedFactor)).sort((a, b) => b - a);
+}
+
+/** All the labs together, as lab-equivalents. */
+export function labCapacity(labSpeeds: readonly number[], scientistPaces: readonly number[], unstaffedFactor: number): number {
+  return labRates(labSpeeds, scientistPaces, unstaffedFactor).reduce((sum, r) => sum + r, 0);
 }
 
 function status(m: CrewMember, now: number): CrewStatus {
@@ -280,6 +302,7 @@ function memberSnapshot(m: CrewMember, needs: CrewNeedsConfig, now: number): Cre
     sickHoursLeft: m.sickUntil === null ? null : Math.max(0, m.sickUntil - now) / 60,
     resignsInHours: m.lowSince === null ? null : Math.max(0, m.lowSince + needs.morale.resignHours * 60 - now) / 60,
     moraleLow: m.arrivesAt <= now && m.morale < needs.morale.low.below,
+    pace: workPace(m.morale, needs),
   };
 }
 

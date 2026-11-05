@@ -23,6 +23,11 @@ export function makeSim(
   return new Simulation(moduleDefs, scenario, scenario.layout, options);
 }
 
+/** Everyone works at exactly full speed whatever their morale: for tests that count work-hours. Pace has its own tests. */
+export function flatPace(s: ScenarioDef): void {
+  s.crew.needs.morale.pace = { ...s.crew.needs.morale.pace, floor: 1, best: 1 };
+}
+
 /** Tick until the predicate holds, failing after `limit` ticks. */
 export function runUntil(sim: Simulation, pred: () => boolean, limit = 1000): void {
   for (let i = 0; i < limit; i++) {

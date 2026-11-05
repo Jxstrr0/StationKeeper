@@ -95,7 +95,8 @@
         "penalties": { "tired": 0.1, "exhausted": 0.35, "sick": 0.2, "badAir": 0.3, "hot": 0.15 },
         "low": { "above": 0.5, "below": 0.4 },
         "resignBelow": 0.25,
-        "resignHours": 12
+        "resignHours": 12,
+        "pace": { "floor": 0.6, "steadyAt": 0.65, "best": 1.2 }
       },
       "illness": { "perDay": 0.03, "tiredFactor": 2, "badAirFactor": 3, "hours": 12 }
     }

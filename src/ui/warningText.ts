@@ -50,7 +50,7 @@ export function warningTitle(w: StationWarning, mod: (id: string) => ModuleSnaps
     case 'moraleLow':
       return w.hours !== undefined
         ? `${w.label ?? 'Someone'} at ${pct(w.value)} morale: resigns in ${minutes(w.hours * 60)}`
-        : `${w.label ?? 'Someone'}'s morale is low at ${pct(w.value)}`;
+        : `${w.label ?? 'Someone'}'s morale is low at ${pct(w.value)}, and their work is slowing`;
     case 'labUnstaffed': {
       const n = w.value ?? 1;
       return `${n === 1 ? 'A lab has' : `${n} labs have`} no scientist and ${n === 1 ? 'works' : 'work'} slowly`;
