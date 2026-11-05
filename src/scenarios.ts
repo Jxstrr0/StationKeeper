@@ -3,10 +3,11 @@ import halyard from './data/scenarios/halyard.json';
 import kittiwake from './data/scenarios/kittiwake.json';
 import longlightOne from './data/scenarios/longlight-one.json';
 import saltglass from './data/scenarios/saltglass.json';
+import velvetReach from './data/scenarios/velvet-reach.json';
 import { parseScenario } from './sim/data';
 import type { ScenarioDef } from './sim/types';
 
-export const SCENARIOS: readonly ScenarioDef[] = [longlightOne, kittiwake, halyard, saltglass].map(parseScenario);
+export const SCENARIOS: readonly ScenarioDef[] = [longlightOne, kittiwake, halyard, saltglass, velvetReach].map(parseScenario);
 
 const ids = new Set<string>();
 for (const s of SCENARIOS) {
