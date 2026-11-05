@@ -99,4 +99,21 @@ describe('data files', () => {
       days: 4,
     });
   });
+
+  it('reads a catalogue of modules for sale, and refuses an empty or repeated one', () => {
+    const base = structuredClone(scenarioJson) as object;
+    expect(parseScenario(base).catalogue).toBeUndefined();
+    expect(parseScenario({ ...base, catalogue: ['radiator', 'habitat'] }).catalogue).toEqual(['radiator', 'habitat']);
+    expect(() => parseScenario({ ...base, catalogue: [] })).toThrow(/catalogue/);
+    expect(() => parseScenario({ ...base, catalogue: ['radiator', 'radiator'] })).toThrow(/twice/);
+    expect(() => parseScenario({ ...base, catalogue: [3] })).toThrow(/catalogue\[0\]/);
+  });
+
+  it('refuses a contracts goal on a station with no contracts to offer', () => {
+    type Pool = { goal: unknown; economy: { contracts: { pool: unknown[] } } };
+    const s = structuredClone(scenarioJson) as unknown as Pool;
+    s.goal = { kind: 'contracts', count: 3 };
+    s.economy.contracts.pool = [];
+    expect(() => parseScenario(s)).toThrow(/contracts goal/);
+  });
 });
