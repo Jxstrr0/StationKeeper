@@ -468,3 +468,36 @@
   border-color: var(--clay);
   color: var(--clay);
 }
+
+/* Goal */
+
+.fin-goal-line {
+  margin: 2px 0 8px;
+  font-size: 15px;
+}
+
+.fin-goal-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.fin-goal-bar i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--lilac);
+  transition: width 0.3s ease;
+}
+
+.fin-goal-state {
+  display: block;
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.fin-sub.neg {
+  color: var(--clay);
+}
