@@ -123,6 +123,8 @@ export class FinancePanel {
     parent: HTMLElement,
     private readonly handlers: FinancePanelHandlers,
     goal: GoalDef,
+    /** False for a station whose scenario offers no research contracts: the section is left out. */
+    hasContracts = true,
   ) {
     this.goalLineText.textContent = goalLine(goal);
     this.button.type = 'button';
@@ -162,7 +164,7 @@ export class FinancePanel {
       this.goalState,
     ]);
     const quarterSection = el('div', 'fin-section', [el('div', 'fin-h-row', [el('h3', 'fin-h', ['This quarter']), this.quarter]), this.ledger]);
-    const contractsSection = el('div', 'fin-section', [el('h3', 'fin-h', ['Research contracts']), this.contracts]);
+    const contractsSection = el('div', hasContracts ? 'fin-section' : 'fin-section hidden', [el('h3', 'fin-h', ['Research contracts']), this.contracts]);
     this.deliveriesSection.append(el('h3', 'fin-h', ['Deliveries']), this.deliveries);
     this.reportSection.append(this.report);
 
