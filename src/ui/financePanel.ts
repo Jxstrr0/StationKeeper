@@ -89,7 +89,8 @@ const COMPLAINT: Record<GuestComplaint, string> = {
 
 /** "★★★★☆ · fares 105%", and what guests are grumbling about now, if anything. */
 export function reviewsText(g: GuestSnapshot): string {
-  const head = `${stars(g.stars)} · fares ${Math.round(g.fareFactor * 100)}%`;
+  const booked = g.booked < g.places ? ` · ${g.booked} of ${g.places} places booked` : '';
+  const head = `${stars(g.stars)} · fares ${Math.round(g.fareFactor * 100)}%${booked}`;
   if (g.complaints.length === 0) return head;
   const said = g.complaints.map((c) => COMPLAINT[c]);
   const last = said.pop()!;

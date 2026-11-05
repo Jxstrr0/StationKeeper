@@ -66,6 +66,7 @@ export class ReportSheet {
         row('Contracts', `${r.contractsDone} delivered · ${r.contractsFailed} failed`),
         row('Guest habitat open', pct(r.guestUptime)),
         ...(r.reviews ? [row('Guest reviews', stars(r.reviews.stars), r.reviews.stars <= 2 ? 'out' : r.reviews.stars >= 4 ? 'in' : '')] : []),
+        ...(r.bookings ? [row('Booked next quarter', `${r.bookings.booked} of ${r.bookings.places} places`, r.bookings.booked < r.bookings.places ? 'out' : '')] : []),
         row('Breakdowns', String(r.failures)),
       ]),
       ...(r.reviews ? [el('p', 'report-quote', [reviewQuote(r.reviews.stars, r.reviews.complaint)])] : []),

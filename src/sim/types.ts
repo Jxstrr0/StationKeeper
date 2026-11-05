@@ -203,6 +203,8 @@ export interface GuestReview {
   stars: number;
   reputation: number;
   complaint: GuestComplaint | null;
+  /** Share of guest places booked for the quarter ahead, set by these reviews. */
+  occupancy: number;
 }
 
 /** How guests judge the station, and what that does to fares. */
@@ -219,6 +221,8 @@ export interface GuestConfig {
   fare: { worst: number; best: number };
   /** The poor-reviews warning, with hysteresis. */
   poor: Band;
+  /** Bookings: no one books at or below reputation `emptyAt`, every place is booked from `fullAt`, in a line between. */
+  bookings: { emptyAt: number; fullAt: number };
 }
 
 export interface GuestSnapshot {
@@ -233,6 +237,9 @@ export interface GuestSnapshot {
   fareFactor: number;
   /** What is bothering guests right now. */
   complaints: GuestComplaint[];
+  /** Guest places on the station, and how many are booked this quarter. */
+  places: number;
+  booked: number;
   /** Reviews are poor enough to warn about. */
   poor: boolean;
 }
@@ -520,6 +527,8 @@ export interface QuarterReport {
   failures: number;
   /** The guests' reviews for the quarter. Absent when there were no guests to post any. */
   reviews?: GuestReview;
+  /** Guests booked for the quarter ahead, of the places there are. Set with the reviews. */
+  bookings?: { booked: number; places: number };
 }
 
 export interface EconomySnapshot {
