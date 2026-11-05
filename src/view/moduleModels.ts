@@ -317,6 +317,32 @@ function buildNode(def: ModuleDef, group: THREE.Group): Partial<ModuleModel> {
   return {};
 }
 
+/** A short collar off the aft port, then a six-sided frustum of windows that glows while the cupola is lit. */
+function buildCupola(def: ModuleDef, group: THREE.Group): Partial<ModuleModel> {
+  const L = def.greybox.length ?? 2.4;
+  const r = def.greybox.radius ?? 1.5;
+  const collar = 0.9;
+  group.add(cylinderAlong(r, collar, shared.hull, [collar / 2, 0, 0], [1, 0, 0], 28));
+  group.add(cylinderAlong(r * 1.015, 0.22, shared.stripe, [collar * 0.55, 0, 0], [1, 0, 0], 28));
+  const windowMat = new THREE.MeshStandardMaterial({
+    color: 0x2a2620,
+    emissive: COLORS.window,
+    emissiveIntensity: 1.4,
+    roughness: 0.15,
+  });
+  const glass = new THREE.CylinderGeometry(r * 0.55, r * 0.92, L - collar, 6);
+  const dome = mesh(glass, windowMat, [collar + (L - collar) / 2, 0, 0]);
+  dome.quaternion.setFromUnitVectors(UP, new THREE.Vector3(1, 0, 0));
+  group.add(dome);
+  // Window frames: the frustum's edges in slate.
+  const frames = new THREE.LineSegments(new THREE.EdgesGeometry(glass), new THREE.LineBasicMaterial({ color: COLORS.slate }));
+  frames.position.copy(dome.position);
+  frames.quaternion.copy(dome.quaternion);
+  frames.scale.setScalar(1.01);
+  group.add(frames);
+  return { glowMaterials: [windowMat] };
+}
+
 function buildLab(def: ModuleDef, group: THREE.Group): Partial<ModuleModel> {
   const L = def.greybox.length ?? 6.5;
   const r = def.greybox.radius ?? 1.6;
@@ -376,6 +402,7 @@ const BUILDERS: Record<string, (def: ModuleDef, group: THREE.Group) => Partial<M
   lifesupport: buildLifeSupport,
   lab: buildLab,
   node: buildNode,
+  cupola: buildCupola,
 };
 
 function addStatusLight(group: THREE.Group, at: Vec3): THREE.Object3D {

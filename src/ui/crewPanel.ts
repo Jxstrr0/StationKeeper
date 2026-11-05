@@ -27,13 +27,16 @@ export function hireBlocked(snap: SimSnapshot): string | null {
   return null;
 }
 
-/** What the running comforts do for morale, and whether there are seats enough to go round. */
+/** What the running comforts do for morale, kind by kind, and whether each has seats enough to go round. */
 export function comfortText(snap: SimSnapshot): string {
   const c = snap.crew;
-  if (c.comfortSeats === 0) return 'Nothing to do off shift but stare at the Earth. A galley would lift morale.';
-  const lift = `Comforts lift morale ${Math.round(c.comfortLift * 100)}%`;
-  if (c.comfortSeats >= c.aboard) return `${lift} · seats for ${c.comfortSeats}`;
-  return `${lift}: ${c.comfortSeats} seats for ${c.aboard} aboard, so it is shared thin`;
+  if (c.comforts.length === 0) return 'Nothing to do off shift but stare at the Earth. A galley or a cupola would lift morale.';
+  const pct = (v: number) => `${Math.round(v * 100)}%`;
+  const parts = c.comforts.map((k) => {
+    const seats = k.seats >= c.aboard ? `${k.seats} seats` : `${k.seats} seats for ${c.aboard} aboard, so it is shared thin`;
+    return `${k.name} +${pct(k.lift)}, ${seats}`;
+  });
+  return `Comforts lift morale ${pct(c.comfortLift)}: ${parts.join(' · ')}.`;
 }
 
 /** Why a bonus can't be paid now, or null. Mirrors the sim's own check. */
