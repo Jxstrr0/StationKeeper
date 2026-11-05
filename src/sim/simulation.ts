@@ -4,7 +4,7 @@ import { EventBus, type SimEvents } from './events';
 import { createOrbit, isInShadowArc, orbitSnapshot, phaseAt, sunlightAt, type OrbitModel } from './orbit';
 import { Rng } from './rng';
 import { attachModule, attachProblem, buildStation, freePorts, indexDefs, mountPort, nextInstanceId, type Station } from './station';
-import { addPowerModule, createPowerState, setModuleEnabled, stepPower, storageTotals, type PowerState } from './systems/power';
+import { addPowerModule, createPowerState, setModuleEnabled, setOutage, stepPower, storageTotals, type PowerState } from './systems/power';
 import {
   co2MmHg,
   createLifeSupportState,
@@ -13,14 +13,35 @@ import {
   type LifeSupportPlant,
   type LifeSupportState,
 } from './systems/lifeSupport';
+import {
+  addReliabilityModule,
+  cancelRepair,
+  createReliabilityState,
+  hazardPerDay,
+  outage,
+  queueRepair,
+  repairProblem,
+  repairSnapshot,
+  stepReliability,
+  type ReliabilityState,
+} from './systems/reliability';
 import { addThermalModule, createThermalState, stepThermal, thermalLimits, type ThermalState } from './systems/thermal';
 import { MINUTE_MS } from './time';
 import type { LayoutEntry, ModuleDef, ModuleSnapshot, ScenarioDef, SimSnapshot } from './types';
+import { diagnose } from './warnings';
 
 export type SimCommand =
   | { type: 'setModuleEnabled'; moduleId: string; enabled: boolean }
   /** Build a module from `defId`, mounting it by its first port onto `to`'s `port`. */
-  | { type: 'addModule'; defId: string; to: string; port: string };
+  | { type: 'addModule'; defId: string; to: string; port: string }
+  /** Put a module on the crew's list: a service if it works, a repair if it has failed. */
+  | { type: 'repair'; moduleId: string }
+  | { type: 'cancelRepair'; moduleId: string };
+
+export interface SimOptions {
+  /** When false, modules wear but never fail. Forecasts use this so a preview can't reveal the dice. */
+  failures?: boolean;
+}
 
 export type CommandResult = { ok: true; moduleId?: string } | { ok: false; reason: string };
 
@@ -43,9 +64,12 @@ export class Simulation {
   private thermal: ThermalState;
   private lifePlant: LifeSupportPlant;
   private life: LifeSupportState;
+  private reliability: ReliabilityState;
+  private readonly failures: boolean;
 
   /** `layout` defaults to the scenario's starting layout; forks pass the current one. */
-  constructor(defs: readonly ModuleDef[], scenario: ScenarioDef, layout: readonly LayoutEntry[] = scenario.layout) {
+  constructor(defs: readonly ModuleDef[], scenario: ScenarioDef, layout: readonly LayoutEntry[] = scenario.layout, options: SimOptions = {}) {
+    this.failures = options.failures ?? true;
     this.scenario = scenario;
     this.defList = defs;
     this.defs = indexDefs(defs);
@@ -59,6 +83,7 @@ export class Simulation {
     this.thermal = createThermalState(this.station, scenario.thermal);
     this.lifePlant = lifeSupportPlant(this.station, scenario.lifeSupport);
     this.life = createLifeSupportState(this.lifePlant, scenario.lifeSupport);
+    this.reliability = createReliabilityState(this.station, scenario.reliability);
     this.solve(false);
   }
 
@@ -90,6 +115,19 @@ export class Simulation {
         return { ok: true };
       case 'addModule':
         return this.addModule(cmd.defId, cmd.to, cmd.port);
+      case 'repair': {
+        const problem = repairProblem(this.reliability, this.station, cmd.moduleId);
+        if (problem) return { ok: false, reason: problem };
+        queueRepair(this.reliability, this.station, cmd.moduleId, this.scenario.reliability, this.events);
+        this.solve(false);
+        return { ok: true };
+      }
+      case 'cancelRepair':
+        if (!cancelRepair(this.reliability, cmd.moduleId, this.scenario.reliability, this.events)) {
+          return { ok: false, reason: `No work is planned on "${cmd.moduleId}"` };
+        }
+        this.solve(false);
+        return { ok: true };
     }
   }
 
@@ -110,6 +148,7 @@ export class Simulation {
     const inst = attachModule(this.station, this.defs, { id, module: defId, attach: { to, port, via: mountPort(def)! } });
     addPowerModule(this.power, inst, NEW_BATTERY_CHARGE);
     addThermalModule(this.thermal, id);
+    addReliabilityModule(this.reliability, id);
     // New cabins, crew, and tanks change the plant; the air and tanks keep what they hold (new tanks arrive empty).
     this.lifePlant = lifeSupportPlant(this.station, this.scenario.lifeSupport);
     this.solve(false);
@@ -125,20 +164,42 @@ export class Simulation {
   /**
    * An independent copy of this sim at this moment, with its own (empty) event bus.
    * The sim is pure and deterministic, so a fork can run ahead to preview a change without touching the real one.
+   * Pass `failures: false` for previews: the fork shares the rng state, so with failures on it would show exactly
+   * which module breaks and when.
    */
-  fork(): Simulation {
-    const copy = new Simulation(this.defList, this.scenario, this.layout());
+  fork(options: SimOptions = {}): Simulation {
+    const copy = new Simulation(this.defList, this.scenario, this.layout(), { failures: options.failures ?? this.failures });
     copy.minutes = this.minutes;
     copy.rng.setState(this.rng.getState());
     copy.power = structuredClone(this.power);
     copy.thermal = structuredClone(this.thermal);
     copy.life = structuredClone(this.life);
+    copy.reliability = structuredClone(this.reliability);
     copy.solve(false);
     return copy;
   }
 
-  /** Power first (using last tick's thermal limits), then heat and life support from what actually ran. */
+  /** Total failure hazard × days run so far. Forecasts turn its growth into a chance of failure. */
+  get failureExposure(): number {
+    return this.reliability.exposure;
+  }
+
+  /**
+   * Wear and repairs first (from last tick's statuses and temperatures), then power (using last tick's thermal
+   * limits), then heat and life support from what actually ran.
+   */
   private solve(commit: boolean): void {
+    const rcfg = this.scenario.reliability;
+    if (commit) {
+      stepReliability(this.reliability, this.station, this.power, this.thermal, {
+        cfg: rcfg,
+        dtHours: TICK_HOURS,
+        rng: this.rng,
+        failures: this.failures,
+        events: this.events,
+      });
+    }
+    for (const m of this.station.modules) setOutage(this.power, m.id, outage(this.reliability, m.id, rcfg));
     // Sunlight at the middle of the minute that just passed (or is about to, for the first solve).
     const mid = commit ? this.minutes - 0.5 : this.minutes;
     const sunlight = sunlightAt(this.orbit, phaseAt(this.orbit, mid));
@@ -171,6 +232,7 @@ export class Simulation {
     const modules: ModuleSnapshot[] = this.station.modules.map((m) => {
       const s = this.power.modules.get(m.id)!;
       const t = this.thermal.modules.get(m.id)!;
+      const r = this.reliability.modules.get(m.id)!;
       return {
         id: m.id,
         defId: m.def.id,
@@ -188,9 +250,14 @@ export class Simulation {
         tempC: t.tempC,
         heatKw: t.heatKw,
         rejectKw: t.rejectKw,
+        wear: r.wear,
+        failChancePerDay: r.failed ? 0 : 1 - Math.exp(-hazardPerDay(m.def, r.wear, t.tempC, this.scenario.reliability)),
+        canFail: m.def.reliability !== undefined,
+        dueForService: r.worn,
+        repair: repairSnapshot(this.reliability, m.id, this.scenario.reliability),
       };
     });
-    return {
+    const snap: Omit<SimSnapshot, 'warnings'> = {
       minutes: this.minutes,
       timeMs: this.startMs + this.minutes * MINUTE_MS,
       orbit: orbitSnapshot(this.orbit, this.minutes),
@@ -236,5 +303,6 @@ export class Simulation {
       modules,
       freePorts: freePorts(this.station),
     };
+    return { ...snap, warnings: diagnose(snap) };
   }
 }

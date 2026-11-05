@@ -56,6 +56,16 @@ export interface LifeSupportSpec {
   waterTankKg: number;
 }
 
+/** How a module wears and fails. Modules without one never fail. */
+export interface ReliabilitySpec {
+  /** Days of running at rated temperature to go from new to fully worn. */
+  wearDays: number;
+  /** Failure chance per day when fully worn at rated temperature. A new module fails at a small fraction of this. */
+  failPerDay: number;
+  /** Crew hours for a planned service. Repairing a failure takes longer (see ReliabilityConfig.repairFactor). */
+  serviceHours: number;
+}
+
 /** Visual-only hints for the grey-box builder. The sim ignores these. */
 export interface GreyboxSpec {
   shape: string;
@@ -76,6 +86,7 @@ export interface ModuleDef {
   thermal: ThermalSpec;
   cabin?: CabinSpec;
   lifeSupport?: LifeSupportSpec;
+  reliability?: ReliabilitySpec;
   ports: PortDef[];
   greybox: GreyboxSpec;
   /** Optional .glb path relative to the site root, e.g. "models/core.glb". */
@@ -181,11 +192,42 @@ export interface ScenarioDef {
   };
   thermal: ThermalConfig;
   lifeSupport: LifeSupportConfig;
+  reliability: ReliabilityConfig;
   layout: LayoutEntry[];
 }
 
-/** powered: running. throttled: running slow to save heat. shed: no power. overheated: tripped by heat. off: switched off. */
-export type ModuleStatus = 'powered' | 'throttled' | 'shed' | 'overheated' | 'off';
+export interface ReliabilityConfig {
+  /** Modules run at or below this temperature wear at their base rate, °C. */
+  ratedC: number;
+  /** Wear and failure chance double for every this many °C above `ratedC`. */
+  doublingC: number;
+  /** Share of the fully-worn failure chance a brand new module has, 0..1. */
+  newFailShare: number;
+  /** Repairing a failed module takes this many times its service hours. */
+  repairFactor: number;
+  /** How many repairs or services the crew can work on at once. */
+  repairTeams: number;
+  /** Raise the "due for service" warning at this wear (with hysteresis). */
+  worn: Band;
+  /** Starting wear of modules in the scenario layout, by instance id. Others start new. */
+  initialWear: Record<string, number>;
+}
+
+/**
+ * powered: running. throttled: running slow to save heat. shed: no power. overheated: tripped by heat.
+ * off: switched off. failed: broken until repaired. servicing: offline while the crew works on it.
+ */
+export type ModuleStatus = 'powered' | 'throttled' | 'shed' | 'overheated' | 'off' | 'failed' | 'servicing';
+
+export interface RepairSnapshot {
+  /** "service" for planned work on a working module, "repair" for a failed one. */
+  kind: 'service' | 'repair';
+  /** False while waiting for a free crew team. */
+  active: boolean;
+  hoursLeft: number;
+  /** Place in the queue, 0 for work in progress. */
+  queuePosition: number;
+}
 
 export interface ModuleSnapshot {
   id: string;
@@ -210,6 +252,15 @@ export interface ModuleSnapshot {
   heatKw: number;
   /** Heat this module rejects to space, kW (radiators). */
   rejectKw: number;
+  /** 0 new, 1 fully worn. Always 0 for modules that never fail. */
+  wear: number;
+  /** Chance of failing in the next day at the current wear and temperature, 0..1. */
+  failChancePerDay: number;
+  /** Whether this module can wear and fail at all. */
+  canFail: boolean;
+  /** Worn enough that a service is due (with hysteresis). */
+  dueForService: boolean;
+  repair: RepairSnapshot | null;
 }
 
 export interface OrbitSnapshot {
@@ -289,4 +340,36 @@ export interface SimSnapshot {
   modules: ModuleSnapshot[];
   /** Ports with nothing attached, where new modules can go. */
   freePorts: { moduleId: string; portId: string }[];
+  /** What is wrong, and why: a graph of problems, each naming the problems that cause it. */
+  warnings: StationWarning[];
+}
+
+export type WarningSeverity = 'info' | 'warn' | 'alarm';
+
+export type WarningKind =
+  | 'eclipse'
+  | 'sunlitRadiators'
+  | 'moduleFailed'
+  | 'moduleServicing'
+  | 'moduleOff'
+  | 'moduleWorn'
+  | 'loadShed'
+  | 'throttled'
+  | 'tripped'
+  | 'co2'
+  | 'o2'
+  | 'water'
+  | 'crewCondition';
+
+export interface StationWarning {
+  /** Stable id, like "failed:radiator-1" or "shed:commercial". */
+  key: string;
+  kind: WarningKind;
+  severity: WarningSeverity;
+  moduleId?: string;
+  tier?: Tier;
+  /** A reading for the text: mmHg for CO₂, a 0..1 fraction for tanks, crew condition, and wear. */
+  value?: number;
+  /** Keys of the warnings that cause this one. Empty for a root cause. */
+  causes: string[];
 }

@@ -19,6 +19,12 @@ export interface SimEvents {
   /** A life support alarm raised or cleared. `value` is mmHg for CO2, a tank fraction for low tanks, kg for empty tanks, 0..1 for health. */
   lifeSupportAlarm: { alarm: LifeSupportAlarm; active: boolean; value: number };
   moduleAdded: { moduleId: string; defId: string };
+  /** A module broke down from wear. */
+  moduleFailed: { moduleId: string; tier: Tier };
+  /** A module crossed into "due for service". */
+  moduleWorn: { moduleId: string; wear: number };
+  repairStarted: { moduleId: string; kind: 'service' | 'repair'; hours: number };
+  repairDone: { moduleId: string; kind: 'service' | 'repair' };
 }
 
 type Handler<T> = (payload: T) => void;

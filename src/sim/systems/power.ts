@@ -3,10 +3,13 @@ import type { EventBus, SimEvents } from '../events';
 import { solveNetwork, type NetworkLoad } from '../network';
 import type { ModuleInstance, Station } from '../station';
 import type { ModuleStatus, Tier, TierThreshold } from '../types';
+import type { Outage } from './reliability';
 import { isCooler, type ThermalLimits } from './thermal';
 
 export interface PowerModuleState {
   enabled: boolean;
+  /** Broken or being worked on: out of the network whatever the switch says. Set by the sim from reliability. */
+  outage: Outage | null;
   status: ModuleStatus;
   storedKwh: number;
   actualDrawKw: number;
@@ -34,6 +37,7 @@ export function createPowerState(station: Station, initialChargeFraction: number
   for (const m of station.modules) {
     modules.set(m.id, {
       enabled: true,
+      outage: null,
       status: 'powered',
       storedKwh: (m.def.power.storageKwh ?? 0) * initialChargeFraction,
       actualDrawKw: 0,
@@ -51,6 +55,7 @@ export function createPowerState(station: Station, initialChargeFraction: number
 export function addPowerModule(state: PowerState, inst: ModuleInstance, chargeFraction: number): void {
   state.modules.set(inst.id, {
     enabled: true,
+    outage: null,
     status: 'powered',
     storedKwh: (inst.def.power.storageKwh ?? 0) * chargeFraction,
     actualDrawKw: 0,
@@ -70,7 +75,7 @@ export function storageTotals(state: PowerState, station: Station): { storedKwh:
   for (const m of station.modules) {
     const cap = m.def.power.storageKwh ?? 0;
     const s = moduleState(state, m.id);
-    if (cap <= 0 || !s.enabled) continue;
+    if (cap <= 0 || !available(s)) continue;
     storedKwh += s.storedKwh;
     capacityKwh += cap;
   }
@@ -90,6 +95,8 @@ export interface PowerStepOptions {
 }
 
 const running = (s: ModuleStatus) => s === 'powered' || s === 'throttled';
+/** Switched on and not broken or under service. */
+const available = (s: PowerModuleState) => s.enabled && !s.outage;
 
 export function stepPower(state: PowerState, station: Station, opts: PowerStepOptions): void {
   const { sunlight, thresholds, dtHours, events, thermal } = opts;
@@ -109,16 +116,17 @@ export function stepPower(state: PowerState, station: Station, opts: PowerStepOp
   for (const m of station.modules) {
     const p = m.def.power;
     const s = moduleState(state, m.id);
-    s.generationKw = s.enabled ? (p.generationKw ?? 0) * sunlight : 0;
+    const on = available(s);
+    s.generationKw = on ? (p.generationKw ?? 0) * sunlight : 0;
     supply += s.generationKw;
-    if (s.enabled && (p.storageKwh ?? 0) > 0) {
+    if (on && (p.storageKwh ?? 0) > 0) {
       capacity += p.storageKwh ?? 0;
       stored += s.storedKwh;
       maxIn += p.maxChargeKw ?? 0;
       maxOut += p.maxDischargeKw ?? 0;
       batteries.push({ id: m.id, capacity: p.storageKwh ?? 0 });
     }
-    if (!s.enabled) continue;
+    if (!on) continue;
     if (thermal?.tripped[p.tier] && !isCooler(m.def)) {
       tripped.add(m.id);
       continue;
@@ -159,15 +167,7 @@ export function stepPower(state: PowerState, station: Station, opts: PowerStepOp
     const s = moduleState(state, m.id);
     const before = s.status;
     const tier = m.def.power.tier;
-    s.status = !s.enabled
-      ? 'off'
-      : tripped.has(m.id)
-        ? 'overheated'
-        : result.shed.has(m.id)
-          ? 'shed'
-          : throttled.has(m.id)
-            ? 'throttled'
-            : 'powered';
+    s.status = statusOf(s, tripped.has(m.id), result.shed.has(m.id), throttled.has(m.id));
     s.actualDrawKw = running(s.status) ? (demandKw.get(m.id) ?? 0) : 0;
     if (running(before) && s.status === 'shed') events?.emit('moduleShed', { moduleId: m.id, tier });
     if (before === 'shed' && running(s.status)) events?.emit('moduleRestored', { moduleId: m.id, tier });
@@ -183,6 +183,18 @@ export function stepPower(state: PowerState, station: Station, opts: PowerStepOp
     curtailedKw: result.curtailed,
     unmetKw: result.unmet,
   };
+}
+
+function statusOf(s: PowerModuleState, tripped: boolean, shed: boolean, throttled: boolean): ModuleStatus {
+  if (s.outage) return s.outage;
+  if (!s.enabled) return 'off';
+  if (tripped) return 'overheated';
+  if (shed) return 'shed';
+  return throttled ? 'throttled' : 'powered';
+}
+
+export function setOutage(state: PowerState, id: string, outage: Outage | null): void {
+  moduleState(state, id).outage = outage;
 }
 
 export function setModuleEnabled(state: PowerState, id: string, enabled: boolean): void {
