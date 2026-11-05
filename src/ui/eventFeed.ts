@@ -1,19 +1,8 @@
 // Turns sim events into toasts. Grounded, with the occasional dry aside.
 import type { EventBus, SimEvents } from '../sim/events';
-import type { GuestComplaint, ModuleKind } from '../sim/types';
-import { money, stars } from './format';
+import type { ModuleKind } from '../sim/types';
+import { money } from './format';
 import type { Toasts } from './toasts';
-
-/** What a quarter's reviews say, by stars and by the guests' main complaint. */
-export function reviewQuote(n: number, complaint: GuestComplaint | null): string {
-  if (complaint === 'hot') return n >= 4 ? '"Lovely, if a touch tropical."' : '"Bring shorts. Then take them off."';
-  if (complaint === 'badAir') return n >= 4 ? '"Stunning view. Mild headache."' : '"Breathtaking, and not in the brochure sense."';
-  if (complaint === 'dark') return n >= 4 ? '"The lights went out once. Romantic, really."' : '"Paid for a habitat, got a waiting room."';
-  if (n >= 5) return '"Would orbit again."';
-  if (n >= 4) return '"Quiet, clean, and the Earth was exactly as advertised."';
-  if (n >= 3) return '"Fine. The planet was the highlight."';
-  return '"Nothing went wrong, which was the most exciting part."';
-}
 
 const COMMERCIAL_SHED = [
   'Guests have been asked to stop charging their phones.',
@@ -140,9 +129,6 @@ export function connectEventFeed(
   });
   events.on('crewFellIll', ({ name, hours }) => {
     toasts.show(`${name} is ill and off duty for about ${Math.round(hours)} h. The medical kit is finally earning its keep.`, 'warn');
-  });
-  events.on('guestReviews', ({ stars: n, complaint }) => {
-    toasts.show(`Guest reviews are in: ${stars(n)}. ${reviewQuote(n, complaint)}`, n <= 2 ? 'warn' : 'ok');
   });
   events.on('crewBonusPaid', ({ cost, people }) => {
     toasts.show(`Bonus paid: ${money(cost)} across ${people === 1 ? 'one person' : `${people} people`}. Spirits lift; productivity is rumoured to follow.`, 'ok');

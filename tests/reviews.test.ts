@@ -5,7 +5,7 @@ import type { SimEvents } from '../src/sim/events';
 import { Simulation, SAVE_VERSION, type SimSave } from '../src/sim/simulation';
 import { complaints, createGuestState, fareFactor, postReviews, reputationTarget, stars, stepGuests, type GuestInputs } from '../src/sim/systems/guests';
 import type { ScenarioDef } from '../src/sim/types';
-import { reviewQuote } from '../src/ui/eventFeed';
+import { reviewQuote } from '../src/ui/reportSheet';
 import { reviewsText } from '../src/ui/financePanel';
 import { warningTitle } from '../src/ui/warningText';
 import { baseScenario, defs, makeSim } from './helpers';
@@ -114,6 +114,20 @@ describe('guest reviews on the station', () => {
     expect(posted[0]!.stars).toBeLessThanOrEqual(2);
   });
 
+  it('the quarter report carries the reviews, and has none on a station without guests', () => {
+    const sim = makeSim(startAt(0.35));
+    sim.command({ type: 'setModuleEnabled', moduleId: 'habitat-1', enabled: false });
+    sim.run(24 * HOUR);
+    const reviews = sim.snapshot().economy.lastReport!.reviews!;
+    expect(reviews.complaint).toBe('dark');
+    expect(reviews.stars).toBe(stars(reviews.reputation));
+
+    const empty = makeSim(startAt(0.35), (d) => (d.find((x) => x.id === 'habitat')!.cabin!.guests = 0));
+    empty.run(24 * HOUR);
+    expect(empty.snapshot().economy.lastReport).not.toBeNull();
+    expect(empty.snapshot().economy.lastReport!.reviews).toBeUndefined();
+  });
+
   it('good reviews put fares up, and poor ones bring them down', () => {
     const income = (rep: number) => {
       const sim = makeSim((s) => {
@@ -148,6 +162,7 @@ describe('guest reviews on the station', () => {
     expect(reviewsText({ ...s.guests, complaints: ['hot', 'badAir', 'dark'] })).toMatch(/guests say it is too warm, the air is stale and a habitat is dark$/);
     expect(reviewQuote(5, null)).not.toBe(reviewQuote(2, null));
     expect(reviewQuote(2, 'badAir')).toMatch(/Breathtaking/);
+    expect(new Set([1, 3, 4, 5].map((n) => reviewQuote(n, null))).size).toBe(4);
   });
 
   it('rejects guest settings that make no sense', () => {
