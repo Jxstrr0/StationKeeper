@@ -2,9 +2,10 @@
 // lab contracts on offer and under way, modules on their way, and last quarter's report.
 // Like the warnings sheet, the DOM is rebuilt only when the structure changes (a contract comes or goes);
 // numbers are updated in place every frame so buttons never get replaced under a finger at 20×.
-import type { ContractSnapshot, DeliverySnapshot, EconomySnapshot, Ledger, LedgerCategory, QuarterReport, SimSnapshot } from '../sim/types';
+import type { ContractSnapshot, GoalDef, DeliverySnapshot, EconomySnapshot, Ledger, LedgerCategory, QuarterReport, SimSnapshot } from '../sim/types';
 import { el, setClass, setText } from './dom';
 import { minutes, money } from './format';
+import { deadlineText, goalLine, goalProgress } from './goalText';
 
 export interface FinancePanelHandlers {
   onOpen(): void;
@@ -110,13 +111,19 @@ export class FinancePanel {
   private reportKey = '';
   private last: SimSnapshot | null = null;
   private isOpenNow = false;
+  private readonly goalLineText = el('p', 'fin-goal-line');
+  private readonly goalDeadline = el('span', 'fin-sub');
+  private readonly goalFill = el('i');
+  private readonly goalState = el('span', 'fin-goal-state');
   private readonly newGame = el('button', 'warn-act fin-new', ['Start a new station']);
   private newGameTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     parent: HTMLElement,
     private readonly handlers: FinancePanelHandlers,
+    goal: GoalDef,
   ) {
+    this.goalLineText.textContent = goalLine(goal);
     this.button.type = 'button';
     this.button.append(this.fabCash, this.fabDot);
     this.button.addEventListener('click', () => (this.isOpenNow ? handlers.onClose() : handlers.onOpen()));
@@ -147,6 +154,12 @@ export class FinancePanel {
       el('div', 'fin-repay', [repay('Repay $5M', () => 5), repay('Repay $20M', () => 20), repay('Repay all', loanNow)]),
     ]);
 
+    const goalSection = el('div', 'fin-section fin-goal', [
+      el('div', 'fin-h-row', [el('h3', 'fin-h', ['Goal']), this.goalDeadline]),
+      this.goalLineText,
+      el('div', 'fin-goal-bar', [this.goalFill]),
+      this.goalState,
+    ]);
     const quarterSection = el('div', 'fin-section', [el('div', 'fin-h-row', [el('h3', 'fin-h', ['This quarter']), this.quarter]), this.ledger]);
     const contractsSection = el('div', 'fin-section', [el('h3', 'fin-h', ['Research contracts']), this.contracts]);
     this.deliveriesSection.append(el('h3', 'fin-h', ['Deliveries']), this.deliveries);
@@ -171,7 +184,7 @@ export class FinancePanel {
 
     this.root.append(
       el('div', 'build-head', [el('h2', 'build-title', ['Finance']), close]),
-      el('div', 'fin-scroll', [summary, quarterSection, contractsSection, this.deliveriesSection, this.reportSection, stationSection]),
+      el('div', 'fin-scroll', [goalSection, summary, quarterSection, contractsSection, this.deliveriesSection, this.reportSection, stationSection]),
     );
     this.root.setAttribute('aria-hidden', 'true');
     parent.append(this.root, this.button);
@@ -186,7 +199,10 @@ export class FinancePanel {
     this.root.classList.add('open');
     this.root.setAttribute('aria-hidden', 'false');
     setClass(this.button, 'active', true);
-    if (this.last) this.render(this.last.economy);
+    if (this.last) {
+      this.render(this.last.economy);
+      this.renderGoal(this.last);
+    }
   }
 
   close(): void {
@@ -218,7 +234,20 @@ export class FinancePanel {
     setClass(this.fabDot, 'risk', risk);
     const note = risk ? ', a contract is at risk' : opportunity ? ', contracts on offer' : '';
     this.button.setAttribute('aria-label', `Finance: cash ${money(e.cash)}${note}`);
-    if (this.isOpenNow) this.render(e);
+    if (this.isOpenNow) {
+      this.render(e);
+      this.renderGoal(snap);
+    }
+  }
+
+  private renderGoal(snap: SimSnapshot): void {
+    const g = snap.ending.goal;
+    const reached = snap.ending.goalAtMinutes !== null;
+    setText(this.goalState, reached ? 'Done' : goalProgress(g));
+    this.goalFill.style.width = `${Math.round((reached ? 1 : g.progress) * 100)}%`;
+    const left = reached ? null : deadlineText(g, snap.minutes);
+    setText(this.goalDeadline, left ?? '');
+    setClass(this.goalDeadline, 'neg', left !== null && g.deadlineAtMinutes !== null && g.deadlineAtMinutes - snap.minutes < 1440);
   }
 
   private render(e: EconomySnapshot): void {
