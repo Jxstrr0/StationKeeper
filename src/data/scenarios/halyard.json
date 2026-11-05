@@ -103,7 +103,7 @@
     }
   },
   "endings": { "overdraftLimit": 20, "overdrawnQuarters": 2, "evacuateBelow": 0.15 },
-  "catalogue": ["solar-array", "battery-pack", "habitat", "crew-quarters", "radiator", "life-support", "docking-node", "galley", "cupola"],
+  "catalogue": ["solar-array", "battery-pack", "habitat", "crew-quarters", "radiator", "life-support", "docking-node", "galley", "cupola", "lounge"],
   "guests": {
     "start": 0.5,
     "base": 0.75,

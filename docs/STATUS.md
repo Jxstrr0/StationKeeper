@@ -972,11 +972,43 @@ Traced on four seeds per line:
 - **The goal counts posted reviews, not live reputation,** so it lands at a quarter's close, with the report, and can't be met by a lucky hour.
 - **No five-star goal is possible yet,** because comforts raise fares, not reputation. A guest-only module that lifts reputation would open it up.
 
+## Session 21: the Guest Lounge
+
+### What was built
+
+- **Guest amenities** (`amenity: { "reputation": 0.15 }` on a module).
+  - While the module runs (powered or throttled), the amount is added to where guest reputation settles.
+  - Different kinds stack like comforts, using `crew.comfortStack`. A second lounge adds nothing, because guests can only sit in one.
+  - Crew get nothing from it.
+  - `amenityLift` and `reputationTarget` live in `src/sim/systems/guests.ts`, and `GuestInputs` gains `lift`.
+- **The Guest Lounge** (`lounge`, a new module kind, "Guest comfort").
+  - $12M, 2.5 kW, Commercial load, with ports fore and aft.
+  - It is drawn with the habitat grey-box shape.
+  - It lifts reputation by 0.15, from the usual 0.75 to 0.9, so five-star reviews become possible.
+  - It is for sale everywhere. Halyard and Saltglass list it in their catalogues.
+- **Reviews goals check against amenities.** A goal of more stars than the station can ever earn is refused when the game starts. "Can ever earn" counts the base plus every amenity aboard or for sale. Before this, the check was made when the scenario file was read.
+- **UI:**
+  - The build tray reads "Guest reviews +0.6★, guests only".
+  - A failed lounge has its own breakdown toast.
+- **Tests:** 215, up from 210. They cover the lift and its stacking, five-star reviews while the lounge runs and four once it is off, nothing for the crew, the five-star goal check, the build tray text, and data validation.
+
+### Balance (scripted player, by design)
+
+- **A finishing touch, not a shortcut.**
+  - Buying the lounge first at Saltglass loses on 3 of 4 seeds: guests on a station that is hot and shuts down in eclipse ignore the lounge.
+  - At Halyard, its 2.5 kW of extra heat makes the cash goal later. Two seeds of a bot that doesn't manage heat ended evacuated.
+- **Fares gain little from it** (about +7% at the top), so it is worth buying for reviews, not for the money.
+- **Not yet used by a goal.** A five-star scenario, or Saltglass's next posting, could use it.
+
+### Choices made
+
+- **Amenities are a separate field from comforts.** Comforts have seats and morale; an amenity has neither.
+
 ## Next
 
 The planned slices are done. Candidates for what's next, roughly in order of value:
 
 1. **Play-testing on a real phone**, to tune pace, readability, the first ten minutes, and now how often illness and exhaustion bite.
 2. **More scenarios**, perhaps with their own modules or prices. Saltglass shows the reviews goal; a crew-heavy posting where morale is the problem is another.
-3. **More for guests to want**: perhaps a choice of fare level, or guest-only modules that lift reputation (which would make five stars possible).
+3. **More for guests to want**: perhaps a choice of fare level. The Guest Lounge now makes five stars possible; a scenario that asks for them would use it.
 4. **Art**: Blender models replacing the grey-boxes (the loader already prefers them).

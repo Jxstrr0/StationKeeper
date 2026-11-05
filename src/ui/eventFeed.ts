@@ -35,6 +35,7 @@ const FAILED: Partial<Record<ModuleKind, string>> = {
   radiator: 'Heat has nowhere to go. Expect the loop to climb.',
   lifesupport: 'No O₂ generation and no CO₂ scrubbing until it is repaired.',
   habitat: 'The guests have been moved to the core and are being very understanding about it.',
+  lounge: 'The guests are back to drinking tea in their cabins, and will say so in their reviews.',
 };
 
 export function connectEventFeed(

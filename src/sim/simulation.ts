@@ -77,6 +77,7 @@ import {
   type ThermalState,
 } from './systems/thermal';
 import {
+  amenityLift,
   bookedGuests,
   complaints,
   createGuestState,
@@ -221,6 +222,13 @@ export class Simulation {
       if (!def) throw new Error(`Scenario catalogue lists unknown module "${id}"`);
       if (def.price === undefined) throw new Error(`Scenario catalogue lists "${id}", which has no price`);
     }
+    const goal = scenario.goal;
+    if (goal.kind === 'reviews') {
+      // The best guests can say: every amenity this station has or can buy, running, and nothing wrong.
+      const amenities = defs.filter((d) => d.amenity && (layout.some((e) => e.module === d.id) || this.forSale(d.id)));
+      const best = stars(Math.min(1, scenario.guests.base + amenityLift(amenities.map((d) => ({ name: d.name, reputation: d.amenity!.reputation })), scenario.crew.comfortStack)));
+      if (goal.stars > best) throw new Error(`A ${goal.stars}-star reviews goal can't be met: guests here give at most ${best} stars`);
+    }
     this.orbit = createOrbit(scenario.orbit);
     this.rng = new Rng(scenario.seed);
     this.crewRng = new Rng((scenario.seed ^ 0x5bd1e995) >>> 0);
@@ -299,7 +307,19 @@ export class Simulation {
       if (st === 'powered' || st === 'throttled') served += n;
     }
     const a = this.life.alarms;
-    return { places, served, hot: this.thermal.throttled, badAir: a.co2Warn || a.o2Low || a.waterLow };
+    return { places, served, hot: this.thermal.throttled, badAir: a.co2Warn || a.o2Low || a.waterLow, lift: this.amenityLift() };
+  }
+
+  /** What the running guest amenities add to where reputation settles. */
+  private amenityLift(): number {
+    const running = this.station.modules.filter((m) => {
+      const st = this.power.modules.get(m.id)?.status;
+      return m.def.amenity && (st === 'powered' || st === 'throttled');
+    });
+    return amenityLift(
+      running.map((m) => ({ name: m.def.name, reputation: m.def.amenity!.reputation })),
+      this.scenario.crew.comfortStack,
+    );
   }
 
   private staffing(): Staffing {
