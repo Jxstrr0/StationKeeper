@@ -141,6 +141,18 @@ export function diagnose(s: DiagnosisInput): StationWarning[] {
       causes: why,
     });
   }
+  // Guests: poor reviews, and what the guests are complaining about now.
+  if (s.guests.poor) {
+    const dark = s.modules.filter((m) => m.kind === 'habitat' && !running(m)).map((m) => `guestsIdle:${m.id}`);
+    const why = keys([
+      s.lifeSupport.alarms.co2Warn ? 'co2' : null,
+      s.lifeSupport.alarms.o2Low ? 'o2' : null,
+      s.lifeSupport.alarms.waterLow ? 'water' : null,
+      s.thermal.throttled ? 'loopHot' : null,
+      ...dark,
+    ]);
+    add({ key: 'reviewsPoor', kind: 'reviewsPoor', severity: 'warn', value: s.guests.stars, limit: s.guests.fareFactor, causes: why });
+  }
   if (s.economy.cash < 0) {
     const final = s.ending.overdrawnCloses >= s.ending.overdrawnQuarters - 1;
     add({ key: 'overdrawn', kind: 'overdrawn', severity: 'alarm', value: s.economy.cash, limit: s.ending.overdraftLimit, final, causes: [] });

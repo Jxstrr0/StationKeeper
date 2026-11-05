@@ -76,8 +76,19 @@ import {
   type ThermalModuleState,
   type ThermalState,
 } from './systems/thermal';
+import {
+  complaints,
+  createGuestState,
+  fareFactor,
+  postReviews,
+  reputationTarget,
+  stars,
+  stepGuests,
+  type GuestInputs,
+  type GuestState,
+} from './systems/guests';
 import { MINUTE_MS } from './time';
-import type { CrewRole, EndingSnapshot, GoalSnapshot, LayoutEntry, Ledger, ModuleDef, ModuleSnapshot, Outcome, ReliabilityConfig, ScenarioDef, SimSnapshot } from './types';
+import type { CrewRole, EndingSnapshot, GoalSnapshot, GuestSnapshot, LayoutEntry, Ledger, ModuleDef, ModuleSnapshot, Outcome, ReliabilityConfig, ScenarioDef, SimSnapshot } from './types';
 import { diagnose } from './warnings';
 
 export type SimCommand =
@@ -108,7 +119,7 @@ interface Delivery {
 }
 
 /** Bump when the save's shape changes; older saves are then discarded rather than misread. */
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 
 /** How the game stands: lost, goal reached, or how close the bank is. */
 interface EndingState {
@@ -142,6 +153,7 @@ export interface SimSave {
   deliveries: Delivery[];
   ending: EndingState;
   crew: CrewState;
+  guests: GuestState;
 }
 
 const toRecord = <V>(m: Map<string, V>): Record<string, V> => Object.fromEntries(m);
@@ -191,6 +203,7 @@ export class Simulation {
   private reliability: ReliabilityState;
   private economy: EconomyState;
   private crew: CrewState;
+  private guests: GuestState;
   private deliveries: Delivery[] = [];
   private ending: EndingState = { outcome: null, endedAt: null, goalAt: null, overdrawnCloses: 0, contractsDone: 0 };
   private readonly failures: boolean;
@@ -216,6 +229,7 @@ export class Simulation {
     this.power = createPowerState(this.station, scenario.power.initialChargeFraction);
     this.thermal = createThermalState(this.station, scenario.thermal);
     this.crew = createCrewState(scenario.crew);
+    this.guests = createGuestState(scenario.guests);
     this.lifePlant = lifeSupportPlant(this.station, scenario.lifeSupport, countAboard(this.crew, 0));
     this.life = createLifeSupportState(this.lifePlant, scenario.lifeSupport);
     this.reliability = createReliabilityState(this.station, this.rcfg);
@@ -232,6 +246,7 @@ export class Simulation {
     this.events.on('contractCompleted', () => this.ending.contractsDone++);
     this.events.on('quarterReport', ({ report }) => {
       this.ending.overdrawnCloses = report.cash < 0 ? this.ending.overdrawnCloses + 1 : 0;
+      postReviews(this.guests, this.events);
     });
     this.solve(false);
   }
@@ -256,6 +271,25 @@ export class Simulation {
       this.runningComforts().map((r) => ({ name: r.name, guestFare: r.comfort.guestFare ?? 0 })),
       this.scenario.crew.comfortStack,
     );
+  }
+
+  /** Fares are multiplied by this: comforts, then what the reviews say. */
+  private fareFactor(): number {
+    return (1 + this.fareLift()) * fareFactor(this.guests.reputation, this.scenario.guests);
+  }
+
+  /** Guest places on the station, how many are being served, and what the guests are putting up with. */
+  private guestInputs(): GuestInputs {
+    let places = 0;
+    let served = 0;
+    for (const m of this.station.modules) {
+      const n = m.def.cabin?.guests ?? 0;
+      places += n;
+      const st = this.power.modules.get(m.id)?.status;
+      if (st === 'powered' || st === 'throttled') served += n;
+    }
+    const a = this.life.alarms;
+    return { places, served, hot: this.thermal.throttled, badAir: a.co2Warn || a.o2Low || a.waterLow };
   }
 
   private staffing(): Staffing {
@@ -287,6 +321,7 @@ export class Simulation {
     if (stepCrew(this.crew, this.minutes, this.events)) this.refreshPlant();
     this.solve(true);
     this.stepCrewNeeds();
+    stepGuests(this.guests, this.scenario.guests, this.guestInputs(), TICK_HOURS);
     this.checkEnding();
   }
 
@@ -525,6 +560,7 @@ export class Simulation {
       deliveries: this.deliveries,
       ending: this.ending,
       crew: this.crew,
+      guests: this.guests,
     });
     return {
       version: SAVE_VERSION,
@@ -541,6 +577,7 @@ export class Simulation {
       deliveries: clone.deliveries,
       ending: clone.ending,
       crew: clone.crew,
+      guests: clone.guests,
     };
   }
 
@@ -565,6 +602,7 @@ export class Simulation {
     sim.deliveries = s.deliveries;
     sim.ending = s.ending;
     sim.crew = s.crew;
+    sim.guests = s.guests;
     sim.refreshPlant();
     for (const d of sim.deliveries) {
       if (!sim.defs.has(d.defId)) throw new Error(`Save has an order for unknown module "${d.defId}"`);
@@ -627,10 +665,25 @@ export class Simulation {
         dtHours: TICK_HOURS,
         throttleFactor: this.scenario.thermal.throttleFactor,
         staff: this.staffing(),
-        fareLift: this.fareLift(),
+        fareFactor: this.fareFactor(),
         events: this.events,
       });
     }
+  }
+
+  private guestSnapshot(): GuestSnapshot {
+    const cfg = this.scenario.guests;
+    const inputs = this.guestInputs();
+    const r = this.guests.reputation;
+    return {
+      hasGuests: inputs.places > 0,
+      reputation: r,
+      target: reputationTarget(inputs, cfg),
+      stars: stars(r),
+      fareFactor: fareFactor(r, cfg),
+      complaints: complaints(inputs),
+      poor: this.guests.poor,
+    };
   }
 
   private economySnapshot(): SimSnapshot['economy'] {
@@ -638,6 +691,7 @@ export class Simulation {
     const cfg = this.scenario.economy;
     const quarterMinutes = Math.round(cfg.quarterDays * 1440);
     const fare = this.fareLift();
+    const factor = this.fareFactor();
     return {
       cash: e.cash,
       loan: e.loan,
@@ -645,14 +699,15 @@ export class Simulation {
       quarter: e.quarter,
       quarterProgress: (this.minutes % quarterMinutes) / quarterMinutes,
       ledger: { ...e.ledger },
-      netPerDay: netPerDay(this.station, this.power, e, cfg, this.staffing(), fare),
+      netPerDay: netPerDay(this.station, this.power, e, cfg, this.staffing(), factor),
       lastReport: e.lastReport ? structuredClone(e.lastReport) : null,
       ...contractSnapshots(e, this.station, this.power, cfg, this.minutes, this.scenario.thermal.throttleFactor, this.staffing()),
       labs: labCount(this.station),
       guestIncomePerDay: Object.fromEntries(
-        this.station.modules.filter((m) => m.def.cabin?.guests).map((m) => [m.id, (m.def.cabin?.guests ?? 0) * cfg.guestPerDay * (1 + fare)]),
+        this.station.modules.filter((m) => m.def.cabin?.guests).map((m) => [m.id, (m.def.cabin?.guests ?? 0) * cfg.guestPerDay * factor]),
       ),
       fareLift: fare,
+      fareFactor: factor,
       deliveries: this.deliveries.map((d) => ({
         moduleId: d.moduleId,
         defId: d.defId,
@@ -780,6 +835,7 @@ export class Simulation {
       economy: this.economySnapshot(),
       ending: this.endingSnapshot(),
       crew: crewSnapshot(this.crew, this.station, this.scenario.crew, this.minutes, this.comfort()),
+      guests: this.guestSnapshot(),
     };
     return { ...snap, warnings: diagnose(snap) };
   }

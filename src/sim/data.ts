@@ -12,6 +12,7 @@ import {
   type EconomyConfig,
   type EndingsConfig,
   type GoalDef,
+  type GuestConfig,
   type LifeSupportConfig,
   type LifeSupportSpec,
   type GreyboxSpec,
@@ -452,6 +453,22 @@ function crewConfig(raw: unknown): CrewConfig {
   };
 }
 
+function guestConfig(raw: unknown): GuestConfig {
+  const o = obj(raw, 'guests');
+  const p = obj(o.penalties, 'guests.penalties');
+  const f = obj(o.fare, 'guests.fare');
+  const cfg: GuestConfig = {
+    start: fraction(o.start, 'guests.start'),
+    base: fraction(o.base, 'guests.base'),
+    perHour: positive(o.perHour, 'guests.perHour'),
+    penalties: { hot: fraction(p.hot, 'guests.penalties.hot'), badAir: fraction(p.badAir, 'guests.penalties.badAir'), dark: fraction(p.dark, 'guests.penalties.dark') },
+    fare: { worst: nonNegative(f.worst, 'guests.fare.worst'), best: positive(f.best, 'guests.fare.best') },
+    poor: band(o.poor, 'guests.poor'),
+  };
+  if (cfg.fare.worst > cfg.fare.best) fail('guests.fare', '"worst" must not be higher than "best"');
+  return cfg;
+}
+
 function goalDef(raw: unknown): GoalDef {
   const o = obj(raw, 'goal');
   const kind = str(o.kind, 'goal.kind');
@@ -530,6 +547,7 @@ export function parseScenario(raw: unknown): ScenarioDef {
     economy,
     endings: endingsConfig(o.endings),
     crew: crewConfig(o.crew),
+    guests: guestConfig(o.guests),
     layout,
   };
   if (catalogue) def.catalogue = catalogue;
