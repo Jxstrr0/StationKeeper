@@ -1,0 +1,29 @@
+{
+  "name": "station-keeper",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Station Keeper: a commercial space station tycoon by Longlight Interactive.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview --host",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "npm run typecheck && npm run lint && npm run test && npm run build"
+  },
+  "dependencies": {
+    "three": "~0.187.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "~9.39.5",
+    "@types/three": "~0.187.0",
+    "eslint": "~9.39.5",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "~8.72.1",
+    "vite": "~8.3.6",
+    "vitest": "~5.1.0"
+  }
+}
