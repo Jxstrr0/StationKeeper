@@ -2,9 +2,10 @@
 // Radiators reject that heat to space, better in Earth's shadow than in sunlight. When the loop runs
 // hot, Commercial loads throttle; hotter still, tiers trip offline (Commercial, then Essential, then
 // Critical). Trips feed back into the power system on the next tick, so heat and power cascade.
+import { bandHigh } from '../band';
 import type { EventBus, SimEvents } from '../events';
 import type { Station } from '../station';
-import type { ModuleDef, TempBand, ThermalConfig, Tier } from '../types';
+import type { ModuleDef, ThermalConfig, Tier } from '../types';
 import type { PowerState } from './power';
 
 export interface ThermalModuleState {
@@ -58,13 +59,6 @@ export function radiatorCapacity(def: ModuleDef, sunlight: number): number {
   const full = def.thermal.rejectKw ?? 0;
   const f = def.thermal.sunlitFactor ?? 1;
   return full * (f + (1 - f) * (1 - sunlight));
-}
-
-/** Trip above `band.above`, clear below `band.below`. */
-function hysteresis(active: boolean, value: number, band: TempBand): boolean {
-  if (!active && value > band.above) return true;
-  if (active && value < band.below) return false;
-  return active;
 }
 
 function moduleState(state: ThermalState, id: string): ThermalModuleState {
@@ -121,14 +115,14 @@ export function stepThermal(state: ThermalState, station: Station, power: PowerS
 
   // Throttle and trip decisions take effect on the power system next tick.
   const wasThrottled = state.throttled;
-  state.throttled = hysteresis(state.throttled, state.loopC, cfg.throttle);
+  state.throttled = bandHigh(state.throttled, state.loopC, cfg.throttle);
   if (state.throttled !== wasThrottled) events?.emit('throttleChanged', { throttled: state.throttled, tempC: state.loopC });
 
   const before = state.tripped;
   const tripped = {
-    critical: hysteresis(before.critical, state.loopC, cfg.trip.critical),
-    essential: hysteresis(before.essential, state.loopC, cfg.trip.essential),
-    commercial: hysteresis(before.commercial, state.loopC, cfg.trip.commercial),
+    critical: bandHigh(before.critical, state.loopC, cfg.trip.critical),
+    essential: bandHigh(before.essential, state.loopC, cfg.trip.essential),
+    commercial: bandHigh(before.commercial, state.loopC, cfg.trip.commercial),
   };
   // A lower tier never runs while a higher one is tripped.
   if (tripped.critical) tripped.essential = true;

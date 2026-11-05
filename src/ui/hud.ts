@@ -1,4 +1,4 @@
-// Top bar: in-game date and time, speed controls, the power readout, and the coolant loop.
+// Top bar: in-game date and time, speed controls, the power readout, the coolant loop, and life support.
 import type { Speed } from '../sim/time';
 import { SPEEDS } from '../sim/time';
 import type { SimSnapshot } from '../sim/types';
@@ -40,6 +40,11 @@ export class Hud {
   private readonly heatButton = el('button', 'heat-toggle');
   private readonly legend = el('div', 'heat-legend');
   private heatOn = false;
+  private readonly co2 = el('span', 'mini-v');
+  private readonly o2 = el('span', 'mini-v');
+  private readonly water = el('span', 'mini-v');
+  private readonly crew = el('span', 'mini-v');
+  private readonly aboard = el('span', 'mini-u');
 
   constructor(parent: HTMLElement, handlers: HudHandlers) {
     const speeds = el('div', 'speeds');
@@ -60,6 +65,12 @@ export class Hud {
       this.speedButtons.set(s, b);
     }
 
+    const mini = (label: string, value: HTMLElement, unit: string, extra?: HTMLElement) =>
+      el('div', 'mini', [
+        el('span', 'stat-k', [label]),
+        el('span', 'stat-line', [value, el('span', 'stat-u', [unit])]),
+        ...(extra ? [extra] : []),
+      ]);
     const stat = (label: string, value: HTMLElement, unit: string, extra: Node[] = []) =>
       el('div', 'stat', [el('span', 'stat-k', [label]), el('span', 'stat-line', [value, el('span', 'stat-u', [unit])]), ...extra]);
 
@@ -98,6 +109,12 @@ export class Hud {
           this.heatButton,
         ]),
         this.legend,
+        el('div', 'life-row', [
+          mini('CO₂', this.co2, 'mmHg'),
+          mini('O₂', this.o2, '%'),
+          mini('Water', this.water, '%'),
+          mini('Crew', this.crew, '%', this.aboard),
+        ]),
         this.shedNote,
       ]),
     ]);
@@ -143,6 +160,23 @@ export class Hud {
     setClass(this.loopFlow, 'discharging', netHeat > 0.05);
     setClass(this.loopFlow, 'charging', netHeat < -0.05);
 
+    // Life support.
+    const ls = snap.lifeSupport;
+    const a = ls.alarms;
+    setText(this.co2, ls.co2MmHg.toFixed(1));
+    setText(this.o2, String(Math.round(ls.o2CapacityKg > 0 ? (ls.o2Kg / ls.o2CapacityKg) * 100 : 0)));
+    setText(this.water, String(Math.round(ls.waterCapacityKg > 0 ? (ls.waterKg / ls.waterCapacityKg) * 100 : 0)));
+    setText(this.crew, String(Math.round(ls.health * 100)));
+    setText(this.aboard, `${ls.crew} crew · ${ls.guests} guests`);
+    setClass(this.co2, 'warn', a.co2Warn);
+    setClass(this.co2, 'alarm', a.co2Danger);
+    setClass(this.o2, 'warn', a.o2Low);
+    setClass(this.o2, 'alarm', a.o2Out);
+    setClass(this.water, 'warn', a.waterLow);
+    setClass(this.water, 'alarm', a.waterOut);
+    setClass(this.crew, 'warn', ls.health < 0.995);
+    setClass(this.crew, 'alarm', a.healthLow);
+
     const notes: string[] = [];
     const shed = [p.shedTiers.essential && 'Essential', (p.shedTiers.commercial || p.shedTiers.essential) && 'Commercial'].filter(Boolean);
     const offline = snap.modules.filter((m) => m.status === 'shed').map((m) => m.name);
@@ -150,6 +184,12 @@ export class Hud {
     const cooked = snap.modules.filter((m) => m.status === 'overheated').map((m) => m.name);
     if (cooked.length) notes.push(`Overheating: ${cooked.join(', ')} tripped until the loop cools`);
     else if (th.throttled) notes.push('Running hot: Commercial loads throttled');
+    if (a.o2Out) notes.push('Out of oxygen: crew condition falling fast');
+    else if (a.o2Low) notes.push('O₂ reserve low');
+    if (a.co2Danger) notes.push(`CO₂ at ${ls.co2MmHg.toFixed(1)} mmHg: crew condition falling`);
+    else if (a.co2Warn) notes.push(`CO₂ elevated (${ls.co2MmHg.toFixed(1)} mmHg)`);
+    if (a.waterOut) notes.push('Out of water');
+    else if (a.waterLow) notes.push('Water running low');
     setClass(this.shedNote, 'visible', notes.length > 0);
     setText(this.shedNote, notes.join(' · '));
   }

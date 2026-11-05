@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseModuleDefs, parseScenario } from '../src/sim/data';
+import modulesJson from '../src/data/modules.json';
 import scenarioJson from '../src/data/scenario.json';
 import { baseScenario, defs } from './helpers';
 
@@ -28,5 +29,11 @@ describe('data files', () => {
     const bad2 = structuredClone(scenarioJson) as { thermal: { throttleFactor: number } };
     bad2.thermal.throttleFactor = 0;
     expect(() => parseScenario(bad2)).toThrow(/throttleFactor/);
+  });
+
+  it('reject a water recovery fraction above 1', () => {
+    const raw = structuredClone(modulesJson) as { modules: { id: string; lifeSupport?: { waterRecovery: number } }[] };
+    raw.modules.find((m) => m.id === 'life-support')!.lifeSupport!.waterRecovery = 1.5;
+    expect(() => parseModuleDefs(raw)).toThrow(/waterRecovery/);
   });
 });

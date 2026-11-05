@@ -2,6 +2,10 @@
 import {
   TIERS,
   type Attachment,
+  type Band,
+  type CabinSpec,
+  type LifeSupportConfig,
+  type LifeSupportSpec,
   type GreyboxSpec,
   type LayoutEntry,
   type ModuleDef,
@@ -9,7 +13,6 @@ import {
   type PortDef,
   type PowerSpec,
   type ScenarioDef,
-  type TempBand,
   type ThermalConfig,
   type ThermalSpec,
   type Tier,
@@ -63,7 +66,7 @@ function tier(v: unknown, path: string): Tier {
   return s as Tier;
 }
 
-const KINDS: readonly ModuleKind[] = ['core', 'solar', 'battery', 'habitat', 'radiator'];
+const KINDS: readonly ModuleKind[] = ['core', 'solar', 'battery', 'habitat', 'radiator', 'lifesupport'];
 
 function kind(v: unknown, path: string): ModuleKind {
   const s = str(v, path);
@@ -107,6 +110,39 @@ function thermal(v: unknown, path: string): ThermalSpec {
   return spec;
 }
 
+function fraction(v: unknown, path: string): number {
+  const n = num(v, path);
+  if (n < 0 || n > 1) fail(path, 'expected a fraction 0..1');
+  return n;
+}
+
+function positive(v: unknown, path: string): number {
+  const n = num(v, path);
+  if (n <= 0) fail(path, 'expected a positive number');
+  return n;
+}
+
+function cabin(v: unknown, path: string): CabinSpec {
+  const o = obj(v, path);
+  const spec: CabinSpec = { volumeM3: positive(o.volumeM3, `${path}.volumeM3`) };
+  const crew = optNum(o.crew, `${path}.crew`);
+  const guests = optNum(o.guests, `${path}.guests`);
+  if (crew !== undefined) spec.crew = crew;
+  if (guests !== undefined) spec.guests = guests;
+  return spec;
+}
+
+function lifeSupportSpec(v: unknown, path: string): LifeSupportSpec {
+  const o = obj(v, path);
+  return {
+    o2KgPerDay: num(o.o2KgPerDay, `${path}.o2KgPerDay`),
+    co2KgPerDay: num(o.co2KgPerDay, `${path}.co2KgPerDay`),
+    waterRecovery: fraction(o.waterRecovery, `${path}.waterRecovery`),
+    o2TankKg: num(o.o2TankKg, `${path}.o2TankKg`),
+    waterTankKg: num(o.waterTankKg, `${path}.waterTankKg`),
+  };
+}
+
 function greybox(v: unknown, path: string): GreyboxSpec {
   const o = obj(v, path);
   const spec: GreyboxSpec = { shape: str(o.shape, `${path}.shape`), light: vec3(o.light, `${path}.light`) };
@@ -139,6 +175,8 @@ export function parseModuleDefs(raw: unknown): ModuleDef[] {
       greybox: greybox(o.greybox, `${path}.greybox`),
     };
     if (o.model !== undefined) def.model = str(o.model, `${path}.model`);
+    if (o.cabin !== undefined) def.cabin = cabin(o.cabin, `${path}.cabin`);
+    if (o.lifeSupport !== undefined) def.lifeSupport = lifeSupportSpec(o.lifeSupport, `${path}.lifeSupport`);
     const gimbalAxis = optVec3(o.gimbalAxis, `${path}.gimbalAxis`);
     const panelNormal = optVec3(o.panelNormal, `${path}.panelNormal`);
     if (gimbalAxis) def.gimbalAxis = gimbalAxis;
@@ -152,7 +190,7 @@ function threshold(v: unknown, path: string): TierThreshold {
   return { shedBelow: num(o.shedBelow, `${path}.shedBelow`), restoreAbove: num(o.restoreAbove, `${path}.restoreAbove`) };
 }
 
-function band(v: unknown, path: string): TempBand {
+function band(v: unknown, path: string): Band {
   const o = obj(v, path);
   const b = { above: num(o.above, `${path}.above`), below: num(o.below, `${path}.below`) };
   if (b.below > b.above) fail(path, '"below" must not be higher than "above"');
@@ -177,6 +215,36 @@ function thermalConfig(v: unknown): ThermalConfig {
       critical: band(trip.critical, 'thermal.trip.critical'),
       essential: band(trip.essential, 'thermal.trip.essential'),
       commercial: band(trip.commercial, 'thermal.trip.commercial'),
+    },
+  };
+}
+
+function lifeSupportConfig(v: unknown): LifeSupportConfig {
+  const o = obj(v, 'lifeSupport');
+  const pp = obj(o.perPerson, 'lifeSupport.perPerson');
+  const h = obj(o.health, 'lifeSupport.health');
+  return {
+    perPerson: {
+      o2KgPerDay: num(pp.o2KgPerDay, 'lifeSupport.perPerson.o2KgPerDay'),
+      co2KgPerDay: num(pp.co2KgPerDay, 'lifeSupport.perPerson.co2KgPerDay'),
+      waterKgPerDay: num(pp.waterKgPerDay, 'lifeSupport.perPerson.waterKgPerDay'),
+    },
+    waterPerKgO2: num(o.waterPerKgO2, 'lifeSupport.waterPerKgO2'),
+    cabinC: num(o.cabinC, 'lifeSupport.cabinC'),
+    co2SetpointMmHg: num(o.co2SetpointMmHg, 'lifeSupport.co2SetpointMmHg'),
+    initialCo2MmHg: num(o.initialCo2MmHg, 'lifeSupport.initialCo2MmHg'),
+    initialO2Fraction: fraction(o.initialO2Fraction, 'lifeSupport.initialO2Fraction'),
+    initialWaterFraction: fraction(o.initialWaterFraction, 'lifeSupport.initialWaterFraction'),
+    co2Warn: band(o.co2Warn, 'lifeSupport.co2Warn'),
+    co2Danger: band(o.co2Danger, 'lifeSupport.co2Danger'),
+    o2Low: band(o.o2Low, 'lifeSupport.o2Low'),
+    waterLow: band(o.waterLow, 'lifeSupport.waterLow'),
+    health: {
+      co2PerMmHgHour: num(h.co2PerMmHgHour, 'lifeSupport.health.co2PerMmHgHour'),
+      hypoxiaPerHour: num(h.hypoxiaPerHour, 'lifeSupport.health.hypoxiaPerHour'),
+      thirstPerDay: num(h.thirstPerDay, 'lifeSupport.health.thirstPerDay'),
+      recoverPerHour: num(h.recoverPerHour, 'lifeSupport.health.recoverPerHour'),
+      low: band(h.low, 'lifeSupport.health.low'),
     },
   };
 }
@@ -216,6 +284,7 @@ export function parseScenario(raw: unknown): ScenarioDef {
       },
     },
     thermal: thermalConfig(o.thermal),
+    lifeSupport: lifeSupportConfig(o.lifeSupport),
     layout,
   };
 }

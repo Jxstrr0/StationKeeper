@@ -131,7 +131,9 @@ export function solveNetwork(input: NetworkInput): NetworkResult {
     flowOut = Math.min(-net, store.stored / dtHours);
     unmet = -net - flowOut;
   }
-  const stored = Math.min(store.capacity, Math.max(0, store.stored + (flowIn - flowOut) * dtHours));
+  // Snap rounding crumbs to zero so "empty" means exactly empty everywhere.
+  const raw = Math.min(store.capacity, Math.max(0, store.stored + (flowIn - flowOut) * dtHours));
+  const stored = raw <= EPS ? 0 : raw;
 
   return { shedTiers, served, shed, demand, load: load - unmet, flowIn, flowOut, curtailed, unmet, stored };
 }
