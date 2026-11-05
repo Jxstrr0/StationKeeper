@@ -6,7 +6,7 @@ export type Vec3 = readonly [number, number, number];
 export type Tier = 'critical' | 'essential' | 'commercial';
 export const TIERS: readonly Tier[] = ['critical', 'essential', 'commercial'];
 
-export type ModuleKind = 'core' | 'solar' | 'battery' | 'habitat' | 'radiator' | 'lifesupport' | 'lab' | 'node' | 'quarters' | 'galley';
+export type ModuleKind = 'core' | 'solar' | 'battery' | 'habitat' | 'radiator' | 'lifesupport' | 'lab' | 'node' | 'quarters' | 'galley' | 'cupola';
 
 export interface PortDef {
   id: string;
@@ -245,6 +245,8 @@ export interface CrewConfig {
   /** A lab with no scientist to run it works at this share of its speed. */
   unstaffedLabFactor: number;
   needs: CrewNeedsConfig;
+  /** Different kinds of comfort stack, biggest lift first, each further kind counting for this share of the one before. */
+  comfortStack: number;
   /** A one-off payment to everyone aboard that lifts morale at once. */
   bonus: {
     /** $ millions per person aboard. */
@@ -340,6 +342,8 @@ export interface CrewSnapshot {
   /** What the running comforts add to everyone's morale now, after sharing out the seats. */
   comfortLift: number;
   comfortSeats: number;
+  /** Each kind of comfort running, biggest lift first: what it adds after sharing and stacking, and its seats. */
+  comforts: { name: string; lift: number; seats: number }[];
   /** A bonus for everyone aboard: what it costs now, and hours until one can be paid again (null if it can now). */
   bonusCost: number;
   bonusMorale: number;
