@@ -142,14 +142,35 @@ export interface NeedsInputs {
   comfort: number;
 }
 
+/** A comfort that is running now, by the name of its module type. */
+export interface RunningComfort {
+  name: string;
+  comfort: ComfortSpec;
+}
+
+/** What one kind of comfort adds, after sharing out its seats and weighing it against the others. */
+export interface ComfortShare {
+  name: string;
+  lift: number;
+  seats: number;
+}
+
 /**
- * What running comforts add to everyone's morale: the best lift on offer, shared out if there are more people
- * aboard than seats.
+ * What running comforts add to everyone's morale. Each kind (galleys, cupolas) lifts by its morale, shared out if
+ * there are more people aboard than it has seats; more of the same kind only adds seats. Different kinds stack, the
+ * biggest lift first, each further kind counting for `stack` of the one before it.
  */
-export function comfortLift(running: readonly ComfortSpec[], aboardCount: number): { lift: number; seats: number } {
-  const seats = running.reduce((n, c) => n + c.seats, 0);
-  const best = running.reduce((m, c) => Math.max(m, c.morale), 0);
-  return { lift: aboardCount > 0 ? best * Math.min(1, seats / aboardCount) : best, seats };
+export function comfortLift(running: readonly RunningComfort[], aboardCount: number, stack: number): { lift: number; seats: number; kinds: ComfortShare[] } {
+  const byName = new Map<string, { morale: number; seats: number }>();
+  for (const r of running) {
+    const k = byName.get(r.name);
+    if (k) k.seats += r.comfort.seats;
+    else byName.set(r.name, { morale: r.comfort.morale, seats: r.comfort.seats });
+  }
+  const shared = [...byName].map(([name, k]) => ({ name, seats: k.seats, lift: aboardCount > 0 ? k.morale * Math.min(1, k.seats / aboardCount) : k.morale }));
+  shared.sort((a, b) => b.lift - a.lift || (a.name < b.name ? -1 : 1));
+  const kinds = shared.map((k, i) => ({ ...k, lift: k.lift * stack ** i }));
+  return { lift: kinds.reduce((n, k) => n + k.lift, 0), seats: kinds.reduce((n, k) => n + k.seats, 0), kinds };
 }
 
 /** Why a bonus can't be paid now, or null if it can. */
@@ -306,7 +327,13 @@ function memberSnapshot(m: CrewMember, needs: CrewNeedsConfig, now: number): Cre
   };
 }
 
-export function crewSnapshot(state: CrewState, station: Station, cfg: CrewConfig, now: number, comfort: { lift: number; seats: number }): CrewSnapshot {
+export function crewSnapshot(
+  state: CrewState,
+  station: Station,
+  cfg: CrewConfig,
+  now: number,
+  comfort: { lift: number; seats: number; kinds: ComfortShare[] },
+): CrewSnapshot {
   const order = [...state.members].sort((a, b) => Number(a.arrivesAt > now) - Number(b.arrivesAt > now));
   return {
     members: order.map((m) => memberSnapshot(m, cfg.needs, now)),
@@ -324,6 +351,7 @@ export function crewSnapshot(state: CrewState, station: Station, cfg: CrewConfig
     arrivalHours: cfg.arrivalHours,
     comfortLift: comfort.lift,
     comfortSeats: comfort.seats,
+    comforts: comfort.kinds,
     bonusCost: countAboard(state, now) * cfg.bonus.perPerson,
     bonusMorale: cfg.bonus.morale,
     bonusReadyInHours: bonusReadyInHours(state, cfg, now),

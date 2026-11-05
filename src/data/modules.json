@@ -94,6 +94,20 @@
       "greybox": { "shape": "habitat", "length": 4, "radius": 1.8, "light": [2, 1.95, 0] }
     },
     {
+      "id": "cupola",
+      "name": "Observation Cupola",
+      "kind": "cupola",
+      "description": "Seven windows and a view of everything you have ever owned. Lifts crew morale while it's lit, and barely warms the loop. Seats three; Commercial load.",
+      "power": { "drawKw": 0.3, "tier": "commercial" },
+      "thermal": { "riseCPerKw": 0.6 },
+      "reliability": { "wearDays": 12, "failPerDay": 0.3, "serviceHours": 1 },
+      "price": 5,
+      "cabin": { "volumeM3": 8 },
+      "comfort": { "morale": 0.08, "seats": 3 },
+      "ports": [{ "id": "aft", "position": [0, 0, 0], "direction": [-1, 0, 0] }],
+      "greybox": { "shape": "cupola", "length": 2.4, "radius": 1.5, "light": [0.9, 1.6, 0] }
+    },
+    {
       "id": "radiator",
       "name": "Radiator Array",
       "kind": "radiator",
