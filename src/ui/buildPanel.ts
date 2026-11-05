@@ -27,6 +27,8 @@ export function moduleHighlights(def: ModuleDef): string[] {
   const people = [def.cabin?.crew && `${def.cabin.crew} crew`, def.cabin?.guests && `${def.cabin.guests} guests`].filter(Boolean);
   if (people.length) out.push(people.join(', '));
   if (def.kind === 'lab') out.push('Runs research contracts');
+  // Ports beyond the one it docks by are room to grow.
+  if (def.kind === 'node') out.push(`Adds ${def.ports.length - 1} docking ports`);
   if (p.drawKw > 0) out.push(`Draws ${kw(p.drawKw)} kW · ${TIER_LABEL[p.tier]}`);
   return out;
 }

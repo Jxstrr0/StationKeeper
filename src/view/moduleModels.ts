@@ -294,6 +294,29 @@ function buildLifeSupport(def: ModuleDef, group: THREE.Group): Partial<ModuleMod
 }
 
 /** A research can running aft along -X: lit rack windows on -Z, an exposed payload platform on +Z, antenna and sensor boom. */
+/** A short pressurised junction: a hull along +X from the mount, with docking collars on the fore, zenith and nadir faces. */
+function buildNode(def: ModuleDef, group: THREE.Group): Partial<ModuleModel> {
+  const L = def.greybox.length ?? 3;
+  const r = def.greybox.radius ?? 1.3;
+  const mid = L / 2;
+  group.add(cylinderAlong(r, L - 0.4, shared.hull, [mid, 0, 0], [1, 0, 0], 28));
+  for (const x of [0.15, L - 0.15]) group.add(cylinderAlong(r * 0.85, 0.3, shared.slate, [x, 0, 0], [1, 0, 0], 28));
+  group.add(cylinderAlong(r * 1.015, 0.25, shared.stripe, [mid, 0, 0], [1, 0, 0], 28));
+  // Radial collars: a stub of slate tube ending in a ring at each radial port.
+  for (const y of [1, -1]) {
+    group.add(cylinderAlong(0.85, 0.3, shared.slate, [mid, y * (r - 0.05), 0], [0, 1, 0], 24));
+    const ring = mesh(new THREE.TorusGeometry(0.8, 0.07, 8, 24), shared.slate, [mid, y * (r + 0.08), 0]);
+    ring.rotation.x = Math.PI / 2;
+    group.add(ring);
+  }
+  const ring = mesh(new THREE.TorusGeometry(0.8, 0.07, 8, 24), shared.slate, [L - 0.05, 0, 0]);
+  ring.rotation.y = Math.PI / 2;
+  group.add(ring);
+  // A few handrails along the +Z side.
+  for (const x of [0.7, L - 0.7]) group.add(mesh(new THREE.BoxGeometry(0.08, 0.08, 0.5), shared.slate, [x, 0.4, r + 0.15]));
+  return {};
+}
+
 function buildLab(def: ModuleDef, group: THREE.Group): Partial<ModuleModel> {
   const L = def.greybox.length ?? 6.5;
   const r = def.greybox.radius ?? 1.6;
@@ -352,6 +375,7 @@ const BUILDERS: Record<string, (def: ModuleDef, group: THREE.Group) => Partial<M
   radiator: buildRadiator,
   lifesupport: buildLifeSupport,
   lab: buildLab,
+  node: buildNode,
 };
 
 function addStatusLight(group: THREE.Group, at: Vec3): THREE.Object3D {

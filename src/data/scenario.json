@@ -54,14 +54,14 @@
     "initialWear": { "array-1": 0.3, "battery-1": 0.35, "habitat-1": 0.2, "radiator-1": 0.45, "life-support-1": 0.62 }
   },
   "economy": {
-    "startCash": 30,
+    "startCash": 40,
     "loan": { "principal": 60, "ratePerQuarter": 0.03 },
     "quarterDays": 1,
-    "guestPerDay": 0.9,
+    "guestPerDay": 1.5,
     "operationsPerDay": 1.8,
     "deliveryHours": 6,
-    "serviceCostShare": 0.03,
-    "repairCostShare": 0.1,
+    "serviceCostShare": 0.02,
+    "repairCostShare": 0.06,
     "contracts": {
       "maxOffers": 3,
       "offerEveryHours": 8,

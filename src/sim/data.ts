@@ -70,7 +70,7 @@ function tier(v: unknown, path: string): Tier {
   return s as Tier;
 }
 
-const KINDS: readonly ModuleKind[] = ['core', 'solar', 'battery', 'habitat', 'radiator', 'lifesupport', 'lab'];
+const KINDS: readonly ModuleKind[] = ['core', 'solar', 'battery', 'habitat', 'radiator', 'lifesupport', 'lab', 'node'];
 
 function kind(v: unknown, path: string): ModuleKind {
   const s = str(v, path);
