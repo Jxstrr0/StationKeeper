@@ -6,7 +6,9 @@ import type { ModuleModel, ModuleModelSource } from './moduleModels';
 
 const STATUS_COLORS: Record<ModuleStatus, number> = {
   powered: 0xb48ce8, // lilac: healthy
+  throttled: 0xe0b38a, // pale clay: running slow
   shed: 0xd97757, // clay: warning
+  overheated: 0xff5a3c, // hot red-orange: tripped by heat
   off: 0x5a5852,
 };
 

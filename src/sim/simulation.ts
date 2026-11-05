@@ -5,6 +5,7 @@ import { createOrbit, isInShadowArc, orbitSnapshot, phaseAt, sunlightAt, type Or
 import { Rng } from './rng';
 import { buildStation, indexDefs, type Station } from './station';
 import { createPowerState, setModuleEnabled, stepPower, storageTotals, type PowerState } from './systems/power';
+import { createThermalState, stepThermal, thermalLimits, type ThermalState } from './systems/thermal';
 import { MINUTE_MS } from './time';
 import type { ModuleDef, ModuleSnapshot, ScenarioDef, SimSnapshot } from './types';
 
@@ -21,6 +22,7 @@ export class Simulation {
   private readonly startMs: number;
   private minutes = 0;
   private readonly power: PowerState;
+  private readonly thermal: ThermalState;
 
   constructor(defs: readonly ModuleDef[], scenario: ScenarioDef) {
     this.scenario = scenario;
@@ -31,7 +33,8 @@ export class Simulation {
     if (Number.isNaN(start)) throw new Error(`Bad scenario start date "${scenario.startDate}"`);
     this.startMs = start;
     this.power = createPowerState(this.station, scenario.power.initialChargeFraction);
-    this.solvePower(false);
+    this.thermal = createThermalState(this.station, scenario.thermal);
+    this.solve(false);
   }
 
   get elapsedMinutes(): number {
@@ -44,7 +47,7 @@ export class Simulation {
     const isShadow = isInShadowArc(this.orbit, phaseAt(this.orbit, this.minutes));
     if (!wasShadow && isShadow) this.events.emit('eclipseBegan', { minutes: this.minutes });
     if (wasShadow && !isShadow) this.events.emit('sunrise', { minutes: this.minutes });
-    this.solvePower(true);
+    this.solve(true);
   }
 
   /** Run many ticks at once (tests, fast-forward). */
@@ -57,20 +60,30 @@ export class Simulation {
       case 'setModuleEnabled':
         if (!this.station.byId.has(cmd.moduleId)) return;
         setModuleEnabled(this.power, cmd.moduleId, cmd.enabled);
-        // Re-solve so the snapshot reflects the switch right away, without spending energy.
-        this.solvePower(false);
+        // Re-solve so the snapshot reflects the switch right away, without spending energy or heat.
+        this.solve(false);
         return;
     }
   }
 
-  private solvePower(commitEnergy: boolean): void {
+  /** Power first (using last tick's thermal limits), then heat from what actually ran. */
+  private solve(commit: boolean): void {
     // Sunlight at the middle of the minute that just passed (or is about to, for the first solve).
-    const mid = commitEnergy ? this.minutes - 0.5 : this.minutes;
+    const mid = commit ? this.minutes - 0.5 : this.minutes;
+    const sunlight = sunlightAt(this.orbit, phaseAt(this.orbit, mid));
     stepPower(this.power, this.station, {
-      sunlight: sunlightAt(this.orbit, phaseAt(this.orbit, mid)),
+      sunlight,
       thresholds: this.scenario.power.thresholds,
       dtHours: TICK_HOURS,
-      commitEnergy,
+      commitEnergy: commit,
+      thermal: thermalLimits(this.thermal, this.scenario.thermal),
+      events: this.events,
+    });
+    stepThermal(this.thermal, this.station, this.power, {
+      sunlight,
+      cfg: this.scenario.thermal,
+      dtHours: TICK_HOURS,
+      commit,
       events: this.events,
     });
   }
@@ -80,6 +93,7 @@ export class Simulation {
     const t = this.power.totals;
     const modules: ModuleSnapshot[] = this.station.modules.map((m) => {
       const s = this.power.modules.get(m.id)!;
+      const t = this.thermal.modules.get(m.id)!;
       return {
         id: m.id,
         defId: m.def.id,
@@ -94,6 +108,9 @@ export class Simulation {
         storedKwh: s.storedKwh,
         capacityKwh: m.def.power.storageKwh ?? 0,
         enabled: s.enabled,
+        tempC: t.tempC,
+        heatKw: t.heatKw,
+        rejectKw: t.rejectKw,
       };
     });
     return {
@@ -111,6 +128,17 @@ export class Simulation {
         capacityKwh,
         charge: capacityKwh > 0 ? storedKwh / capacityKwh : 0,
         shedTiers: { ...this.power.shedTiers },
+      },
+      thermal: {
+        loopC: this.thermal.loopC,
+        setpointC: this.scenario.thermal.setpointC,
+        heatKw: this.thermal.totals.heatKw,
+        rejectKw: this.thermal.totals.rejectKw,
+        capacityKw: this.thermal.totals.capacityKw,
+        throttled: this.thermal.throttled,
+        tripped: { ...this.thermal.tripped },
+        throttleAboveC: this.scenario.thermal.throttle.above,
+        tripAboveC: this.scenario.thermal.trip.commercial.above,
       },
       modules,
     };

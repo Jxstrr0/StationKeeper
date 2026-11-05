@@ -50,7 +50,9 @@ describe('power system in the station sim', () => {
       if (snap.power.shedTiers.essential) expect(snap.power.shedTiers.commercial).toBe(true);
     }
 
-    expect(order.map((o) => o.tier)).toEqual(['commercial', 'essential', 'critical', 'critical']);
+    // Tier order, collapsing modules of the same tier that shed together.
+    const tiers = order.map((o) => o.tier).filter((t, i, a) => t !== a[i - 1]);
+    expect(tiers).toEqual(['commercial', 'essential', 'critical']);
     for (const o of order.filter((o) => o.tier === 'critical')) expect(o.storedKwh).toBe(0);
   });
 

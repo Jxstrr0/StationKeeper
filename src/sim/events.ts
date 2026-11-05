@@ -8,6 +8,12 @@ export interface SimEvents {
   tierRestored: { tier: Tier; charge: number };
   moduleShed: { moduleId: string; tier: Tier };
   moduleRestored: { moduleId: string; tier: Tier };
+  /** Coolant loop crossed the throttle band. */
+  throttleChanged: { throttled: boolean; tempC: number };
+  /** A tier tripped offline (or came back) because of loop temperature. */
+  overheatTrip: { tier: Tier; tempC: number };
+  overheatCleared: { tier: Tier; tempC: number };
+  moduleOverheated: { moduleId: string; tier: Tier };
 }
 
 type Handler<T> = (payload: T) => void;
