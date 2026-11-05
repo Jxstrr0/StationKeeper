@@ -937,11 +937,46 @@ Traced on four seeds per line:
 - **Bookings change only at a quarter's close.** Guests book ahead on the reviews they read, not on the minute.
 - **Rounding is per habitat,** so 4 places at 30% books 1 guest, never 1.2.
 
+## Session 20: Saltglass Rest, a turnaround
+
+### What was built
+
+- **A reviews goal** (`{ "kind": "reviews", "stars": 4, "days": 8 }`). It is reached when a quarter closes with guest reviews of at least that many stars.
+  - Finance shows "Last reviews ★☆☆☆☆" as the progress, and the bar moves a step at each close.
+  - Before any reviews are posted, the station stands at the stars of `guests.start`.
+  - Data validation: stars must be a whole number from 2 to 5, and no higher than guests at their happiest give (`stars(guests.base)`, four at the shipped 0.75).
+- **A fourth scenario, Saltglass Rest** (`src/data/scenarios/saltglass.json`). A hotel opening at one star, with two habitats (8 places) and only 2 places booked.
+  - One array, one battery and one radiator cannot carry two habitats. In eclipse the battery can't discharge fast enough, so a habitat sheds, and in sunlight the loop runs hot.
+  - The radiator, life support and second habitat start worn.
+  - $40M cash and a $45M loan.
+  - Guests here talk faster (`perHour` 0.04, against 0.03 elsewhere), so a fixed station shows in the reviews within a few days.
+- **UI:** the goal line ("Earn 4-star guest reviews within 8 days."), the Finance progress line, and the end sheet's copy for a reviews goal.
+- **Tests:** 210, up from 206. They cover the goal being reached only at a close and its progress, data validation, the goal text, and three Saltglass tests: it opens at one star, left alone it is never rated four stars and the owners replace you, and with the three fixes it wins inside the deadline.
+
+### Balance (scripted player, 8 seeds, with failures on)
+
+- **Doing nothing, or buying only a radiator, or a radiator and a battery, loses on every seed.** Reviews stay at two or three stars.
+- **A radiator, a battery and a solar array, in any order, wins on 7 of 8 seeds, by day 3 to 8.** The scenario's own seed wins on day 4.
+  - Breakdowns and services cost a quarter now and then, so it is not a formality.
+  - The losing seed (42) ends just under four stars.
+- **A turnaround this costly needed the cash.** At $24M cash, a sensible plan went overdrawn two closes running and the bank took the station.
+
+### How to test on a phone
+
+1. Finance → Start a new station → Saltglass Rest. It opens in eclipse with a habitat shed, and the Finance goal reads "Last reviews ★☆☆☆☆".
+2. Buy a radiator, a battery and a solar array early, and service what's worn.
+3. Watch the reviews climb at each close; four stars ends it with "4-star reviews".
+
+### Choices made
+
+- **The goal counts posted reviews, not live reputation,** so it lands at a quarter's close, with the report, and can't be met by a lucky hour.
+- **No five-star goal is possible yet,** because comforts raise fares, not reputation. A guest-only module that lifts reputation would open it up.
+
 ## Next
 
 The planned slices are done. Candidates for what's next, roughly in order of value:
 
 1. **Play-testing on a real phone**, to tune pace, readability, the first ten minutes, and now how often illness and exhaustion bite.
-2. **More scenarios**, perhaps with their own modules or prices.
-3. **More for guests to want**: perhaps a choice of fare level, or guest-only modules.
+2. **More scenarios**, perhaps with their own modules or prices. Saltglass shows the reviews goal; a crew-heavy posting where morale is the problem is another.
+3. **More for guests to want**: perhaps a choice of fare level, or guest-only modules that lift reputation (which would make five stars possible).
 4. **Art**: Blender models replacing the grey-boxes (the loader already prefers them).
