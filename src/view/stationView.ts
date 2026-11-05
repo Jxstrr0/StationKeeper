@@ -40,6 +40,20 @@ function makeHaloTexture(): THREE.Texture {
   return new THREE.CanvasTexture(c);
 }
 
+const CONTACT_SLOP = 0.2;
+
+/** World-space boxes of every mesh under `root`, shrunk by the contact slop. */
+function meshBoxes(root: THREE.Object3D, skip?: THREE.Object3D): THREE.Box3[] {
+  const out: THREE.Box3[] = [];
+  root.traverse((o) => {
+    if (!(o instanceof THREE.Mesh) || o === skip) return;
+    const box = new THREE.Box3().setFromObject(o);
+    box.expandByScalar(-CONTACT_SLOP);
+    if (!box.isEmpty()) out.push(box);
+  });
+  return out;
+}
+
 const tmpQ = new THREE.Quaternion();
 const tmpV = new THREE.Vector3();
 const tmpA = new THREE.Vector3();
@@ -89,19 +103,8 @@ export class StationView {
     object.userData.moduleId = m.id;
     object.add(model.root);
 
-    if (m.attach) {
-      const parent = this.entries.get(m.attach.to);
-      const attach = m.attach;
-      const pPort = parent?.def.ports.find((p) => p.id === attach.port);
-      const cPort = def.ports.find((p) => p.id === attach.via);
-      if (!parent || !pPort || !cPort) throw new Error(`Cannot place "${m.id}": missing parent or port`);
-      // Parent port in station space.
-      const pPos = new THREE.Vector3(...pPort.position).applyQuaternion(parent.object.quaternion).add(parent.object.position);
-      const pDir = new THREE.Vector3(...pPort.direction).applyQuaternion(parent.object.quaternion);
-      // Turn the child so its port faces back into the parent's port, then line the ports up.
-      object.quaternion.setFromUnitVectors(new THREE.Vector3(...cPort.direction).normalize(), pDir.negate().normalize());
-      const cOffset = new THREE.Vector3(...cPort.position).applyQuaternion(object.quaternion);
-      object.position.copy(pPos).sub(cOffset);
+    if (m.attach && !this.place(object, def, m.attach.to, m.attach.port, m.attach.via)) {
+      throw new Error(`Cannot place "${m.id}": missing parent or port`);
     }
 
     const lightCore = new THREE.Mesh(this.lightGeo, new THREE.MeshBasicMaterial({ color: STATUS_COLORS.powered, toneMapped: false }));
@@ -124,6 +127,57 @@ export class StationView {
     this.entries.set(m.id, entry);
     if (this.heatOverlay) this.applyHeat(entry, true);
     this.onModuleAdded?.();
+  }
+
+  /**
+   * Put `object` (a module of type `def`) where its port `via` meets port `port` of module `to`.
+   * Returns false if the parent or either port doesn't exist.
+   */
+  place(object: THREE.Object3D, def: ModuleDef, to: string, port: string, via: string): boolean {
+    const parent = this.entries.get(to);
+    const pPort = parent?.def.ports.find((p) => p.id === port);
+    const cPort = def.ports.find((p) => p.id === via);
+    if (!parent || !pPort || !cPort) return false;
+    // Parent port in station space.
+    const pPos = new THREE.Vector3(...pPort.position).applyQuaternion(parent.object.quaternion).add(parent.object.position);
+    const pDir = new THREE.Vector3(...pPort.direction).applyQuaternion(parent.object.quaternion);
+    // Turn the child so its port faces back into the parent's port, then line the ports up.
+    object.quaternion.setFromUnitVectors(new THREE.Vector3(...cPort.direction).normalize(), pDir.negate().normalize());
+    const cOffset = new THREE.Vector3(...cPort.position).applyQuaternion(object.quaternion);
+    object.position.copy(pPos).sub(cOffset);
+    return true;
+  }
+
+  /** Where a port is, and which way it faces, in station space. */
+  portFrame(moduleId: string, portId: string): { position: THREE.Vector3; direction: THREE.Vector3 } | null {
+    const e = this.entries.get(moduleId);
+    const p = e?.def.ports.find((x) => x.id === portId);
+    if (!e || !p) return null;
+    return {
+      position: new THREE.Vector3(...p.position).applyQuaternion(e.object.quaternion).add(e.object.position),
+      direction: new THREE.Vector3(...p.direction).applyQuaternion(e.object.quaternion).normalize(),
+    };
+  }
+
+  /**
+   * Which existing module (if any) `candidate` would run into. Compares the world boxes of individual meshes,
+   * shrunk a little so parts that merely touch at a docking port don't count.
+   */
+  collision(candidate: THREE.Object3D): string | null {
+    candidate.updateWorldMatrix(true, true);
+    const mine = meshBoxes(candidate);
+    for (const e of this.entries.values()) {
+      e.object.updateWorldMatrix(true, true);
+      for (const theirs of meshBoxes(e.object, e.lightCore)) {
+        for (const b of mine) if (b.intersectsBox(theirs)) return e.id;
+      }
+    }
+    return null;
+  }
+
+  /** Display name of a module on the station. */
+  moduleName(id: string): string {
+    return this.entries.get(id)?.def.name ?? id;
   }
 
   /** Show or hide the Heat overlay: every module is tinted by its temperature. */

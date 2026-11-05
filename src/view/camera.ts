@@ -31,6 +31,7 @@ export class OrbitCamera {
   private tapStart: { x: number; y: number; t: number; id: number } | null = null;
   private tapCancelled = false;
   private goalDistance: number;
+  private goalTarget: THREE.Vector3 | null = null;
 
   constructor(
     private readonly camera: THREE.PerspectiveCamera,
@@ -44,6 +45,12 @@ export class OrbitCamera {
     el.addEventListener('pointercancel', this.onUp);
     el.addEventListener('wheel', this.onWheel, { passive: false });
     el.addEventListener('contextmenu', (e) => e.preventDefault());
+  }
+
+  /** Glide the view to look at `center`, optionally from `distance`. */
+  focus(center: THREE.Vector3, distance?: number): void {
+    this.goalTarget = center.clone();
+    if (distance !== undefined) this.goalDistance = this.clampDistance(distance);
   }
 
   setDistance(d: number): void {
@@ -139,6 +146,10 @@ export class OrbitCamera {
       this.velPolar *= decay;
     }
     this.distance += (this.goalDistance - this.distance) * (1 - Math.exp(-12 * dt));
+    if (this.goalTarget) {
+      this.target.lerp(this.goalTarget, 1 - Math.exp(-5 * dt));
+      if (this.target.distanceToSquared(this.goalTarget) < 1e-4) this.goalTarget = null;
+    }
 
     // Never look straight down the pole, and never dip below the floor (Earth).
     const below = this.target.y - this.opts.floorY;
