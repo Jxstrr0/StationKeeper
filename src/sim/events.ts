@@ -1,5 +1,5 @@
 // A tiny typed event bus. The sim emits; the UI listens.
-import type { CrewRole, LifeSupportSnapshot, Outcome, QuarterReport, Tier } from './types';
+import type { CrewRole, GuestComplaint, LifeSupportSnapshot, Outcome, QuarterReport, Tier } from './types';
 
 export type LifeSupportAlarm = keyof LifeSupportSnapshot['alarms'];
 
@@ -42,6 +42,8 @@ export interface SimEvents {
   crewRecovered: { crewId: string; name: string; role: CrewRole };
   /** Everyone aboard was paid a bonus. */
   crewBonusPaid: { cost: number; people: number };
+  /** The quarter closed and guests posted reviews: stars from the quarter's average reputation, and their main gripe. */
+  guestReviews: { stars: number; reputation: number; complaint: GuestComplaint | null };
   /** The goal is reached. Fires once; play carries on. */
   goalReached: { minutes: number };
   /** The game is lost. The sim stops ticking after this. */

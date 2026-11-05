@@ -195,6 +195,41 @@ export interface OrbitConfig {
   startPhaseDeg: number;
 }
 
+/** What can spoil a guest's stay. */
+export type GuestComplaint = 'hot' | 'badAir' | 'dark';
+
+/** How guests judge the station, and what that does to fares. */
+export interface GuestConfig {
+  /** Reputation at the start, 0..1. */
+  start: number;
+  /** Where reputation settles when nothing is wrong. */
+  base: number;
+  /** Share of the gap to where it is heading closed per hour. */
+  perHour: number;
+  /** Taken off where reputation is heading while each applies. `dark` is scaled by the share of guest places idle. */
+  penalties: Record<GuestComplaint, number>;
+  /** Fares are multiplied by `worst` at reputation 0, rising in a straight line to `best` at 1. */
+  fare: { worst: number; best: number };
+  /** The poor-reviews warning, with hysteresis. */
+  poor: Band;
+}
+
+export interface GuestSnapshot {
+  /** Any guest places on the station at all. */
+  hasGuests: boolean;
+  reputation: number;
+  /** Where it is heading. */
+  target: number;
+  /** Stars out of five at today's reputation. */
+  stars: number;
+  /** What fares are multiplied by at today's reputation. */
+  fareFactor: number;
+  /** What is bothering guests right now. */
+  complaints: GuestComplaint[];
+  /** Reviews are poor enough to warn about. */
+  poor: boolean;
+}
+
 export interface ScenarioDef {
   /** Stable id, used to match a save to its scenario. */
   id: string;
@@ -215,6 +250,7 @@ export interface ScenarioDef {
   economy: EconomyConfig;
   endings: EndingsConfig;
   crew: CrewConfig;
+  guests: GuestConfig;
   /** Module ids this station can order. Without it, every module with a price is for sale. */
   catalogue?: string[];
   layout: LayoutEntry[];
@@ -497,6 +533,8 @@ export interface EconomySnapshot {
   guestIncomePerDay: Record<string, number>;
   /** Share the running comforts add to every guest's fare. */
   fareLift: number;
+  /** What fares are multiplied by now, comforts and reputation together. */
+  fareFactor: number;
   deliveries: DeliverySnapshot[];
 }
 
@@ -651,6 +689,7 @@ export interface SimSnapshot {
   /** What is wrong, and why: a graph of problems, each naming the problems that cause it. */
   ending: EndingSnapshot;
   crew: CrewSnapshot;
+  guests: GuestSnapshot;
   warnings: StationWarning[];
 }
 
@@ -678,7 +717,8 @@ export type WarningKind =
   | 'labUnstaffed'
   | 'crewExhausted'
   | 'crewSick'
-  | 'moraleLow';
+  | 'moraleLow'
+  | 'reviewsPoor';
 
 export interface StationWarning {
   /** Stable id, like "failed:radiator-1" or "shed:commercial". */
