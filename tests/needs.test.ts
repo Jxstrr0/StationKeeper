@@ -162,13 +162,13 @@ describe('illness', () => {
 
 describe('morale', () => {
   it('heads lower for bad air, heat, exhaustion and illness', () => {
-    const ok = { badAir: false, hot: false };
+    const ok = { badAir: false, hot: false, comfort: 0 };
     const p = needs.morale.penalties;
     expect(moraleTarget(person('a'), ok, needs)).toBeCloseTo(needs.morale.base);
-    expect(moraleTarget(person('a'), { badAir: true, hot: true }, needs)).toBeCloseTo(needs.morale.base - p.badAir - p.hot);
+    expect(moraleTarget(person('a'), { badAir: true, hot: true, comfort: 0 }, needs)).toBeCloseTo(needs.morale.base - p.badAir - p.hot);
     expect(moraleTarget(person('a', { fatigue: 0.8 }), ok, needs)).toBeCloseTo(needs.morale.base - p.tired);
     expect(moraleTarget(person('a', { fatigue: 1, exhausted: true, sickUntil: 99 }), ok, needs)).toBeCloseTo(needs.morale.base - p.exhausted - p.sick);
-    expect(moraleTarget(person('a', { exhausted: true, sickUntil: 9 }), { badAir: true, hot: true }, needs)).toBe(0);
+    expect(moraleTarget(person('a', { exhausted: true, sickUntil: 9 }), { badAir: true, hot: true, comfort: 0 }, needs)).toBe(0);
   });
 
   it('someone miserable long enough resigns, and the station breathes for one fewer', () => {

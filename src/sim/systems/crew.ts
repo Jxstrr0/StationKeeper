@@ -11,7 +11,7 @@
 import type { EventBus, SimEvents } from '../events';
 import type { Rng } from '../rng';
 import type { Station } from '../station';
-import type { CrewConfig, CrewMemberSnapshot, CrewNeedsConfig, CrewRole, CrewSnapshot, CrewStatus } from '../types';
+import type { ComfortSpec, CrewConfig, CrewMemberSnapshot, CrewNeedsConfig, CrewRole, CrewSnapshot, CrewStatus } from '../types';
 
 export interface CrewMember {
   id: string;
@@ -36,6 +36,8 @@ export interface CrewState {
   members: CrewMember[];
   /** How many hires so far, for picking names and ids. */
   hires: number;
+  /** Minute the last bonus was paid, if one has been. */
+  bonusAt: number | null;
 }
 
 function newMember(id: string, name: string, role: CrewRole, arrivesAt: number, needs: CrewNeedsConfig): CrewMember {
@@ -43,7 +45,7 @@ function newMember(id: string, name: string, role: CrewRole, arrivesAt: number, 
 }
 
 export function createCrewState(cfg: CrewConfig): CrewState {
-  return { members: cfg.roster.map((r, i) => newMember(`crew-${i + 1}`, r.name, r.role, 0, cfg.needs)), hires: 0 };
+  return { members: cfg.roster.map((r, i) => newMember(`crew-${i + 1}`, r.name, r.role, 0, cfg.needs)), hires: 0, bonusAt: null };
 }
 
 export function aboard(state: CrewState, now: number): CrewMember[] {
@@ -120,6 +122,47 @@ export interface NeedsInputs {
   badAir: boolean;
   /** The coolant loop is running hot. */
   hot: boolean;
+  /** What running comforts add to where morale settles. */
+  comfort: number;
+}
+
+/**
+ * What running comforts add to everyone's morale: the best lift on offer, shared out if there are more people
+ * aboard than seats.
+ */
+export function comfortLift(running: readonly ComfortSpec[], aboardCount: number): { lift: number; seats: number } {
+  const seats = running.reduce((n, c) => n + c.seats, 0);
+  const best = running.reduce((m, c) => Math.max(m, c.morale), 0);
+  return { lift: aboardCount > 0 ? best * Math.min(1, seats / aboardCount) : best, seats };
+}
+
+/** Why a bonus can't be paid now, or null if it can. */
+export function bonusProblem(state: CrewState, cfg: CrewConfig, cash: number, now: number): string | null {
+  const people = countAboard(state, now);
+  if (people === 0) return 'Nobody aboard to pay';
+  const ready = bonusReadyInHours(state, cfg, now);
+  if (ready !== null) return `Another bonus so soon would set a precedent: wait ${Math.ceil(ready)} h`;
+  if (cash < people * cfg.bonus.perPerson) return 'Not enough cash for a bonus';
+  return null;
+}
+
+export function bonusReadyInHours(state: CrewState, cfg: CrewConfig, now: number): number | null {
+  if (state.bonusAt === null) return null;
+  const left = state.bonusAt + cfg.bonus.cooldownHours * 60 - now;
+  return left > 0 ? left / 60 : null;
+}
+
+/** Pay everyone aboard a bonus and lift their morale. Returns the cost. Check `bonusProblem` first. */
+export function payBonus(state: CrewState, cfg: CrewConfig, now: number, events?: EventBus<SimEvents>): number {
+  const here = aboard(state, now);
+  for (const m of here) {
+    m.morale = Math.min(1, m.morale + cfg.bonus.morale);
+    if (m.morale >= cfg.needs.morale.resignBelow) m.lowSince = null;
+  }
+  state.bonusAt = now;
+  const cost = here.length * cfg.bonus.perPerson;
+  events?.emit('crewBonusPaid', { cost, people: here.length });
+  return cost;
 }
 
 /**
@@ -137,9 +180,9 @@ export function pickShift(fit: readonly CrewMember[], demand: number, needs: Cre
 }
 
 /** Where someone's morale is heading, given how they're living right now. */
-export function moraleTarget(m: CrewMember, inputs: Pick<NeedsInputs, 'badAir' | 'hot'>, needs: CrewNeedsConfig): number {
+export function moraleTarget(m: CrewMember, inputs: Pick<NeedsInputs, 'badAir' | 'hot' | 'comfort'>, needs: CrewNeedsConfig): number {
   const p = needs.morale.penalties;
-  let t = needs.morale.base;
+  let t = needs.morale.base + inputs.comfort;
   if (m.exhausted) t -= p.exhausted;
   else if (m.fatigue >= needs.tiredAbove) t -= p.tired;
   if (m.sickUntil !== null) t -= p.sick;
@@ -240,7 +283,7 @@ function memberSnapshot(m: CrewMember, needs: CrewNeedsConfig, now: number): Cre
   };
 }
 
-export function crewSnapshot(state: CrewState, station: Station, cfg: CrewConfig, now: number): CrewSnapshot {
+export function crewSnapshot(state: CrewState, station: Station, cfg: CrewConfig, now: number, comfort: { lift: number; seats: number }): CrewSnapshot {
   const order = [...state.members].sort((a, b) => Number(a.arrivesAt > now) - Number(b.arrivesAt > now));
   return {
     members: order.map((m) => memberSnapshot(m, cfg.needs, now)),
@@ -256,5 +299,10 @@ export function crewSnapshot(state: CrewState, station: Station, cfg: CrewConfig
     signingFee: cfg.signingFee,
     wagePerDay: cfg.wagePerDay,
     arrivalHours: cfg.arrivalHours,
+    comfortLift: comfort.lift,
+    comfortSeats: comfort.seats,
+    bonusCost: countAboard(state, now) * cfg.bonus.perPerson,
+    bonusMorale: cfg.bonus.morale,
+    bonusReadyInHours: bonusReadyInHours(state, cfg, now),
   };
 }

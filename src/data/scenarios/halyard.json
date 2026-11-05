@@ -82,6 +82,7 @@
     "wagePerDay": 0.5,
     "arrivalHours": 6,
     "unstaffedLabFactor": 0.5,
+    "bonus": { "perPerson": 0.3, "morale": 0.15, "cooldownHours": 24 },
     "needs": {
       "fatiguePerWorkHour": 0.07,
       "restPerHour": 0.1,
@@ -100,7 +101,7 @@
     }
   },
   "endings": { "overdraftLimit": 20, "overdrawnQuarters": 2, "evacuateBelow": 0.15 },
-  "catalogue": ["solar-array", "battery-pack", "habitat", "crew-quarters", "radiator", "life-support", "docking-node"],
+  "catalogue": ["solar-array", "battery-pack", "habitat", "crew-quarters", "radiator", "life-support", "docking-node", "galley"],
   "layout": [
     { "id": "core-1", "module": "core" },
     { "id": "array-1", "module": "solar-array", "attach": { "to": "core-1", "port": "starboard", "via": "base" } },

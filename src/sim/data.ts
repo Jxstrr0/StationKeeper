@@ -5,6 +5,7 @@ import {
   type Band,
   type CabinSpec,
   type ContractDef,
+  type ComfortSpec,
   type CrewConfig,
   type CrewNeedsConfig,
   type CrewRole,
@@ -74,7 +75,7 @@ function tier(v: unknown, path: string): Tier {
   return s as Tier;
 }
 
-const KINDS: readonly ModuleKind[] = ['core', 'solar', 'battery', 'habitat', 'radiator', 'lifesupport', 'lab', 'node', 'quarters'];
+const KINDS: readonly ModuleKind[] = ['core', 'solar', 'battery', 'habitat', 'radiator', 'lifesupport', 'lab', 'node', 'quarters', 'galley'];
 
 function kind(v: unknown, path: string): ModuleKind {
   const s = str(v, path);
@@ -141,6 +142,13 @@ function cabin(v: unknown, path: string): CabinSpec {
   return spec;
 }
 
+function comfortSpec(v: unknown, path: string): ComfortSpec {
+  const o = obj(v, path);
+  const seats = num(o.seats, `${path}.seats`);
+  if (!(Number.isInteger(seats) && seats > 0)) fail(`${path}.seats`, 'expected a whole number above 0');
+  return { morale: fraction(o.morale, `${path}.morale`), seats };
+}
+
 function lifeSupportSpec(v: unknown, path: string): LifeSupportSpec {
   const o = obj(v, path);
   return {
@@ -196,6 +204,7 @@ export function parseModuleDefs(raw: unknown): ModuleDef[] {
     if (o.cabin !== undefined) def.cabin = cabin(o.cabin, `${path}.cabin`);
     if (o.lifeSupport !== undefined) def.lifeSupport = lifeSupportSpec(o.lifeSupport, `${path}.lifeSupport`);
     if (o.reliability !== undefined) def.reliability = reliabilitySpec(o.reliability, `${path}.reliability`);
+    if (o.comfort !== undefined) def.comfort = comfortSpec(o.comfort, `${path}.comfort`);
     if (o.price !== undefined) def.price = positive(o.price, `${path}.price`);
     const gimbalAxis = optVec3(o.gimbalAxis, `${path}.gimbalAxis`);
     const panelNormal = optVec3(o.panelNormal, `${path}.panelNormal`);
@@ -414,6 +423,7 @@ function crewConfig(raw: unknown): CrewConfig {
   if (roster.length === 0) fail('crew.roster', 'needs at least one person');
   const names = arr(o.names, 'crew.names').map((n, i) => str(n, `crew.names[${i}]`));
   if (names.length === 0) fail('crew.names', 'needs at least one name for new hires');
+  const bonus = obj(o.bonus, 'crew.bonus');
   return {
     roster,
     names,
@@ -422,6 +432,11 @@ function crewConfig(raw: unknown): CrewConfig {
     arrivalHours: nonNegative(o.arrivalHours, 'crew.arrivalHours'),
     unstaffedLabFactor: fraction(o.unstaffedLabFactor, 'crew.unstaffedLabFactor'),
     needs: crewNeeds(o.needs),
+    bonus: {
+      perPerson: nonNegative(bonus.perPerson, 'crew.bonus.perPerson'),
+      morale: fraction(bonus.morale, 'crew.bonus.morale'),
+      cooldownHours: nonNegative(bonus.cooldownHours, 'crew.bonus.cooldownHours'),
+    },
   };
 }
 
