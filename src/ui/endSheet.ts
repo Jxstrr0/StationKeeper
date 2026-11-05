@@ -1,6 +1,6 @@
 // The end of a game: lost (the bank takes the station, or the crew are evacuated) or the goal reached.
 // A loss holds the game for good; reaching the goal lets the player keep going.
-import type { Outcome } from '../sim/types';
+import type { GoalKind, Outcome } from '../sim/types';
 import { el, setClass } from './dom';
 import { money } from './format';
 
@@ -15,7 +15,13 @@ export interface EndStats {
   lifetimeNet: number;
 }
 
-const COPY: Record<EndKind, { kicker: string; title: string; text: string }> = {
+interface Copy {
+  kicker: string;
+  title: string;
+  text: string;
+}
+
+const LOSS: Record<Outcome, Copy> = {
   bankrupt: {
     kicker: 'Game over',
     title: 'The bank has taken the station',
@@ -26,15 +32,39 @@ const COPY: Record<EndKind, { kicker: string; title: string; text: string }> = {
     title: 'The crew have been evacuated',
     text: 'They rode the return capsule home and are fine, if short of breath. The station is mothballed, and they have some notes.',
   },
-  goal: {
-    kicker: 'Goal reached',
-    title: 'The loan is paid off',
-    text: 'The station is yours outright. The bank sent a card. Keep going and see what else it can earn.',
+  replaced: {
+    kicker: 'Game over',
+    title: 'The board has replaced you',
+    text: 'The deadline came and went. Your successor starts on Monday and has already asked where the good mugs are.',
   },
 };
 
-export function endCopy(kind: EndKind): { kicker: string; title: string; text: string } {
-  return COPY[kind];
+/** The goal sheet's words, by goal. `target` is the cash amount or contract count. */
+function goalCopy(kind: GoalKind, target: number): Copy {
+  switch (kind) {
+    case 'repayLoan':
+      return {
+        kicker: 'Goal reached',
+        title: 'The loan is paid off',
+        text: 'The station is yours outright. The bank sent a card. Keep going and see what else it can earn.',
+      };
+    case 'cash':
+      return {
+        kicker: 'Goal reached',
+        title: `${money(target)} in the bank`,
+        text: 'The board has the number it wanted, and has already started wanting a bigger one. Keep going and give it one.',
+      };
+    case 'contracts':
+      return {
+        kicker: 'Goal reached',
+        title: `${target} contracts delivered`,
+        text: 'The labs have earned their keep and the sponsors are calling back. Keep going and see what else the station can do.',
+      };
+  }
+}
+
+export function endCopy(kind: EndKind, goal: { kind: GoalKind; target: number }): Copy {
+  return kind === 'goal' ? goalCopy(goal.kind, goal.target) : LOSS[kind];
 }
 
 export class EndSheet {
@@ -65,9 +95,9 @@ export class EndSheet {
     return this.kind;
   }
 
-  show(kind: EndKind, stats: EndStats): void {
+  show(kind: EndKind, goal: { kind: GoalKind; target: number }, stats: EndStats): void {
     this.kind = kind;
-    const c = COPY[kind];
+    const c = endCopy(kind, goal);
     const row = (label: string, value: string, cls = '') => el('div', `report-row ${cls}`, [el('span', '', [label]), el('b', '', [value])]);
     const days = stats.days < 1 ? 'Less than a day' : `${Math.floor(stats.days)} ${Math.floor(stats.days) === 1 ? 'day' : 'days'}`;
     this.body.replaceChildren(

@@ -3,9 +3,9 @@ import './ui/styles.css';
 import './ui/finance.css';
 import * as THREE from 'three';
 import modulesJson from './data/modules.json';
-import scenarioJson from './data/scenario.json';
-import { parseModuleDefs, parseScenario } from './sim/data';
-import { clearGame, loadGame, saveGame } from './persist';
+import { SCENARIOS, scenarioById } from './scenarios';
+import { parseModuleDefs } from './sim/data';
+import { loadGame, saveGame, startNewGame, takeChosenScenario } from './persist';
 import { forecast } from './sim/forecast';
 import { phaseAt, sunlightAt } from './sim/orbit';
 import { Simulation } from './sim/simulation';
@@ -16,6 +16,8 @@ import { EndSheet, type EndKind } from './ui/endSheet';
 import { connectEventFeed } from './ui/eventFeed';
 import { FinancePanel } from './ui/financePanel';
 import { formatDate, money } from './ui/format';
+import { goalLine } from './ui/goalText';
+import { ScenarioPicker } from './ui/scenarioPicker';
 import { Hud } from './ui/hud';
 import { ModuleSheet } from './ui/moduleSheet';
 import { ReportSheet } from './ui/reportSheet';
@@ -36,9 +38,10 @@ function byId<T extends HTMLElement>(id: string): T {
 async function start(): Promise<void> {
   const defs = parseModuleDefs(modulesJson);
   const defsById = indexDefs(defs);
-  const scenario = parseScenario(scenarioJson);
   // Pick up a saved game if there is one; it starts paused so the player can get their bearings.
-  const loaded = loadGame(defs, scenario);
+  const loaded = loadGame(defs);
+  const chosen = takeChosenScenario();
+  const scenario = loaded.kind === 'loaded' ? loaded.sim.scenario : (scenarioById(chosen ?? '') ?? SCENARIOS[0]!);
   const sim = loaded.kind === 'loaded' ? loaded.sim : new Simulation(defs, scenario);
   const clock = new Clock();
   if (loaded.kind === 'loaded') clock.setSpeed(0);
@@ -70,7 +73,7 @@ async function start(): Promise<void> {
   const hud = new Hud(ui, {
     // The quarterly report holds the game paused until Continue.
     onSpeed: (s) => {
-      if (!report.isOpen && !ending.isOpen && !sim.ended) clock.setSpeed(s);
+      if (!report.isOpen && !ending.isOpen && !picker.isOpen && !sim.ended) clock.setSpeed(s);
     },
     onHeatOverlay: (on) => stationView.setHeatOverlay(on),
   });
@@ -141,11 +144,17 @@ async function start(): Promise<void> {
     onAbandon: (uid) => send({ type: 'abandonContract', uid }),
     onRepay: (amount) => send({ type: 'repayLoan', amount }),
     onNewGame: () => newGame(),
+  }, scenario.goal);
+  // A new station: choose a scenario, then reload into it.
+  const picker = new ScenarioPicker(ui, SCENARIOS, (id) => {
+    saving = false;
+    startNewGame(id);
+    location.reload();
   });
   const newGame = () => {
-    saving = false;
-    clearGame();
-    location.reload();
+    clock.setSpeed(0);
+    finance.close();
+    picker.show();
   };
 
   // The books close each quarter: pause on the report until the player carries on.
@@ -177,7 +186,7 @@ async function start(): Promise<void> {
     warnings.close();
     finance.close();
     const s = sim.snapshot();
-    ending.show(kind, {
+    ending.show(kind, s.ending.goal, {
       days: s.minutes / 1440,
       cash: s.economy.cash,
       loan: s.economy.loan,
@@ -293,6 +302,11 @@ async function start(): Promise<void> {
   };
 
   window.addEventListener('keydown', (e) => {
+    if (picker.isOpen) {
+      e.preventDefault();
+      if (e.key === 'Escape') picker.close();
+      return;
+    }
     if (ending.isOpen) {
       // A loss takes a deliberate tap on New station; the goal sheet closes with Escape or Enter.
       e.preventDefault();
@@ -344,7 +358,10 @@ async function start(): Promise<void> {
     showEnding(sim.snapshot().ending.outcome ?? 'bankrupt');
   } else if (loaded.kind === 'loaded') {
     toasts.show(`Welcome back. Your station is as you left it, paused on ${formatDate(snap.timeMs)}. Press play to carry on.`, 'ok');
-  } else if (loaded.kind === 'discarded') {
+  } else if (loaded.kind === 'none' || loaded.kind === 'discarded') {
+    toasts.show(`${scenario.name}. ${goalLine(scenario.goal)} The goal is in Finance.`, 'ok');
+  }
+  if (loaded.kind === 'discarded') {
     toasts.show("Your saved station couldn't be loaded after an update, so here's a fresh one.", 'warn');
   }
 
