@@ -2,9 +2,20 @@
 // lab contracts on offer and under way, modules on their way, and last quarter's report.
 // Like the warnings sheet, the DOM is rebuilt only when the structure changes (a contract comes or goes);
 // numbers are updated in place every frame so buttons never get replaced under a finger at 20×.
-import type { ContractSnapshot, GoalDef, DeliverySnapshot, EconomySnapshot, Ledger, LedgerCategory, QuarterReport, SimSnapshot } from '../sim/types';
+import type {
+  ContractSnapshot,
+  GoalDef,
+  DeliverySnapshot,
+  EconomySnapshot,
+  GuestComplaint,
+  GuestSnapshot,
+  Ledger,
+  LedgerCategory,
+  QuarterReport,
+  SimSnapshot,
+} from '../sim/types';
 import { el, setClass, setText } from './dom';
-import { minutes, money } from './format';
+import { minutes, money, stars } from './format';
 import { deadlineText, goalLine, goalProgress } from './goalText';
 
 export interface FinancePanelHandlers {
@@ -70,6 +81,21 @@ const deliveryLine = (d: DeliverySnapshot) => `${d.name} → ${d.to} ${portName(
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 const rateText = (r: number) => `${Number((r * 100).toFixed(2))}%`;
 
+const COMPLAINT: Record<GuestComplaint, string> = {
+  hot: 'it is too warm',
+  badAir: 'the air is stale',
+  dark: 'a habitat is dark',
+};
+
+/** "★★★★☆ · fares 105%", and what guests are grumbling about now, if anything. */
+export function reviewsText(g: GuestSnapshot): string {
+  const head = `${stars(g.stars)} · fares ${Math.round(g.fareFactor * 100)}%`;
+  if (g.complaints.length === 0) return head;
+  const said = g.complaints.map((c) => COMPLAINT[c]);
+  const last = said.pop()!;
+  return `${head} · guests say ${said.length ? `${said.join(', ')} and ${last}` : last}`;
+}
+
 /** What guests pay, against the base fare: comforts like a cupola put it up. */
 export function fareText(e: EconomySnapshot): string {
   return e.fareLift > 0.0005 ? `+${Math.round(e.fareLift * 100)}% from comforts` : 'Base rate';
@@ -100,6 +126,8 @@ export class FinancePanel {
   private readonly running = el('span', 'fin-v');
   private readonly fares = el('span', 'fin-v');
   private readonly faresRow = el('div', 'fin-fact', [el('dt', '', ['Guest fares']), el('dd', '', [this.fares])]);
+  private readonly reviews = el('span', 'fin-v');
+  private readonly reviewsRow = el('div', 'fin-fact', [el('dt', '', ['Reviews']), el('dd', '', [this.reviews])]);
   private readonly repayButtons: HTMLButtonElement[] = [];
   private readonly quarter = el('span', 'fin-sub');
   private readonly ledger = el('dl', 'fin-ledger');
@@ -161,6 +189,7 @@ export class FinancePanel {
         el('div', 'fin-fact', [el('dt', '', ['Loan']), el('dd', '', [this.loan])]),
         el('div', 'fin-fact', [el('dt', '', ['Running']), el('dd', '', [this.running])]),
         this.faresRow,
+        this.reviewsRow,
       ]),
       el('div', 'fin-repay', [repay('Repay $5M', () => 5), repay('Repay $20M', () => 20), repay('Repay all', loanNow)]),
     ]);
@@ -212,6 +241,7 @@ export class FinancePanel {
     setClass(this.button, 'active', true);
     if (this.last) {
       this.render(this.last.economy);
+      this.renderGuests(this.last.guests);
       this.renderGoal(this.last);
     }
   }
@@ -247,8 +277,16 @@ export class FinancePanel {
     this.button.setAttribute('aria-label', `Finance: cash ${money(e.cash)}${note}`);
     if (this.isOpenNow) {
       this.render(e);
+      this.renderGuests(snap.guests);
       this.renderGoal(snap);
     }
+  }
+
+  private renderGuests(g: GuestSnapshot): void {
+    this.reviewsRow.hidden = !g.hasGuests;
+    setText(this.reviews, reviewsText(g));
+    setClass(this.reviews, 'neg', g.poor);
+    setClass(this.reviews, 'pos', !g.poor && g.fareFactor >= 1);
   }
 
   private renderGoal(snap: SimSnapshot): void {
