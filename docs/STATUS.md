@@ -333,12 +333,40 @@ These figures come from a scripted player who repairs anything failed or over 85
 - Modules can't be sold or removed.
 - The build preview checks whether you can afford the module when you tap a port. If income covers the price while the preview is open, tap the port again.
 
+## Session 7: save and load
+
+### What was built
+
+- **Sim:** `Simulation.save()` returns the whole state as plain JSON: layout, clock, rng, and the power, thermal, life support, reliability and economy states, plus orders in transit. Per-module maps are stored as objects. `Simulation.fromSave()` rebuilds it. It refuses a save from another `SAVE_VERSION`, another scenario seed, a module with no state, or a module the data no longer has. `fork()` (used by forecasts) is now built on the same pair, so a field can't be saved by one and forgotten by the other.
+- **Browser (`src/persist.ts`):** the save lives in localStorage under `stationkeeper.save`. Every call is wrapped, so a private window or a full quota never stops the game; the player gets one toast saying the station won't survive a reload.
+- **When it saves:** every 5 s of real time while the clock has moved, and whenever the page is hidden or closed (phones kill background tabs without warning).
+- **On start:** a good save is loaded and the game starts **paused**, with a "Welcome back" toast giving the date. A save that can't be used is discarded with a toast saying so; the reason goes to the console.
+- **New station:** at the bottom of the Finance sheet. It takes two taps ("Tap again to scrap this station", armed for 4 s), then clears the save and reloads.
+- **Tests (120):** a played sim (failures on, an order docked, a repair, a contract) round-trips through JSON and runs 3000 more ticks identically, dice included. Orders in transit still dock on time. A save is a copy. Bad saves are refused.
+
+### How to test on a phone
+
+1. Play for a few minutes: order something, sign a contract.
+2. Close the tab or reload. The station comes back paused, as you left it.
+3. Finance → Station → Start a new station, then tap again. A fresh station starts.
+
+### Choices made
+
+- **A snapshot of state, not a replay of commands.** A replay is smaller, but any balance change would make old saves play out differently. A state save keeps working until the shape changes, and then `SAVE_VERSION` discards it cleanly instead of misreading it.
+- **One save slot, autosave only.** No manual save or multiple slots yet; a phone game shouldn't need a save button.
+- **Saves don't survive a change to the save's shape.** Bump `SAVE_VERSION` when a system state changes; players then start fresh, with a toast. Migrations can come later if saves start to matter.
+- **The quarterly report isn't saved as "open".** If the page closes while it's showing, the report is still in Finance under last quarter.
+
+### Known gaps
+
+- No migration between save versions.
+- Camera position, heat overlay and speed aren't saved.
+
 ## Next
 
 The planned slices are done. Candidates for what's next, roughly in order of value:
 
 1. **Play-testing on a real phone** to tune pace, readability, and the first ten minutes.
-2. **Save and load** (the sim is already deterministic and serialisable in shape).
-3. **An end state**: bankruptcy or a board takeover, and goals per scenario.
-4. **Crew**: health, skills, more repair teams, and crew needs.
-5. **Art**: Blender models replacing the grey-boxes (the loader already prefers them).
+2. **An end state**: bankruptcy or a board takeover, and goals per scenario.
+3. **Crew**: health, skills, more repair teams, and crew needs.
+4. **Art**: Blender models replacing the grey-boxes (the loader already prefers them).
