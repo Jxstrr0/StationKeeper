@@ -54,6 +54,7 @@ export const KIND_LABEL: Record<ModuleKind, string> = {
   quarters: 'Crew quarters',
   galley: 'Crew comfort',
   cupola: 'Crew comfort',
+  lounge: 'Guest comfort',
 };
 
 /** "★★☆☆☆" for 2 stars out of five. */
