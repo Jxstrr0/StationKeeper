@@ -166,6 +166,8 @@ export interface EconomyStepOptions {
   /** Commercial throttle factor from the thermal config: throttled labs work at this rate. */
   throttleFactor: number;
   staff: Staffing;
+  /** Share the running comforts add to every guest's fare. */
+  fareLift: number;
   events?: EventBus<SimEvents>;
 }
 
@@ -180,7 +182,7 @@ export function stepEconomy(state: EconomyState, station: Station, power: PowerS
     if (guests <= 0) continue;
     state.stats.guestMinutesPossible += 1;
     if (running(power.modules.get(m.id)?.status)) {
-      book(state, 'guests', guests * cfg.guestPerDay * dtDays);
+      book(state, 'guests', guests * cfg.guestPerDay * (1 + opts.fareLift) * dtDays);
       state.stats.guestMinutes += 1;
     }
   }
@@ -236,11 +238,21 @@ export function stepEconomy(state: EconomyState, station: Station, power: PowerS
   }
 }
 
+/**
+ * What running comforts add to guests' fares: each kind's `guestFare`, biggest first, each further kind counting for
+ * `stack` of the one before. More of the same kind adds nothing: one view is much like another.
+ */
+export function fareLift(running: readonly { name: string; guestFare: number }[], stack: number): number {
+  const best = new Map<string, number>();
+  for (const r of running) if (r.guestFare > 0) best.set(r.name, Math.max(best.get(r.name) ?? 0, r.guestFare));
+  return [...best.values()].sort((a, b) => b - a).reduce((sum, f, i) => sum + f * stack ** i, 0);
+}
+
 /** Running income minus running costs right now, per day. */
-export function netPerDay(station: Station, power: PowerState, state: EconomyState, cfg: EconomyConfig, staff: Staffing): number {
+export function netPerDay(station: Station, power: PowerState, state: EconomyState, cfg: EconomyConfig, staff: Staffing, fareLift: number): number {
   let guests = 0;
   for (const m of station.modules) if (running(power.modules.get(m.id)?.status)) guests += m.def.cabin?.guests ?? 0;
-  return guests * cfg.guestPerDay - staff.wagesPerDay - cfg.operationsPerDay - (state.loan * cfg.loan.ratePerQuarter) / cfg.quarterDays;
+  return guests * cfg.guestPerDay * (1 + fareLift) - staff.wagesPerDay - cfg.operationsPerDay - (state.loan * cfg.loan.ratePerQuarter) / cfg.quarterDays;
 }
 
 export function contractSnapshots(
