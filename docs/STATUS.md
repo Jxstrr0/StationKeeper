@@ -362,11 +362,57 @@ These figures come from a scripted player who repairs anything failed or over 85
 - No migration between save versions.
 - Camera position, heat overlay and speed aren't saved.
 
+## Session 8: an end state
+
+### What was built
+
+- **Ways to lose (`scenario.json` → `endings`):**
+  - **Bankrupt:** cash below −$20M, or two quarters in a row closed overdrawn. A quarter that closes in the black resets the count.
+  - **Evacuated:** crew condition below 15%.
+- **A loss is final.** The sim stops: `tick()` does nothing and every command is refused. The save keeps the ending, so a reload shows the end sheet again. The only way on is "Start a new station".
+- **The goal: pay off the loan.** `goalReached` fires once and play carries on. The goal sheet offers "Keep going" or "Start a new station".
+- **Sim:**
+  - `Simulation.ended`, plus `ending` in the snapshot: outcome, when it ended, when the goal was reached, quarters closed overdrawn, and the limits.
+  - New events: `gameOver` and `goalReached`.
+  - The ending is part of the save. `SAVE_VERSION` is now 2, so session 7 saves are discarded with a toast.
+- **Warnings:**
+  - The overdraft alarm now says where the bank steps in ("…the bank takes the station past $20M"). On the last quarter before the bank steps in, it says "end this quarter in the red and the bank takes the station".
+  - The crew condition alarm says "below 15% they're evacuated".
+- **End sheet (`src/ui/endSheet.ts`):** styled like the quarterly report and laid over it, behind a scrim that blocks taps. It shows a house-tone verdict, time in orbit, modules, cash, loan, and the result over all quarters. If the report and a loss land on the same tick, the end sheet replaces the report, and the report's Continue can't restart a lost game.
+- **Tests (126):**
+  - both bankruptcy routes, and the count resetting;
+  - an ended sim is frozen;
+  - evacuation when life support is off;
+  - the goal fires once and play carries on;
+  - an ended game saves and loads as ended.
+
+### Balance (by design)
+
+A station left completely alone (5 seeds) is lost to **evacuation in 23–42 hours**, not to the bank. The first breakdown goes unrepaired. CO₂ reaches danger about 9 h later, and the crew condition alarm comes about 9 h after that. Evacuation follows 2.6 h after the alarm. That gives the player most of a day of escalating alarms to send in a repair. A tended starting station roughly breaks even (session 6), so the bank only catches poor building or heavy breakdown costs. The trace in session 6 had a good build at $70–77M cash by day 8, so the goal (repaying $60M plus interest) is reachable in the second week.
+
+### How to test on a phone
+
+1. Leave the station alone at 20×. Within a day or two the crew condition alarm warns about evacuation, then the end sheet appears.
+2. Reload: the end sheet is still there. Tap Start a new station.
+3. For the goal, build a lab and run contracts until cash covers the loan, then Finance → Repay all.
+
+### Choices made
+
+- **A fixed goal (pay off the loan) instead of goals per scenario.** There is one scenario. Goals can move into scenario data when there is a second.
+- **Reaching the goal doesn't end the game.** It's a milestone; a sandbox player can keep building.
+- **The bank's two routes.** The instant limit stops a runaway overdraft. The two-quarter rule stops a station that sits a little in the red forever.
+- **Evacuation, not deaths.** In keeping with the tone: the crew are fine, the station isn't.
+
+### Known gaps
+
+- No score or high-score table.
+- No warning dedicated to an overdraft getting near the bank's limit; the overdrawn alarm says the limit instead.
+
 ## Next
 
 The planned slices are done. Candidates for what's next, roughly in order of value:
 
 1. **Play-testing on a real phone** to tune pace, readability, and the first ten minutes.
-2. **An end state**: bankruptcy or a board takeover, and goals per scenario.
+2. **Goals per scenario**, and a second scenario to use them.
 3. **Crew**: health, skills, more repair teams, and crew needs.
 4. **Art**: Blender models replacing the grey-boxes (the loader already prefers them).
