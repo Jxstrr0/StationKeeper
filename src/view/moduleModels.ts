@@ -293,6 +293,57 @@ function buildLifeSupport(def: ModuleDef, group: THREE.Group): Partial<ModuleMod
   return {};
 }
 
+/** A research can running aft along -X: lit rack windows on -Z, an exposed payload platform on +Z, antenna and sensor boom. */
+function buildLab(def: ModuleDef, group: THREE.Group): Partial<ModuleModel> {
+  const L = def.greybox.length ?? 6.5;
+  const r = def.greybox.radius ?? 1.6;
+  const mid = -L / 2;
+  group.add(cylinderAlong(r, L - 0.5, shared.hull, [mid, 0, 0], [1, 0, 0], 32));
+  for (const x of [-0.25, -L + 0.25]) group.add(cylinderAlong(r * 0.9, 0.5, shared.slate, [x, 0, 0], [1, 0, 0], 32));
+  group.add(cylinderAlong(r * 1.015, 0.3, shared.stripe, [-1.1, 0, 0], [1, 0, 0], 32));
+  group.add(cylinderAlong(r * 1.015, 0.12, shared.stripe, [-1.55, 0, 0], [1, 0, 0], 32));
+  group.add(cylinderAlong(r * 1.015, 0.3, shared.stripe, [-L + 1.1, 0, 0], [1, 0, 0], 32));
+
+  // Docking rings flush with each end.
+  const ring = new THREE.TorusGeometry(0.85, 0.07, 8, 24);
+  for (const x of [-0.08, -L + 0.08]) {
+    const m = mesh(ring, shared.slate, [x, 0, 0]);
+    m.rotation.y = Math.PI / 2;
+    group.add(m);
+  }
+
+  // Lit experiment-rack windows down the -Z side.
+  const windowMat = new THREE.MeshStandardMaterial({
+    color: 0x2a2620,
+    emissive: COLORS.window,
+    emissiveIntensity: 1.6,
+    roughness: 0.2,
+  });
+  const winCount = 5;
+  const windows = new THREE.InstancedMesh(new THREE.BoxGeometry(0.55, 0.5, 0.08), windowMat, winCount);
+  const m4 = new THREE.Matrix4();
+  for (let i = 0; i < winCount; i++) windows.setMatrixAt(i, m4.makeTranslation(-1.9 - i * 0.85, 0, -(r + 0.01)));
+  group.add(windows);
+  group.add(mesh(new THREE.BoxGeometry(L - 3.2, 0.7, 0.05), shared.dark, [-1.9 - 1.7, 0, -(r - 0.01)]));
+
+  // Exposed payload platform on +Z: two pylons, a plate, and a few boxed instruments.
+  const pylon = new THREE.BoxGeometry(0.15, 0.9, 0.5);
+  for (const x of [-1.9, -L + 1.9]) group.add(mesh(pylon, shared.slate, [x, 0, r + 0.2]));
+  group.add(mesh(new THREE.BoxGeometry(L - 2.2, 1.0, 0.1), shared.slate, [mid, 0, r + 0.45]));
+  group.add(mesh(new THREE.BoxGeometry(0.9, 0.8, 0.45), shared.hull, [mid + 1.2, 0, r + 0.75]));
+  group.add(mesh(new THREE.BoxGeometry(0.7, 0.7, 0.4), shared.foil, [mid, 0.05, r + 0.72]));
+  group.add(mesh(new THREE.BoxGeometry(0.9, 0.8, 0.45), shared.dark, [mid - 1.2, 0, r + 0.75]));
+  group.add(cylinderAlong(0.22, 0.4, shared.slate, [mid + 0.6, -0.25, r + 0.75], [0, 0, 1], 12));
+
+  // Dish antenna on a mast on top, aft of the status light.
+  group.add(cylinderAlong(0.04, 0.9, shared.slate, [-L + 1.4, r + 0.4, 0], [0, 1, 0], 8));
+  group.add(cylinderAlong(0.32, 0.06, shared.hull, [-L + 1.4, r + 0.9, 0], [0.25, 1, 0], 16));
+  // Sensor boom out along -Z, low on the hull, ending in a sensor ball.
+  group.add(cylinderAlong(0.04, 0.8, shared.slate, [-1.0, -0.9, -(r + 0.2)], [0, 0, 1], 8));
+  group.add(mesh(new THREE.SphereGeometry(0.13, 12, 8), shared.dark, [-1.0, -0.9, -(r + 0.65)]));
+  return { glowMaterials: [windowMat] };
+}
+
 const BUILDERS: Record<string, (def: ModuleDef, group: THREE.Group) => Partial<ModuleModel>> = {
   core: buildCore,
   solar: buildSolar,
@@ -300,6 +351,7 @@ const BUILDERS: Record<string, (def: ModuleDef, group: THREE.Group) => Partial<M
   habitat: buildHabitat,
   radiator: buildRadiator,
   lifesupport: buildLifeSupport,
+  lab: buildLab,
 };
 
 function addStatusLight(group: THREE.Group, at: Vec3): THREE.Object3D {

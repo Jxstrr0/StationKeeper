@@ -49,8 +49,18 @@ export const KIND_LABEL: Record<ModuleKind, string> = {
   habitat: 'Habitat',
   radiator: 'Thermal control',
   lifesupport: 'Life support',
+  lab: 'Research',
 };
 
 export function celsius(v: number): string {
   return v.toFixed(1);
+}
+
+/** Money in $ millions, as "$12.4M" or "$350k". Negative amounts get a minus sign. */
+export function money(m: number): string {
+  const sign = m < 0 ? '−' : '';
+  const a = Math.abs(m);
+  if (a >= 100) return `${sign}$${Math.round(a)}M`;
+  if (a >= 1) return `${sign}$${a.toFixed(1)}M`;
+  return `${sign}$${Math.round(a * 1000)}k`;
 }

@@ -1,5 +1,5 @@
 // A tiny typed event bus. The sim emits; the UI listens.
-import type { LifeSupportSnapshot, Tier } from './types';
+import type { LifeSupportSnapshot, QuarterReport, Tier } from './types';
 
 export type LifeSupportAlarm = keyof LifeSupportSnapshot['alarms'];
 
@@ -25,6 +25,12 @@ export interface SimEvents {
   moduleWorn: { moduleId: string; wear: number };
   repairStarted: { moduleId: string; kind: 'service' | 'repair'; hours: number };
   repairDone: { moduleId: string; kind: 'service' | 'repair' };
+  /** A module was paid for and is on its way up. */
+  moduleOrdered: { moduleId: string; defId: string; cost: number; hours: number };
+  contractAccepted: { uid: string; title: string };
+  contractCompleted: { uid: string; title: string; reward: number };
+  contractFailed: { uid: string; title: string; penalty: number; abandoned: boolean };
+  quarterReport: { report: QuarterReport };
 }
 
 type Handler<T> = (payload: T) => void;

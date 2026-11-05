@@ -15,6 +15,7 @@ const base: Forecast = {
   waterChangeKg: -1.4,
   people: 7,
   failureChance: 0.2,
+  netIncome: 1,
 };
 
 describe('build panel helpers', () => {

@@ -1,6 +1,6 @@
 // Words for the sim's warnings. The sim says what is wrong and why; this says it in plain English.
 import type { ModuleSnapshot, StationWarning } from '../sim/types';
-import { TIER_LABEL, minutes } from './format';
+import { TIER_LABEL, minutes, money } from './format';
 
 const pct = (v: number | undefined) => `${Math.round((v ?? 0) * 100)}%`;
 
@@ -11,6 +11,8 @@ export function warningTitle(w: StationWarning, mod: (id: string) => ModuleSnaps
   switch (w.kind) {
     case 'eclipse':
       return 'Eclipse: the arrays are dark';
+    case 'batteryLimit':
+      return 'Batteries at their power limit';
     case 'sunlitRadiators':
       return 'Radiators in sunlight shed less heat';
     case 'moduleFailed':
@@ -35,6 +37,12 @@ export function warningTitle(w: StationWarning, mod: (id: string) => ModuleSnaps
       return w.severity === 'alarm' ? 'Water tanks dry' : `Water low at ${pct(w.value)}`;
     case 'crewCondition':
       return `Crew condition at ${pct(w.value)}`;
+    case 'guestsIdle':
+      return `${name} down: guests aren't paying`;
+    case 'contractAtRisk':
+      return `Contract at risk: ${w.label ?? 'research'}`;
+    case 'overdrawn':
+      return `Overdrawn by ${money(-(w.value ?? 0))}`;
   }
 }
 

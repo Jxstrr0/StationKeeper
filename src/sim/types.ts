@@ -6,7 +6,7 @@ export type Vec3 = readonly [number, number, number];
 export type Tier = 'critical' | 'essential' | 'commercial';
 export const TIERS: readonly Tier[] = ['critical', 'essential', 'commercial'];
 
-export type ModuleKind = 'core' | 'solar' | 'battery' | 'habitat' | 'radiator' | 'lifesupport';
+export type ModuleKind = 'core' | 'solar' | 'battery' | 'habitat' | 'radiator' | 'lifesupport' | 'lab';
 
 export interface PortDef {
   id: string;
@@ -87,6 +87,8 @@ export interface ModuleDef {
   cabin?: CabinSpec;
   lifeSupport?: LifeSupportSpec;
   reliability?: ReliabilitySpec;
+  /** Cost to build, launch included, in $ millions. Modules without a price can't be ordered. */
+  price?: number;
   ports: PortDef[];
   greybox: GreyboxSpec;
   /** Optional .glb path relative to the site root, e.g. "models/core.glb". */
@@ -193,7 +195,111 @@ export interface ScenarioDef {
   thermal: ThermalConfig;
   lifeSupport: LifeSupportConfig;
   reliability: ReliabilityConfig;
+  economy: EconomyConfig;
   layout: LayoutEntry[];
+}
+
+/** Money is in $ millions throughout. */
+export interface EconomyConfig {
+  startCash: number;
+  loan: { principal: number; ratePerQuarter: number };
+  /** Business quarters are compressed: one quarter is this many in-game days. */
+  quarterDays: number;
+  /** Paid per guest per day while their habitat is running. */
+  guestPerDay: number;
+  /** Crew wages and ground operations, per day. */
+  operationsPerDay: number;
+  /** Hours from ordering a module to it docking. */
+  deliveryHours: number;
+  /** Spare parts for a service and for a repair, as shares of the module's price. */
+  serviceCostShare: number;
+  repairCostShare: number;
+  contracts: {
+    maxOffers: number;
+    offerEveryHours: number;
+    offerLifeHours: number;
+    startingOffers: number;
+    /** What sponsors may offer in this scenario. */
+    pool: ContractDef[];
+  };
+}
+
+/** A research contract a sponsor may offer. */
+export interface ContractDef {
+  id: string;
+  title: string;
+  sponsor: string;
+  description: string;
+  /** Hours of lab time needed. */
+  labHours: number;
+  /** Hours from accepting to the deadline. */
+  deadlineHours: number;
+  reward: number;
+  /** Charged if the deadline passes or the contract is abandoned. */
+  penalty: number;
+  /** Only counts lab time while the coolant loop is not throttled. */
+  stable?: boolean;
+}
+
+export type LedgerCategory = 'guests' | 'contracts' | 'operations' | 'interest' | 'construction' | 'repairs' | 'penalties';
+export type Ledger = Record<LedgerCategory, number>;
+
+export interface ContractSnapshot {
+  uid: string;
+  defId: string;
+  title: string;
+  sponsor: string;
+  description: string;
+  labHours: number;
+  progressHours: number;
+  reward: number;
+  penalty: number;
+  stable: boolean;
+  /** Offers: hours until the offer lapses. Active: hours until the deadline. */
+  hoursLeft: number;
+  /** Active and short of time: the work left is close to (or more than) the time left. */
+  atRisk: boolean;
+}
+
+export interface DeliverySnapshot {
+  moduleId: string;
+  defId: string;
+  name: string;
+  to: string;
+  port: string;
+  hoursLeft: number;
+}
+
+export interface QuarterReport {
+  quarter: number;
+  ledger: Ledger;
+  net: number;
+  cash: number;
+  loan: number;
+  contractsDone: number;
+  contractsFailed: number;
+  /** Share of the quarter the guest habitats were running, 0..1. */
+  guestUptime: number;
+  failures: number;
+}
+
+export interface EconomySnapshot {
+  cash: number;
+  loan: number;
+  ratePerQuarter: number;
+  /** 1-based number of the quarter under way. */
+  quarter: number;
+  /** How far through the quarter, 0..1. */
+  quarterProgress: number;
+  ledger: Ledger;
+  /** Running income minus running costs right now, per day (no one-off items). */
+  netPerDay: number;
+  lastReport: QuarterReport | null;
+  offers: ContractSnapshot[];
+  active: ContractSnapshot[];
+  /** Research labs on the station; each can run one contract. */
+  labs: number;
+  deliveries: DeliverySnapshot[];
 }
 
 export interface ReliabilityConfig {
@@ -340,6 +446,7 @@ export interface SimSnapshot {
   modules: ModuleSnapshot[];
   /** Ports with nothing attached, where new modules can go. */
   freePorts: { moduleId: string; portId: string }[];
+  economy: EconomySnapshot;
   /** What is wrong, and why: a graph of problems, each naming the problems that cause it. */
   warnings: StationWarning[];
 }
@@ -348,6 +455,7 @@ export type WarningSeverity = 'info' | 'warn' | 'alarm';
 
 export type WarningKind =
   | 'eclipse'
+  | 'batteryLimit'
   | 'sunlitRadiators'
   | 'moduleFailed'
   | 'moduleServicing'
@@ -359,7 +467,10 @@ export type WarningKind =
   | 'co2'
   | 'o2'
   | 'water'
-  | 'crewCondition';
+  | 'crewCondition'
+  | 'guestsIdle'
+  | 'contractAtRisk'
+  | 'overdrawn';
 
 export interface StationWarning {
   /** Stable id, like "failed:radiator-1" or "shed:commercial". */
@@ -368,6 +479,9 @@ export interface StationWarning {
   severity: WarningSeverity;
   moduleId?: string;
   tier?: Tier;
+  contractId?: string;
+  /** A name for the text, such as a contract title. */
+  label?: string;
   /** A reading for the text: mmHg for CO₂, a 0..1 fraction for tanks, crew condition, and wear. */
   value?: number;
   /** Keys of the warnings that cause this one. Empty for a root cause. */
