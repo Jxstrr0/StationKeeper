@@ -1,0 +1,20 @@
+{
+  "name": "Longlight One",
+  "seed": 1201,
+  "startDate": "2041-06-14T06:00:00Z",
+  "orbit": { "altitudeKm": 420, "betaDeg": 0, "startPhaseDeg": 70 },
+  "power": {
+    "initialChargeFraction": 0.8,
+    "thresholds": {
+      "commercial": { "shedBelow": 0.25, "restoreAbove": 0.4 },
+      "essential": { "shedBelow": 0.1, "restoreAbove": 0.2 },
+      "critical": { "shedBelow": 0, "restoreAbove": 0 }
+    }
+  },
+  "layout": [
+    { "id": "core-1", "module": "core" },
+    { "id": "array-1", "module": "solar-array", "attach": { "to": "core-1", "port": "starboard", "via": "base" } },
+    { "id": "battery-1", "module": "battery-pack", "attach": { "to": "core-1", "port": "nadir", "via": "top" } },
+    { "id": "habitat-1", "module": "habitat", "attach": { "to": "core-1", "port": "fore", "via": "aft" } }
+  ]
+}
