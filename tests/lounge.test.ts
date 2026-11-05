@@ -86,7 +86,7 @@ describe('the guest lounge', () => {
   });
 
   it('says what it does in the build tray, and rejects a lift that is not one', () => {
-    expect(moduleHighlights(lounge)).toContain('Guest reviews +0.6★, guests only');
+    expect(moduleHighlights(lounge)).toContain('Guest reviews +0.8★, guests only');
     const bad = structuredClone(modulesJson) as { modules: { id: string; amenity?: { reputation: number } }[] };
     bad.modules.find((m) => m.id === 'lounge')!.amenity!.reputation = 0;
     expect(() => parseModuleDefs(bad)).toThrow(/amenity.reputation/);
