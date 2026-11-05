@@ -3,7 +3,7 @@
 // what new guests will pay: fares scale between `fare.worst` and `fare.best` with it. At each quarter's close the
 // guests post reviews, scored from the quarter's average and naming what bothered them most.
 import type { EventBus, SimEvents } from '../events';
-import type { GuestComplaint, GuestConfig } from '../types';
+import type { GuestComplaint, GuestConfig, GuestReview } from '../types';
 
 export interface GuestState {
   reputation: number;
@@ -73,14 +73,16 @@ export function stepGuests(state: GuestState, cfg: GuestConfig, inputs: GuestInp
 }
 
 /** The quarter has closed: guests post their reviews, and the tally starts again. Nothing is posted with no guests. */
-export function postReviews(state: GuestState, events?: EventBus<SimEvents>): void {
+export function postReviews(state: GuestState, events?: EventBus<SimEvents>): GuestReview | null {
   const q = state.quarter;
+  let review: GuestReview | null = null;
   if (q.minutes > 0) {
     const average = q.sum / q.minutes;
     // The complaint that applied longest, if it applied for at least a tenth of the quarter.
     const worst = (Object.entries(q.complaints) as [GuestComplaint, number][]).sort((a, b) => b[1] - a[1])[0]!;
-    const complaint = worst[1] >= q.minutes * 0.1 ? worst[0] : null;
-    events?.emit('guestReviews', { stars: stars(average), reputation: average, complaint });
+    review = { stars: stars(average), reputation: average, complaint: worst[1] >= q.minutes * 0.1 ? worst[0] : null };
+    events?.emit('guestReviews', review);
   }
   state.quarter = { sum: 0, minutes: 0, complaints: noComplaints() };
+  return review;
 }

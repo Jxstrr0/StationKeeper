@@ -1302,6 +1302,14 @@ dd.worn .wear-text {
   color: var(--clay);
 }
 
+.report-quote {
+  margin: 0;
+  font-size: 14px;
+  font-style: italic;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
 .report-continue {
   height: 44px;
   font-size: 15px;

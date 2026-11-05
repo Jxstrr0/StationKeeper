@@ -246,7 +246,9 @@ export class Simulation {
     this.events.on('contractCompleted', () => this.ending.contractsDone++);
     this.events.on('quarterReport', ({ report }) => {
       this.ending.overdrawnCloses = report.cash < 0 ? this.ending.overdrawnCloses + 1 : 0;
-      postReviews(this.guests, this.events);
+      // The sim hears the close before the UI does, so the report carries the reviews by the time anyone shows it.
+      const reviews = postReviews(this.guests, this.events);
+      if (reviews) report.reviews = reviews;
     });
     this.solve(false);
   }
