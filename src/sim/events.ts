@@ -1,5 +1,7 @@
 // A tiny typed event bus. The sim emits; the UI listens.
-import type { Tier } from './types';
+import type { LifeSupportSnapshot, Tier } from './types';
+
+export type LifeSupportAlarm = keyof LifeSupportSnapshot['alarms'];
 
 export interface SimEvents {
   eclipseBegan: { minutes: number };
@@ -14,6 +16,8 @@ export interface SimEvents {
   overheatTrip: { tier: Tier; tempC: number };
   overheatCleared: { tier: Tier; tempC: number };
   moduleOverheated: { moduleId: string; tier: Tier };
+  /** A life support alarm raised or cleared. `value` is mmHg for CO2, a tank fraction for low tanks, kg for empty tanks, 0..1 for health. */
+  lifeSupportAlarm: { alarm: LifeSupportAlarm; active: boolean; value: number };
 }
 
 type Handler<T> = (payload: T) => void;
