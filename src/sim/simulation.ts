@@ -281,14 +281,15 @@ export class Simulation {
   }
 
   /** What the running comforts (a galley, say) add to the crew's morale. */
-  private comfort(): { lift: number; seats: number } {
+  private comfort(): ReturnType<typeof comfortLift> {
     const running = this.station.modules.filter((m) => {
       const st = this.power.modules.get(m.id)?.status;
       return m.def.comfort && (st === 'powered' || st === 'throttled');
     });
     return comfortLift(
-      running.map((m) => m.def.comfort!),
+      running.map((m) => ({ name: m.def.name, comfort: m.def.comfort! })),
       countAboard(this.crew, this.minutes),
+      this.scenario.crew.comfortStack,
     );
   }
 

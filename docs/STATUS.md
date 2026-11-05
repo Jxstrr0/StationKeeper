@@ -689,7 +689,7 @@ Traced on four seeds per line:
 ### Choices made
 
 - **Morale still only matters through resignation.** So the galley is insurance, not income. If play-testing shows that's too weak a reason to build one, the next step is letting low morale slow work.
-- **The best comfort counts, not the sum.** Two galleys give more seats, not a happier crew. That leaves room for a different comfort later without stacking into 100% morale.
+- **The best comfort counts, not the sum.** Two galleys give more seats, not a happier crew. That leaves room for a different comfort later without stacking into 100% morale. (Session 15: different kinds now stack at diminishing weight; the same kind still only adds seats.)
 - **A bonus is a lump, not a rate.** The cooldown, not the price, stops it being bought every hour.
 
 ### Known gaps
@@ -742,13 +742,64 @@ Traced on four seeds per line, against the same lines with pace held flat:
 
 ### Known gaps
 
-- Still only one comfort. A gym or a cupola could now earn its place by pace as well as by resignations.
+- Still only one comfort. A gym or a cupola could now earn its place by pace as well as by resignations. (Session 15 adds the cupola.)
+
+## Session 15: an observation cupola, and comforts that stack
+
+### What was built
+
+- **Observation Cupola** (`cupola` in `src/data/modules.json`), a new module kind:
+  - $5M, 0.3 kW on the Commercial tier, and very little heat.
+  - Lifts morale 8% and seats three.
+  - It has one port, so it is a dead end: nothing builds onto it.
+  - Every scenario sells it; Halyard's catalogue lists it.
+- **Grey-box model:** a short collar, then a six-sided frustum of windows that glows while the cupola is lit, framed in slate.
+- **Comfort stacking** (`comfortLift` in `src/sim/systems/crew.ts`):
+  - Each kind of comfort is shared out by its own seats.
+  - More of the same kind still only adds seats.
+  - Different kinds stack, biggest lift first, each further kind counting for `crew.comfortStack` (0.5) of the one before. A galley and a cupola for three people lift morale 12% + 4% = 16%.
+- **Snapshot:** `crew.comforts` lists each running kind with its lift after sharing and stacking, and its seats.
+- **UI:** the crew sheet names each comfort, e.g. "Comforts lift morale 16%: Galley +12%, 6 seats · Observation Cupola +4%, 3 seats.", and says which ones are shared thin.
+- **Data:** `crew.comfortStack` is required, a fraction from 0 to 1.
+- **Save:** unchanged at version 6.
+- **Tests:** 186, up from 184: stacking order and weights, seats shared per kind, the cupola as a dead end, a galley and cupola settling the crew happier than a galley alone, and validation of `comfortStack`.
+
+### Balance (by design)
+
+Traced on four seeds per line:
+
+- **Longlight, tended, with a second engineer:**
+  - The cupola alone lifts average pace from 100–102% to 104–107%, for $3–6M less cash at day 8.
+  - Galley and cupola together reach 104–109%, for $10–15M less.
+  - The cupola is the cheap comfort; the galley is the big one.
+- **Halyard:**
+  - The galley alone is still the best buy: the goal on all four seeds, in 8.6–9.8 days.
+  - The cupola alone reached the goal on three of four seeds, in 8.5–9.2 days.
+  - Both together reached the goal on all four, but late (9.6–10.0 days): the extra $5M and the heat cost more than the extra pace saved.
+- **Kittiwake:** one seed with a cupola was evacuated on day 1.9. With another module aboard, the station's failure rolls fall differently. In that run the radiator failed while the only engineer was exhausted, the loop overheated, and CO₂ climbed. The cupola's own load played no part.
+
+### How to test on a phone
+
+1. Build: the tray lists the Observation Cupola under Crew comfort, "+8% crew morale, seats 3".
+2. Build a Galley, then a Cupola. The cupola sits at the end of whatever it was built on, and its windows glow.
+3. Crew sheet → Morale: "Comforts lift morale 16%: Galley +12%, 6 seats · Observation Cupola +4%, 3 seats."
+4. Hire past three crew: the cupola's line says its seats are shared thin.
+
+### Choices made
+
+- **Kinds stack by halves, biggest first.** Comforts reward variety, but can't add up to a permanently euphoric crew.
+- **A kind is its module type, by name.** Two cupolas are one kind with six seats.
+- **The cupola doesn't earn money from guests.** A view for paying guests would suit a hotel scenario; it's left for one.
+
+### Known gaps
+
+- Comforts help only the crew. Guests don't notice them yet.
 
 ## Next
 
 The planned slices are done. Candidates for what's next, roughly in order of value:
 
 1. **Play-testing on a real phone**, to tune pace, readability, the first ten minutes, and now how often illness and exhaustion bite.
-2. **A second comfort** (a gym or an observation cupola), now that morale sets the pace of work, and how comforts stack.
-3. **More scenarios**, perhaps with their own modules (say, an observation cupola for a hotel) or prices.
+2. **Guests who care about comforts**: a hotel scenario where a cupola or galley lifts guest income, not just crew pace.
+3. **More scenarios**, perhaps with their own modules or prices.
 4. **Art**: Blender models replacing the grey-boxes (the loader already prefers them).
