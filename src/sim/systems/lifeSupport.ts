@@ -6,6 +6,7 @@ import { bandHigh, bandLow } from '../band';
 import type { EventBus, LifeSupportAlarm, SimEvents } from '../events';
 import type { Station } from '../station';
 import type { LifeSupportConfig, LifeSupportSnapshot } from '../types';
+import { bookedGuests } from './guests';
 import type { PowerState } from './power';
 
 const CO2_KG_PER_MOL = 0.04401;
@@ -43,14 +44,14 @@ export interface LifeSupportPlant {
   mmHgPerKg: number;
 }
 
-/** `crew` is how many crew are aboard; guests, air volume, and tanks come from the modules. */
-export function lifeSupportPlant(station: Station, cfg: LifeSupportConfig, crew: number): LifeSupportPlant {
+/** `crew` is how many crew are aboard; guests (at `occupancy` of their places), air volume, and tanks come from the modules. */
+export function lifeSupportPlant(station: Station, cfg: LifeSupportConfig, crew: number, occupancy = 1): LifeSupportPlant {
   let guests = 0;
   let volumeM3 = 0;
   let o2CapacityKg = 0;
   let waterCapacityKg = 0;
   for (const m of station.modules) {
-    guests += m.def.cabin?.guests ?? 0;
+    guests += bookedGuests(m.def.cabin?.guests ?? 0, occupancy);
     volumeM3 += m.def.cabin?.volumeM3 ?? 0;
     o2CapacityKg += m.def.lifeSupport?.o2TankKg ?? 0;
     waterCapacityKg += m.def.lifeSupport?.waterTankKg ?? 0;

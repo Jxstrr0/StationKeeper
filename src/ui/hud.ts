@@ -191,7 +191,7 @@ export class Hud {
     setText(this.o2, String(Math.round(ls.o2CapacityKg > 0 ? (ls.o2Kg / ls.o2CapacityKg) * 100 : 0)));
     setText(this.water, String(Math.round(ls.waterCapacityKg > 0 ? (ls.waterKg / ls.waterCapacityKg) * 100 : 0)));
     setText(this.crew, String(Math.round(ls.health * 100)));
-    setText(this.aboard, `${ls.crew} crew · ${ls.guests} guests`);
+    setText(this.aboard, `${ls.crew} crew · ${ls.guests} ${ls.guests === 1 ? 'guest' : 'guests'}`);
     setClass(this.co2, 'warn', a.co2Warn);
     setClass(this.co2, 'alarm', a.co2Danger);
     setClass(this.o2, 'warn', a.o2Low);
