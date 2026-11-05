@@ -170,6 +170,10 @@
   font-size: 14px;
 }
 
+.fin-fact[hidden] {
+  display: none;
+}
+
 .fin-fact dt {
   color: var(--muted);
 }

@@ -69,6 +69,11 @@ const portName = (port: string) => (port === 'port' ? 'port-side' : port);
 const deliveryLine = (d: DeliverySnapshot) => `${d.name} → ${d.to} ${portName(d.port)} port · docks in ${minutes(Math.max(0, d.hoursLeft) * 60)}`;
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 const rateText = (r: number) => `${Number((r * 100).toFixed(2))}%`;
+
+/** What guests pay, against the base fare: comforts like a cupola put it up. */
+export function fareText(e: EconomySnapshot): string {
+  return e.fareLift > 0.0005 ? `+${Math.round(e.fareLift * 100)}% from comforts` : 'Base rate';
+}
 const signed = (m: number) => (Math.abs(m) < 0.0005 ? money(m) : m > 0 ? `+${money(m)}` : money(m));
 
 interface ActiveRefs {
@@ -93,6 +98,8 @@ export class FinancePanel {
   private readonly cash = el('span', 'fin-cash');
   private readonly loan = el('span', 'fin-v');
   private readonly running = el('span', 'fin-v');
+  private readonly fares = el('span', 'fin-v');
+  private readonly faresRow = el('div', 'fin-fact', [el('dt', '', ['Guest fares']), el('dd', '', [this.fares])]);
   private readonly repayButtons: HTMLButtonElement[] = [];
   private readonly quarter = el('span', 'fin-sub');
   private readonly ledger = el('dl', 'fin-ledger');
@@ -153,6 +160,7 @@ export class FinancePanel {
       el('dl', 'fin-facts', [
         el('div', 'fin-fact', [el('dt', '', ['Loan']), el('dd', '', [this.loan])]),
         el('div', 'fin-fact', [el('dt', '', ['Running']), el('dd', '', [this.running])]),
+        this.faresRow,
       ]),
       el('div', 'fin-repay', [repay('Repay $5M', () => 5), repay('Repay $20M', () => 20), repay('Repay all', loanNow)]),
     ]);
@@ -261,6 +269,9 @@ export class FinancePanel {
     setText(this.running, Math.abs(e.netPerDay) < 0.05 ? 'About break-even' : `${signed(e.netPerDay)} a day`);
     setClass(this.running, 'pos', e.netPerDay >= 0);
     setClass(this.running, 'neg', e.netPerDay < 0);
+    setText(this.fares, fareText(e));
+    setClass(this.fares, 'pos', e.fareLift > 0.0005);
+    this.faresRow.hidden = Object.keys(e.guestIncomePerDay).length === 0;
     const canRepay = e.cash > 0 && e.loan > 0;
     for (const b of this.repayButtons) if (b.disabled === canRepay) b.disabled = !canRepay;
 
