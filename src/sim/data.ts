@@ -434,11 +434,20 @@ export function parseScenario(raw: unknown): ScenarioDef {
   for (const id of Object.keys(reliability.initialWear)) {
     if (!layout.some((e) => e.id === id)) fail(`reliability.initialWear.${id}`, 'no module with that id in the layout');
   }
-  return {
+  let catalogue: string[] | undefined;
+  if (o.catalogue !== undefined) {
+    catalogue = arr(o.catalogue, 'catalogue').map((x, i) => str(x, `catalogue[${i}]`));
+    if (catalogue.length === 0) fail('catalogue', 'leave it out instead of listing nothing for sale');
+    if (new Set(catalogue).size !== catalogue.length) fail('catalogue', 'lists a module twice');
+  }
+  const economy = economyConfig(o.economy);
+  const goal = goalDef(o.goal);
+  if (goal.kind === 'contracts' && economy.contracts.pool.length === 0) fail('goal', 'a contracts goal needs contracts in economy.contracts.pool');
+  const def: ScenarioDef = {
     id: str(o.id, 'id'),
     name: str(o.name, 'name'),
     blurb: str(o.blurb, 'blurb'),
-    goal: goalDef(o.goal),
+    goal,
     seed: num(o.seed, 'seed'),
     startDate: str(o.startDate, 'startDate'),
     orbit: {
@@ -457,9 +466,11 @@ export function parseScenario(raw: unknown): ScenarioDef {
     thermal: thermalConfig(o.thermal),
     lifeSupport: lifeSupportConfig(o.lifeSupport),
     reliability,
-    economy: economyConfig(o.economy),
+    economy,
     endings: endingsConfig(o.endings),
     crew: crewConfig(o.crew),
     layout,
   };
+  if (catalogue) def.catalogue = catalogue;
+  return def;
 }
