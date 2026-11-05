@@ -42,7 +42,15 @@ export function warningTitle(w: StationWarning, mod: (id: string) => ModuleSnaps
     case 'contractAtRisk':
       return `Contract at risk: ${w.label ?? 'research'}`;
     case 'noEngineers':
-      return 'No engineers aboard: repairs can\'t start';
+      return (w.value ?? 0) > 0 ? 'No engineer fit to work: repairs wait' : "No engineers aboard: repairs can't start";
+    case 'crewExhausted':
+      return (w.value ?? 1) === 1 ? `${w.label ?? 'Someone'} is exhausted and off duty` : `${w.value ?? 2} crew exhausted and off duty`;
+    case 'crewSick':
+      return (w.value ?? 1) === 1 ? `${w.label ?? 'Someone'} is ill and off duty` : `${w.value ?? 2} crew ill and off duty`;
+    case 'moraleLow':
+      return w.hours !== undefined
+        ? `${w.label ?? 'Someone'} at ${pct(w.value)} morale: resigns in ${minutes(w.hours * 60)}`
+        : `${w.label ?? 'Someone'}'s morale is low at ${pct(w.value)}`;
     case 'labUnstaffed': {
       const n = w.value ?? 1;
       return `${n === 1 ? 'A lab has' : `${n} labs have`} no scientist and ${n === 1 ? 'works' : 'work'} slowly`;

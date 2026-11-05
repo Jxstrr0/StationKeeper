@@ -119,8 +119,19 @@ export function connectEventFeed(
       'ok',
     );
   });
-  events.on('crewLeft', ({ name, wasAboard }) => {
-    toasts.show(wasAboard ? `${name} has gone home. Their mug stays.` : `${name}'s flight up is cancelled.`, 'warn');
+  events.on('crewLeft', ({ name, wasAboard, reason }) => {
+    if (reason === 'resigned') toasts.show(`${name} has resigned and is on the next flight down. The exit interview was brief.`, 'alarm');
+    else toasts.show(wasAboard ? `${name} has gone home. Their mug stays.` : `${name}'s flight up is cancelled.`, 'warn');
+  });
+  events.on('crewExhausted', ({ name, role }) => {
+    const gap = role === 'engineer' ? 'One repair team fewer until they have slept.' : 'Their lab slows down until they have slept.';
+    toasts.show(`${name} is exhausted and off duty. ${gap}`, 'warn');
+  });
+  events.on('crewFellIll', ({ name, hours }) => {
+    toasts.show(`${name} is ill and off duty for about ${Math.round(hours)} h. The medical kit is finally earning its keep.`, 'warn');
+  });
+  events.on('crewRecovered', ({ name }) => {
+    toasts.show(`${name} is well again and back on the rota.`, 'ok');
   });
   events.on('moduleFailed', ({ moduleId, tier }) => {
     const what = FAILED[moduleKindOf(moduleId)] ?? 'It will need a repair.';

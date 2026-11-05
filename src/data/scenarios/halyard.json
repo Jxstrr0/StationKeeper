@@ -81,7 +81,23 @@
     "signingFee": 1.0,
     "wagePerDay": 0.5,
     "arrivalHours": 6,
-    "unstaffedLabFactor": 0.5
+    "unstaffedLabFactor": 0.5,
+    "needs": {
+      "fatiguePerWorkHour": 0.07,
+      "restPerHour": 0.1,
+      "tiredAbove": 0.7,
+      "restedBelow": 0.3,
+      "morale": {
+        "start": 0.8,
+        "base": 0.8,
+        "perHour": 0.08,
+        "penalties": { "tired": 0.1, "exhausted": 0.35, "sick": 0.2, "badAir": 0.3, "hot": 0.15 },
+        "low": { "above": 0.5, "below": 0.4 },
+        "resignBelow": 0.25,
+        "resignHours": 12
+      },
+      "illness": { "perDay": 0.03, "tiredFactor": 2, "badAirFactor": 3, "hours": 12 }
+    }
   },
   "endings": { "overdraftLimit": 20, "overdrawnQuarters": 2, "evacuateBelow": 0.15 },
   "catalogue": ["solar-array", "battery-pack", "habitat", "crew-quarters", "radiator", "life-support", "docking-node"],

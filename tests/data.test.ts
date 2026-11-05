@@ -116,4 +116,17 @@ describe('data files', () => {
     s.economy.contracts.pool = [];
     expect(() => parseScenario(s)).toThrow(/contracts goal/);
   });
+
+  it('checks crew needs make sense', () => {
+    type Needs = { crew: { needs: { tiredAbove: number; restedBelow: number; morale: { resignBelow: number }; illness?: unknown } } };
+    const bad = (change: (n: Needs['crew']['needs']) => void) => {
+      const s = structuredClone(scenarioJson) as unknown as Needs;
+      change(s.crew.needs);
+      return () => parseScenario(s);
+    };
+    expect(bad((n) => (n.restedBelow = 0.9))).toThrow(/restedBelow < tiredAbove/);
+    expect(bad((n) => (n.morale.resignBelow = 0.45))).toThrow(/resignBelow/);
+    expect(bad((n) => delete n.illness)).toThrow(/crew.needs.illness/);
+    expect(parseScenario(scenarioJson).crew.needs.illness.hours).toBeGreaterThan(0);
+  });
 });
