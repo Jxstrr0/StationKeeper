@@ -97,3 +97,54 @@ describe('Saltglass Rest', () => {
     expect(goalAt!).toBeLessThan(saltglass.goal.days! * DAY);
   });
 });
+
+describe('Velvet Reach', () => {
+  const velvet = scenarioById('velvet-reach')!;
+  const DAY = 1440;
+  const buy = (sim: Simulation, defIds: string[]) => {
+    for (const defId of defIds) {
+      const port = sim.snapshot().freePorts.find((p) => sim.buildProblem(defId, p.moduleId, p.portId) === null)!;
+      expect(sim.command({ type: 'addModule', defId, to: port.moduleId, port: port.portId }).ok).toBe(true);
+    }
+  };
+  const posted = (sim: Simulation) => {
+    const out: number[] = [];
+    sim.events.on('guestReviews', (r) => out.push(r.stars));
+    return out;
+  };
+
+  it('opens as a working three-star hotel that wants five', () => {
+    const s = new Simulation(defs, velvet, velvet.layout, { failures: false }).snapshot();
+    expect(s.guests.stars).toBe(3);
+    expect(s.guests.booked).toBe(s.guests.places);
+    expect(s.ending.goal).toMatchObject({ kind: 'reviews', current: 3, target: 5 });
+  });
+
+  it('left as it is, it never earns five stars, and the owners replace you', () => {
+    const sim = new Simulation(defs, velvet, velvet.layout, { failures: false });
+    const stars = posted(sim);
+    sim.run(velvet.goal.days! * DAY);
+    expect(Math.max(...stars)).toBeLessThan(5);
+    expect(sim.snapshot().ending.outcome).toBe('replaced');
+  });
+
+  it('a lounge alone is not enough: the battery cannot carry it through eclipse', () => {
+    const sim = new Simulation(defs, velvet, velvet.layout, { failures: false });
+    const stars = posted(sim);
+    buy(sim, ['lounge']);
+    sim.run(velvet.goal.days! * DAY);
+    expect(Math.max(...stars)).toBeLessThan(5);
+  });
+
+  it('with a lounge, a radiator and a battery, it earns five stars inside the deadline', () => {
+    const sim = new Simulation(defs, velvet, velvet.layout, { failures: false });
+    buy(sim, ['lounge', 'radiator']);
+    // Every port is taken until the lounge docks and brings one of its own.
+    sim.run(velvet.economy.deliveryHours * 60);
+    buy(sim, ['battery-pack']);
+    sim.run(velvet.goal.days! * DAY);
+    const goalAt = sim.snapshot().ending.goalAtMinutes;
+    expect(goalAt).not.toBeNull();
+    expect(goalAt!).toBeLessThan(velvet.goal.days! * DAY);
+  });
+});
