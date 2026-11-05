@@ -36,8 +36,6 @@ async function start(): Promise<void> {
   const defsById = indexDefs(defs);
   const scenario = parseScenario(scenarioJson);
   const sim = new Simulation(defs, scenario);
-  // Dev server only: the sim on window, for poking at it from the console. Not in production builds.
-  if (import.meta.env.DEV) Object.assign(window, { __sim: sim });
   const clock = new Clock();
 
   const canvas = byId<HTMLCanvasElement>('scene');
@@ -51,6 +49,9 @@ async function start(): Promise<void> {
   const buildView = new BuildView(stationView, models);
   env.scene.add(buildView.root);
 
+  // Dev server only: the sim and views on window, for poking at from the console. Not in production builds.
+  if (import.meta.env.DEV) Object.assign(window, { __sim: sim, __station: stationView, __build: buildView, __defs: defsById });
+
   const cam = new OrbitCamera(env.camera, canvas, { minDistance: 12, maxDistance: 170, floorY: -ALTITUDE + 8 });
 
   let snap = sim.snapshot();
@@ -61,7 +62,10 @@ async function start(): Promise<void> {
 
   // ---- UI ----
   const hud = new Hud(ui, {
-    onSpeed: (s) => clock.setSpeed(s),
+    // The quarterly report holds the game paused until Continue.
+    onSpeed: (s) => {
+      if (!report.isOpen) clock.setSpeed(s);
+    },
     onHeatOverlay: (on) => stationView.setHeatOverlay(on),
   });
   const toasts = new Toasts(ui);
@@ -137,6 +141,9 @@ async function start(): Promise<void> {
   sim.events.on('quarterReport', ({ report: r }) => {
     const resume = clock.speed;
     clock.setSpeed(0);
+    exitBuild();
+    select(null);
+    warnings.close();
     finance.close();
     report.show(r, () => clock.setSpeed(resume));
   });
@@ -157,6 +164,10 @@ async function start(): Promise<void> {
     const via = def && mountPort(def);
     if (!def || !via) return;
     build = { defId, via, step: 'placing', target: null, fits: 0 };
+    if ((def.price ?? 0) > snap.economy.cash) {
+      buildPanel.showPlacing(def.name, 0, `Not enough cash: the ${def.name} costs ${money(def.price ?? 0)}.`);
+      return;
+    }
     const candidates = snap.freePorts.filter((p) => sim.buildProblem(defId, p.moduleId, p.portId) === null);
     const fits = await buildView.showPorts(def, via, candidates);
     if (build?.defId !== defId) return;
@@ -236,7 +247,8 @@ async function start(): Promise<void> {
 
   window.addEventListener('keydown', (e) => {
     if (report.isOpen) {
-      // Only Escape (Continue) while the report is up: don't unpause behind it.
+      // Nothing behind the report gets a key: Escape or Enter is Continue, and the rest do nothing.
+      e.preventDefault();
       if (e.key === 'Escape' || e.key === 'Enter') report.close();
       return;
     }
@@ -285,11 +297,12 @@ async function start(): Promise<void> {
     stationView.update(snap, env.sunDir, dt);
     buildView.update(dt, env.camera);
     cam.update(dt);
-    hud.update(snap, report.isOpen ? 0 : clock.speed);
+    hud.update(snap, clock.speed);
     sheet.update(snap);
     warnings.update(snap);
     finance.update(snap);
     buildPanel.setCash(snap.economy.cash);
+    void stationView.syncOrders(snap.economy.deliveries);
     env.render();
     env.adapt(dt);
     requestAnimationFrame(loop);

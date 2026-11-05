@@ -14,16 +14,20 @@ export function verdict(r: QuarterReport): string {
 }
 
 export class ReportSheet {
-  readonly root = el('section', 'report-sheet');
+  /** A full-screen scrim, so nothing behind the report can be tapped while the game waits on it. */
+  readonly root = el('div', 'report-scrim');
+  private readonly card = el('section', 'report-sheet');
   private readonly body = el('div', 'report-body');
+  private readonly go = el('button', 'warn-act primary report-continue', ['Continue']);
   private onContinue: (() => void) | null = null;
 
   constructor(parent: HTMLElement) {
-    const go = el('button', 'warn-act primary report-continue', ['Continue']);
-    go.type = 'button';
-    go.addEventListener('click', () => this.close());
-    this.root.append(this.body, go);
-    this.root.setAttribute('role', 'dialog');
+    this.go.type = 'button';
+    this.go.addEventListener('click', () => this.close());
+    this.card.append(this.body, this.go);
+    this.root.append(this.card);
+    this.card.setAttribute('role', 'dialog');
+    this.card.setAttribute('aria-modal', 'true');
     this.root.setAttribute('aria-hidden', 'true');
     parent.append(this.root);
   }
@@ -55,6 +59,8 @@ export class ReportSheet {
     );
     setClass(this.root, 'open', true);
     this.root.setAttribute('aria-hidden', 'false');
+    // Take focus off whatever was last pressed, so a stray key can't press it again behind the report.
+    this.go.focus({ preventScroll: true });
   }
 
   close(): void {

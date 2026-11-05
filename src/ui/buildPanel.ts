@@ -176,8 +176,9 @@ export class BuildPanel {
   }
 
   /** "Tap a glowing port" step. */
-  showPlacing(name: string, portCount: number): void {
-    setText(this.hintText, portCount > 0 ? `Tap a glowing port to place the ${name}.` : `No free port fits a ${name}.`);
+  /** Placing step. `reason` replaces the hint when nothing can be placed, e.g. for lack of cash. */
+  showPlacing(name: string, portCount: number, reason?: string): void {
+    setText(this.hintText, portCount > 0 ? `Tap a glowing port to place the ${name}.` : (reason ?? `No free port fits a ${name}.`));
     this.setMode('placing');
   }
 
