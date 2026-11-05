@@ -1,8 +1,8 @@
 // The quarterly report: shown when the books close, with the game paused until the player carries on.
-import type { QuarterReport } from '../sim/types';
+import type { GuestComplaint, QuarterReport } from '../sim/types';
 import { el, setClass } from './dom';
 import { ledgerRows } from './financePanel';
-import { money } from './format';
+import { money, stars } from './format';
 
 /** A one-line verdict on the quarter, in the house tone. */
 export function verdict(r: QuarterReport): string {
@@ -11,6 +11,17 @@ export function verdict(r: QuarterReport): string {
   if (r.net >= 0) return 'In the black, just. The board would like more of this, and more of it.';
   if (r.net > -5) return 'A small loss. Nothing a few contracts and fewer breakdowns would not fix.';
   return 'A heavy loss. The board has scheduled a meeting about the meeting.';
+}
+
+/** What a quarter's reviews say, by stars and by the guests' main complaint. */
+export function reviewQuote(n: number, complaint: GuestComplaint | null): string {
+  if (complaint === 'hot') return n >= 4 ? '"Lovely, if a touch tropical."' : '"Bring shorts. Then take them off."';
+  if (complaint === 'badAir') return n >= 4 ? '"Stunning view. Mild headache."' : '"Breathtaking, and not in the brochure sense."';
+  if (complaint === 'dark') return n >= 4 ? '"The lights went out once. Romantic, really."' : '"Paid for a habitat, got a waiting room."';
+  if (n >= 5) return '"Would orbit again."';
+  if (n >= 4) return '"Quiet, clean, and the Earth was exactly as advertised."';
+  if (n >= 3) return '"Fine. The planet was the highlight."';
+  return '"The staff know what they did."';
 }
 
 export class ReportSheet {
@@ -54,8 +65,10 @@ export class ReportSheet {
         row('Loan', money(r.loan)),
         row('Contracts', `${r.contractsDone} delivered · ${r.contractsFailed} failed`),
         row('Guest habitat open', pct(r.guestUptime)),
+        ...(r.reviews ? [row('Guest reviews', stars(r.reviews.stars), r.reviews.stars <= 2 ? 'out' : r.reviews.stars >= 4 ? 'in' : '')] : []),
         row('Breakdowns', String(r.failures)),
       ]),
+      ...(r.reviews ? [el('p', 'report-quote', [reviewQuote(r.reviews.stars, r.reviews.complaint)])] : []),
     );
     setClass(this.root, 'open', true);
     this.root.setAttribute('aria-hidden', 'false');

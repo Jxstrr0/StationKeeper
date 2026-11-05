@@ -198,6 +198,13 @@ export interface OrbitConfig {
 /** What can spoil a guest's stay. */
 export type GuestComplaint = 'hot' | 'badAir' | 'dark';
 
+/** What guests said at a quarter's close: stars from the quarter's average reputation, and their main gripe. */
+export interface GuestReview {
+  stars: number;
+  reputation: number;
+  complaint: GuestComplaint | null;
+}
+
 /** How guests judge the station, and what that does to fares. */
 export interface GuestConfig {
   /** Reputation at the start, 0..1. */
@@ -511,6 +518,8 @@ export interface QuarterReport {
   /** Share of the quarter the guest habitats were running, 0..1. */
   guestUptime: number;
   failures: number;
+  /** The guests' reviews for the quarter. Absent when there were no guests to post any. */
+  reviews?: GuestReview;
 }
 
 export interface EconomySnapshot {

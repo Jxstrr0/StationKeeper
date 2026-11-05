@@ -882,7 +882,25 @@ Traced on four seeds per line:
 ### Known gaps
 
 - Guests don't arrive or leave. Places are always full when the habitat runs.
-- Reviews don't yet show in the quarter report, only as a toast and in Finance.
+
+## Session 18: reviews in the quarter report
+
+### What was built
+
+- **The quarter report carries the reviews.** It gains a "Guest reviews" row with the stars: lilac at four or five, clay at one or two. One guest's quote goes under the rows. A station without guests shows neither.
+- **The review toast is gone.** The report opens at every quarter's close, so the toast only repeated it.
+- **Sim:** `postReviews` returns the review, and the sim puts it on the report (`QuarterReport.reviews`, optional) before the UI hears the close. `GuestReview` is now a named type, shared with the `guestReviews` event.
+- **Save:** unchanged at version 7. An old report without reviews shows no reviews row.
+- **Tests:** 200, up from 199. They cover reviews on the report, none without guests, and a quote for each star tier.
+
+### How to test on a phone
+
+1. Longlight: switch the habitat off and run to the quarter's close.
+2. The report shows "Guest reviews" with the stars, and a guest's quote under the rows.
+
+### Choices made
+
+- **The report holds the quote, not a toast,** so it's read while the game is paused, next to the money it explains.
 
 ## Next
 
@@ -890,5 +908,5 @@ The planned slices are done. Candidates for what's next, roughly in order of val
 
 1. **Play-testing on a real phone**, to tune pace, readability, the first ten minutes, and now how often illness and exhaustion bite.
 2. **More scenarios**, perhaps with their own modules or prices.
-3. **Reviews in the quarter report**, and guest bookings that rise and fall with them.
+3. **Guest bookings** that rise and fall with the reviews.
 4. **Art**: Blender models replacing the grey-boxes (the loader already prefers them).
