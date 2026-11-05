@@ -236,8 +236,8 @@ Heat is 12.5 kW with everything on, against 15 kW of rejection in eclipse and 9.
 
 ### Balance (by design)
 
-- From the shipped start, the first failure lands at a median of about 8 in-game hours (about 24 minutes of play at 20×), with 10% inside 1.5 hours. The rack is first to fail about half the time unless serviced.
-- **One radiator is a single point of failure.** If it fails, the loop climbs past every trip within the hour and the station goes dark, Critical loads included, until the repair (4 h) finishes. The crew and the radiator's pumps keep going, so it recovers. A second radiator is the insurance, and the build preview shows that.
+- From the shipped start, the first failure lands at a median of about 8 in-game hours (about 24 minutes of play at 20×), with 10% inside 1.5 hours. The rack is first to fail a little over half the time unless serviced.
+- **One radiator is a single point of failure.** If it fails, the loop climbs past every trip (Commercial after about 20 minutes, Essential after about 30, Critical after about 75) and the station goes dark until the repair (4 h) finishes. The crew and the radiator's pumps keep going, so it recovers. A second radiator is the insurance, and the build preview shows that.
 - A planned service (2–2.5 h) is always quicker than a repair (4–5 h), and a module being serviced is offline on your schedule rather than the dice's.
 
 ### How to test on a phone
