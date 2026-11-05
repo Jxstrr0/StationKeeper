@@ -49,7 +49,7 @@ import {
   type ReliabilityModuleState,
   type ReliabilityState,
 } from './systems/reliability';
-import { countAboard, createCrewState, crewSnapshot, dismiss, hire, hireProblem, stepCrew, wagesPerDay, type CrewState } from './systems/crew';
+import { countAboard, countFit, createCrewState, crewSnapshot, dismiss, hire, hireProblem, stepCrew, stepNeeds, wagesPerDay, type CrewState } from './systems/crew';
 import {
   addThermalModule,
   createThermalState,
@@ -88,7 +88,7 @@ interface Delivery {
 }
 
 /** Bump when the save's shape changes; older saves are then discarded rather than misread. */
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 
 /** How the game stands: lost, goal reached, or how close the bank is. */
 interface EndingState {
@@ -111,6 +111,8 @@ export interface SimSave {
   scenarioId: string;
   minutes: number;
   rng: number;
+  /** The crew's own dice, for illness. */
+  crewRng: number;
   layout: LayoutEntry[];
   power: Saved<PowerState, PowerModuleState>;
   thermal: Saved<ThermalState, ThermalModuleState>;
@@ -155,6 +157,8 @@ export class Simulation {
   readonly station: Station;
   readonly orbit: OrbitModel;
   readonly rng: Rng;
+  /** Illness is rolled here, apart from the station's dice, so crew needs don't shift the failure rolls. */
+  private readonly crewRng: Rng;
   readonly scenario: ScenarioDef;
   private readonly defList: readonly ModuleDef[];
   private readonly defs: Map<string, ModuleDef>;
@@ -185,6 +189,7 @@ export class Simulation {
     }
     this.orbit = createOrbit(scenario.orbit);
     this.rng = new Rng(scenario.seed);
+    this.crewRng = new Rng((scenario.seed ^ 0x5bd1e995) >>> 0);
     const start = Date.parse(scenario.startDate);
     if (Number.isNaN(start)) throw new Error(`Bad scenario start date "${scenario.startDate}"`);
     this.startMs = start;
@@ -215,14 +220,14 @@ export class Simulation {
     return this.minutes;
   }
 
-  /** Reliability settings with one repair team per engineer aboard. */
+  /** Reliability settings with one repair team per engineer fit to work. */
   private get rcfg(): ReliabilityConfig {
-    return { ...this.scenario.reliability, repairTeams: countAboard(this.crew, this.minutes, 'engineer') };
+    return { ...this.scenario.reliability, repairTeams: countFit(this.crew, this.minutes, 'engineer') };
   }
 
   private staffing(): Staffing {
     return {
-      scientists: countAboard(this.crew, this.minutes, 'scientist'),
+      scientists: countFit(this.crew, this.minutes, 'scientist'),
       unstaffedFactor: this.scenario.crew.unstaffedLabFactor,
       wagesPerDay: wagesPerDay(this.crew, this.scenario.crew, this.minutes),
     };
@@ -248,7 +253,32 @@ export class Simulation {
     this.deliverDue();
     if (stepCrew(this.crew, this.minutes, this.events)) this.refreshPlant();
     this.solve(true);
+    this.stepCrewNeeds();
     this.checkEnding();
+  }
+
+  /** Shifts, fatigue, illness, and morale, from what the station asked of the crew this minute. */
+  private stepCrewNeeds(): void {
+    const teams = countFit(this.crew, this.minutes, 'engineer');
+    const labsRunning = this.station.modules.filter((m) => {
+      const st = this.power.modules.get(m.id)?.status;
+      return m.def.kind === 'lab' && (st === 'powered' || st === 'throttled');
+    }).length;
+    const a = this.life.alarms;
+    const left = stepNeeds(
+      this.crew,
+      this.scenario.crew.needs,
+      {
+        demand: { engineer: Math.min(teams, this.reliability.queue.length), scientist: this.economy.active.length > 0 ? labsRunning : 0 },
+        badAir: a.co2Warn || a.o2Low || a.waterLow,
+        hot: this.thermal.throttled,
+      },
+      { now: this.minutes, dtHours: TICK_HOURS, rng: this.crewRng, events: this.events },
+    );
+    if (left) {
+      this.refreshPlant();
+      this.solve(false);
+    }
   }
 
   /** Has the goal been reached, or the game been lost? Called after every tick and loan repayment. */
@@ -441,6 +471,7 @@ export class Simulation {
       scenarioId: this.scenario.id,
       minutes: this.minutes,
       rng: this.rng.getState(),
+      crewRng: this.crewRng.getState(),
       layout: this.layout(),
       power: { ...clone.power, modules: toRecord(clone.power.modules) },
       thermal: { ...clone.thermal, modules: toRecord(clone.thermal.modules) },
@@ -465,6 +496,7 @@ export class Simulation {
     const ids = sim.station.modules.map((m) => m.id);
     sim.minutes = s.minutes;
     sim.rng.setState(s.rng);
+    sim.crewRng.setState(s.crewRng);
     sim.power = { ...s.power, modules: toMap(s.power.modules, ids, 'power') };
     sim.thermal = { ...s.thermal, modules: toMap(s.thermal.modules, ids, 'thermal') };
     sim.life = s.life;
