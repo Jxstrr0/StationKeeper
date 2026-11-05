@@ -463,7 +463,7 @@ button {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: calc(var(--safe-bottom) + 16px);
+  bottom: calc(var(--safe-bottom) + 74px);
   display: flex;
   flex-direction: column-reverse;
   align-items: center;
@@ -673,6 +673,229 @@ button {
   color: var(--clay);
 }
 
+/* ---------- Build mode ---------- */
+
+.build-fab {
+  position: absolute;
+  right: calc(var(--safe-right) + 14px);
+  bottom: calc(var(--safe-bottom) + 16px);
+  height: 46px;
+  padding: 0 16px 0 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--purple);
+  border-radius: 23px;
+  background: var(--purple);
+  color: var(--ivory);
+  font-size: 15px;
+  font-weight: 600;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  z-index: 1;
+}
+
+.build-fab.active {
+  display: none;
+}
+
+.build-sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 12px 0 calc(var(--safe-bottom) + 16px);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.45);
+  transform: translateY(105%);
+  transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+  z-index: 2;
+}
+
+.build-sheet.open {
+  transform: none;
+}
+
+.build-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px 10px;
+}
+
+.build-sheet.compact .build-head {
+  display: none;
+}
+
+.build-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.build-tray {
+  display: flex;
+  gap: 10px;
+  padding: 0 18px 4px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+}
+
+.build-card {
+  flex: none;
+  width: 168px;
+  min-height: 132px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  text-align: left;
+  scroll-snap-align: start;
+}
+
+.build-card:active {
+  border-color: var(--lilac);
+}
+
+.build-card-kind {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.build-card-name {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.build-card-line {
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--muted);
+}
+
+.build-hint {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 18px;
+  font-size: 14px;
+  color: var(--ivory);
+}
+
+.build-hint span {
+  flex: 1;
+}
+
+.build-back {
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--surface);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.build-preview {
+  padding: 0 18px;
+}
+
+.build-preview-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.build-preview-sub {
+  margin: 4px 0 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.build-rows {
+  margin: 0 0 10px;
+  border-top: 1px solid var(--line);
+}
+
+.build-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+}
+
+.build-row dt {
+  color: var(--muted);
+}
+
+.build-row dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.build-row .arrow {
+  color: var(--dim);
+}
+
+.build-row b {
+  font-weight: 600;
+  color: var(--ivory);
+}
+
+.build-row.good b {
+  color: var(--lilac);
+}
+
+.build-row.bad b {
+  color: var(--clay);
+}
+
+.build-blocked {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--clay);
+}
+
+.build-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.build-actions .build-back {
+  flex: 1;
+  height: 46px;
+}
+
+.build-confirm {
+  flex: 2;
+  height: 46px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--purple);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.build-confirm:disabled {
+  background: #3a3546;
+  color: var(--dim);
+}
+
 @media (min-width: 720px) {
   .hud {
     flex-direction: row;
@@ -693,6 +916,7 @@ button {
 
 @media (prefers-reduced-motion: reduce) {
   .sheet,
+  .build-sheet,
   .toast,
   .battery-bar i,
   .loop-bar i {

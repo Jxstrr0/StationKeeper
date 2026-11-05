@@ -1,7 +1,7 @@
 // Power system: solar generation, batteries, and tiered loads on one shared network.
 import type { EventBus, SimEvents } from '../events';
 import { solveNetwork, type NetworkLoad } from '../network';
-import type { Station } from '../station';
+import type { ModuleInstance, Station } from '../station';
 import type { ModuleStatus, Tier, TierThreshold } from '../types';
 import { isCooler, type ThermalLimits } from './thermal';
 
@@ -45,6 +45,17 @@ export function createPowerState(station: Station, initialChargeFraction: number
     shedTiers: { critical: false, essential: false, commercial: false },
     totals: { generationKw: 0, loadKw: 0, demandKw: 0, chargeKw: 0, dischargeKw: 0, curtailedKw: 0, unmetKw: 0 },
   };
+}
+
+/** Give a newly built module its power state. Batteries arrive with `chargeFraction` of their capacity. */
+export function addPowerModule(state: PowerState, inst: ModuleInstance, chargeFraction: number): void {
+  state.modules.set(inst.id, {
+    enabled: true,
+    status: 'powered',
+    storedKwh: (inst.def.power.storageKwh ?? 0) * chargeFraction,
+    actualDrawKw: 0,
+    generationKw: 0,
+  });
 }
 
 function moduleState(state: PowerState, id: string): PowerModuleState {

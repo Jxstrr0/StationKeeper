@@ -35,4 +35,8 @@ export class Rng {
   getState(): number {
     return this.state;
   }
+
+  setState(state: number): void {
+    this.state = state >>> 0;
+  }
 }

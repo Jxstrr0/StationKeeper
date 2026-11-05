@@ -49,6 +49,11 @@ export function createThermalState(station: Station, cfg: ThermalConfig): Therma
   };
 }
 
+/** Give a newly built module its thermal state. It arrives at loop temperature. */
+export function addThermalModule(state: ThermalState, id: string): void {
+  state.modules.set(id, { tempC: state.loopC, heatKw: 0, rejectKw: 0 });
+}
+
 /** Modules that move heat out of the loop. Tripping these would only make things worse, so heat never trips them. */
 export function isCooler(def: ModuleDef): boolean {
   return (def.thermal.rejectKw ?? 0) > 0;

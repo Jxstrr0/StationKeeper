@@ -287,4 +287,6 @@ export interface SimSnapshot {
   thermal: ThermalSnapshot;
   lifeSupport: LifeSupportSnapshot;
   modules: ModuleSnapshot[];
+  /** Ports with nothing attached, where new modules can go. */
+  freePorts: { moduleId: string; portId: string }[];
 }

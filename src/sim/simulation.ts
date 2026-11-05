@@ -3,8 +3,8 @@
 import { EventBus, type SimEvents } from './events';
 import { createOrbit, isInShadowArc, orbitSnapshot, phaseAt, sunlightAt, type OrbitModel } from './orbit';
 import { Rng } from './rng';
-import { buildStation, indexDefs, type Station } from './station';
-import { createPowerState, setModuleEnabled, stepPower, storageTotals, type PowerState } from './systems/power';
+import { attachModule, attachProblem, buildStation, freePorts, indexDefs, mountPort, nextInstanceId, type Station } from './station';
+import { addPowerModule, createPowerState, setModuleEnabled, stepPower, storageTotals, type PowerState } from './systems/power';
 import {
   co2MmHg,
   createLifeSupportState,
@@ -13,11 +13,19 @@ import {
   type LifeSupportPlant,
   type LifeSupportState,
 } from './systems/lifeSupport';
-import { createThermalState, stepThermal, thermalLimits, type ThermalState } from './systems/thermal';
+import { addThermalModule, createThermalState, stepThermal, thermalLimits, type ThermalState } from './systems/thermal';
 import { MINUTE_MS } from './time';
-import type { ModuleDef, ModuleSnapshot, ScenarioDef, SimSnapshot } from './types';
+import type { LayoutEntry, ModuleDef, ModuleSnapshot, ScenarioDef, SimSnapshot } from './types';
 
-export type SimCommand = { type: 'setModuleEnabled'; moduleId: string; enabled: boolean };
+export type SimCommand =
+  | { type: 'setModuleEnabled'; moduleId: string; enabled: boolean }
+  /** Build a module from `defId`, mounting it by its first port onto `to`'s `port`. */
+  | { type: 'addModule'; defId: string; to: string; port: string };
+
+export type CommandResult = { ok: true; moduleId?: string } | { ok: false; reason: string };
+
+/** New batteries arrive half charged. */
+const NEW_BATTERY_CHARGE = 0.5;
 
 const TICK_HOURS = 1 / 60;
 
@@ -27,16 +35,21 @@ export class Simulation {
   readonly orbit: OrbitModel;
   readonly rng: Rng;
   readonly scenario: ScenarioDef;
+  private readonly defList: readonly ModuleDef[];
+  private readonly defs: Map<string, ModuleDef>;
   private readonly startMs: number;
   private minutes = 0;
-  private readonly power: PowerState;
-  private readonly thermal: ThermalState;
-  private readonly lifePlant: LifeSupportPlant;
-  private readonly life: LifeSupportState;
+  private power: PowerState;
+  private thermal: ThermalState;
+  private lifePlant: LifeSupportPlant;
+  private life: LifeSupportState;
 
-  constructor(defs: readonly ModuleDef[], scenario: ScenarioDef) {
+  /** `layout` defaults to the scenario's starting layout; forks pass the current one. */
+  constructor(defs: readonly ModuleDef[], scenario: ScenarioDef, layout: readonly LayoutEntry[] = scenario.layout) {
     this.scenario = scenario;
-    this.station = buildStation(indexDefs(defs), scenario.layout);
+    this.defList = defs;
+    this.defs = indexDefs(defs);
+    this.station = buildStation(this.defs, layout);
     this.orbit = createOrbit(scenario.orbit);
     this.rng = new Rng(scenario.seed);
     const start = Date.parse(scenario.startDate);
@@ -67,15 +80,61 @@ export class Simulation {
     for (let i = 0; i < ticks; i++) this.tick();
   }
 
-  command(cmd: SimCommand): void {
+  command(cmd: SimCommand): CommandResult {
     switch (cmd.type) {
       case 'setModuleEnabled':
-        if (!this.station.byId.has(cmd.moduleId)) return;
+        if (!this.station.byId.has(cmd.moduleId)) return { ok: false, reason: `No module "${cmd.moduleId}"` };
         setModuleEnabled(this.power, cmd.moduleId, cmd.enabled);
         // Re-solve so the snapshot reflects the switch right away, without spending energy or heat.
         this.solve(false);
-        return;
+        return { ok: true };
+      case 'addModule':
+        return this.addModule(cmd.defId, cmd.to, cmd.port);
     }
+  }
+
+  /** Why `defId` can't be built on `to`'s `port`, or null if it can. Sim rules only: the view checks for collisions. */
+  buildProblem(defId: string, to: string, port: string): string | null {
+    const def = this.defs.get(defId);
+    if (!def) return `Unknown module "${defId}"`;
+    const via = mountPort(def);
+    if (!via) return `${def.name} has no port to mount by`;
+    return attachProblem(this.station, this.defs, { id: nextInstanceId(this.station, defId), module: defId, attach: { to, port, via } });
+  }
+
+  private addModule(defId: string, to: string, port: string): CommandResult {
+    const problem = this.buildProblem(defId, to, port);
+    if (problem) return { ok: false, reason: problem };
+    const def = this.defs.get(defId)!;
+    const id = nextInstanceId(this.station, defId);
+    const inst = attachModule(this.station, this.defs, { id, module: defId, attach: { to, port, via: mountPort(def)! } });
+    addPowerModule(this.power, inst, NEW_BATTERY_CHARGE);
+    addThermalModule(this.thermal, id);
+    // New cabins, crew, and tanks change the plant; the air and tanks keep what they hold (new tanks arrive empty).
+    this.lifePlant = lifeSupportPlant(this.station, this.scenario.lifeSupport);
+    this.solve(false);
+    this.events.emit('moduleAdded', { moduleId: id, defId });
+    return { ok: true, moduleId: id };
+  }
+
+  /** The station's current layout, parents first. */
+  layout(): LayoutEntry[] {
+    return this.station.modules.map((m) => (m.attach ? { id: m.id, module: m.def.id, attach: { ...m.attach } } : { id: m.id, module: m.def.id }));
+  }
+
+  /**
+   * An independent copy of this sim at this moment, with its own (empty) event bus.
+   * The sim is pure and deterministic, so a fork can run ahead to preview a change without touching the real one.
+   */
+  fork(): Simulation {
+    const copy = new Simulation(this.defList, this.scenario, this.layout());
+    copy.minutes = this.minutes;
+    copy.rng.setState(this.rng.getState());
+    copy.power = structuredClone(this.power);
+    copy.thermal = structuredClone(this.thermal);
+    copy.life = structuredClone(this.life);
+    copy.solve(false);
+    return copy;
   }
 
   /** Power first (using last tick's thermal limits), then heat and life support from what actually ran. */
@@ -175,6 +234,7 @@ export class Simulation {
         alarms: { ...this.life.alarms },
       },
       modules,
+      freePorts: freePorts(this.station),
     };
   }
 }
