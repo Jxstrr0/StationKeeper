@@ -173,10 +173,12 @@ export function stepEconomy(state: EconomyState, station: Station, power: PowerS
   book(state, 'operations', -cfg.operationsPerDay * dtDays);
   book(state, 'interest', -state.loan * cfg.loan.ratePerQuarter * (dtDays / cfg.quarterDays));
 
-  // Contracts: lab time, completion, deadlines.
+  // Contracts: lab time, completion, deadlines. Lab time is shared by the contracts under way at the start
+  // of the minute, so one finishing doesn't hand the others extra time.
+  const under = state.active.length;
   for (const c of [...state.active]) {
     const def = contractDef(cfg, c.defId);
-    c.progressHours = Math.min(def.labHours, c.progressHours + labShare(station, power, def, state.active.length, opts.throttleFactor) * dtHours);
+    c.progressHours = Math.min(def.labHours, c.progressHours + labShare(station, power, def, under, opts.throttleFactor) * dtHours);
     if (c.progressHours >= def.labHours - 1e-9) {
       state.active = state.active.filter((a) => a !== c);
       book(state, 'contracts', def.reward);

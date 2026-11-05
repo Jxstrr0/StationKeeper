@@ -1203,6 +1203,22 @@ dd.worn .wear-text {
 
 /* ---------- Quarterly report ---------- */
 
+/* `#ui > .report-scrim` to outrank `#ui > *`, which turns pointer events back on for every overlay. */
+#ui > .report-scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 8, 10, 0.55);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  z-index: 4;
+}
+
+#ui > .report-scrim.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .report-sheet {
   position: absolute;
   left: 50%;
@@ -1227,7 +1243,7 @@ dd.worn .wear-text {
   z-index: 4;
 }
 
-.report-sheet.open {
+.report-scrim.open .report-sheet {
   opacity: 1;
   transform: translate(-50%, -50%);
   pointer-events: auto;
@@ -1292,6 +1308,7 @@ dd.worn .wear-text {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .report-scrim,
   .report-sheet {
     transition: none;
   }

@@ -294,6 +294,7 @@ Heat is 12.5 kW with everything on, against 15 kW of rejection in eclipse and 9.
   - **Build tray** shows prices and strikes through what you can't afford. The preview shows the price and delivery time, and a new row: **"Income, less running costs"** over the next two orbits. The confirm button says Order.
   - **Quarterly report:** pauses the game with the quarter's numbers and a one-line verdict from the board, then Continue resumes at the same speed.
   - **Toasts:** order placed, module docked, contract signed, delivered or failed.
+  - **Modules on order** show as a faint outline at their port until they dock. Build mode treats them as solid, so nothing can be ordered into the space they'll take.
 - **Tests (116 total):**
   - `tests/economy.test.ts`: income and costs, the quarter report, offers and lapsing, accepting and refusing, lab progress (powered, throttled, steady-loop), delivery and failure, abandoning, repaying, launches and port reservation, parts charged and refunded, and the money warnings.
   - `tests/financePanel.test.ts` and `tests/format.test.ts`: ledger rows, contract text, money formatting, the report verdict.
@@ -322,7 +323,7 @@ These figures come from a scripted player who repairs anything failed or over 85
 - **Repairs may overdraw cash; orders may not.** You can always fix what you have, but you can't buy on credit. Overdraft raises an alarm and carries no extra penalty yet.
 - **Guests aren't refunded when their habitat goes down.** They simply stop paying, and the warning says how much a day.
 - **The loan can only be repaid,** not extended.
-- **The quarterly report pauses the game**, so the report is a beat rather than a toast.
+- **The quarterly report pauses the game**, so the report is a beat rather than a toast. A scrim covers the screen while it's up, and keys don't reach anything behind it, so the game can't be unpaused under it.
 
 ### Known gaps
 
@@ -330,6 +331,7 @@ These figures come from a scripted player who repairs anything failed or over 85
 - Offers don't scale with station size or reputation yet, and every sponsor pays the same rate for the same work.
 - Habitat guests are a fixed four per habitat, always present. Occupancy, reviews and pricing could come later.
 - Modules can't be sold or removed.
+- The build preview checks whether you can afford the module when you tap a port. If income covers the price while the preview is open, tap the port again.
 
 ## Next
 
