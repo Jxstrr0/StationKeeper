@@ -45,6 +45,7 @@ export const KIND_LABEL: Record<ModuleKind, string> = {
   battery: 'Energy storage',
   habitat: 'Habitat',
   radiator: 'Thermal control',
+  lifesupport: 'Life support',
 };
 
 export function celsius(v: number): string {

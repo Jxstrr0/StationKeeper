@@ -5,6 +5,14 @@ import { createOrbit, isInShadowArc, orbitSnapshot, phaseAt, sunlightAt, type Or
 import { Rng } from './rng';
 import { buildStation, indexDefs, type Station } from './station';
 import { createPowerState, setModuleEnabled, stepPower, storageTotals, type PowerState } from './systems/power';
+import {
+  co2MmHg,
+  createLifeSupportState,
+  lifeSupportPlant,
+  stepLifeSupport,
+  type LifeSupportPlant,
+  type LifeSupportState,
+} from './systems/lifeSupport';
 import { createThermalState, stepThermal, thermalLimits, type ThermalState } from './systems/thermal';
 import { MINUTE_MS } from './time';
 import type { ModuleDef, ModuleSnapshot, ScenarioDef, SimSnapshot } from './types';
@@ -23,6 +31,8 @@ export class Simulation {
   private minutes = 0;
   private readonly power: PowerState;
   private readonly thermal: ThermalState;
+  private readonly lifePlant: LifeSupportPlant;
+  private readonly life: LifeSupportState;
 
   constructor(defs: readonly ModuleDef[], scenario: ScenarioDef) {
     this.scenario = scenario;
@@ -34,6 +44,8 @@ export class Simulation {
     this.startMs = start;
     this.power = createPowerState(this.station, scenario.power.initialChargeFraction);
     this.thermal = createThermalState(this.station, scenario.thermal);
+    this.lifePlant = lifeSupportPlant(this.station, scenario.lifeSupport);
+    this.life = createLifeSupportState(this.lifePlant, scenario.lifeSupport);
     this.solve(false);
   }
 
@@ -66,7 +78,7 @@ export class Simulation {
     }
   }
 
-  /** Power first (using last tick's thermal limits), then heat from what actually ran. */
+  /** Power first (using last tick's thermal limits), then heat and life support from what actually ran. */
   private solve(commit: boolean): void {
     // Sunlight at the middle of the minute that just passed (or is about to, for the first solve).
     const mid = commit ? this.minutes - 0.5 : this.minutes;
@@ -82,6 +94,12 @@ export class Simulation {
     stepThermal(this.thermal, this.station, this.power, {
       sunlight,
       cfg: this.scenario.thermal,
+      dtHours: TICK_HOURS,
+      commit,
+      events: this.events,
+    });
+    stepLifeSupport(this.life, this.lifePlant, this.station, this.power, {
+      cfg: this.scenario.lifeSupport,
       dtHours: TICK_HOURS,
       commit,
       events: this.events,
@@ -139,6 +157,22 @@ export class Simulation {
         tripped: { ...this.thermal.tripped },
         throttleAboveC: this.scenario.thermal.throttle.above,
         tripAboveC: this.scenario.thermal.trip.commercial.above,
+      },
+      lifeSupport: {
+        crew: this.lifePlant.crew,
+        guests: this.lifePlant.guests,
+        people: this.lifePlant.crew + this.lifePlant.guests,
+        volumeM3: this.lifePlant.volumeM3,
+        o2Kg: this.life.o2Kg,
+        o2CapacityKg: this.lifePlant.o2CapacityKg,
+        ...this.life.rates,
+        co2MmHg: co2MmHg(this.life, this.lifePlant),
+        co2WarnMmHg: this.scenario.lifeSupport.co2Warn.above,
+        co2DangerMmHg: this.scenario.lifeSupport.co2Danger.above,
+        waterKg: this.life.waterKg,
+        waterCapacityKg: this.lifePlant.waterCapacityKg,
+        health: this.life.health,
+        alarms: { ...this.life.alarms },
       },
       modules,
     };

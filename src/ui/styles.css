@@ -402,6 +402,46 @@ button {
   border-radius: 3px;
 }
 
+/* Life support row */
+
+.life-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1.35fr;
+  gap: 8px;
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid var(--line);
+}
+
+.mini {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.mini-v {
+  font-size: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.mini-v.warn {
+  color: #e6b48c;
+}
+
+.mini-v.alarm {
+  color: var(--clay);
+}
+
+.mini-u {
+  font-size: 10px;
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .shed-note {
   display: none;
   margin-top: 8px;

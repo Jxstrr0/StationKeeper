@@ -24,11 +24,32 @@
       "critical": { "above": 45, "below": 38 }
     }
   },
+  "lifeSupport": {
+    "perPerson": { "o2KgPerDay": 0.84, "co2KgPerDay": 1.0, "waterKgPerDay": 3.5 },
+    "waterPerKgO2": 1.125,
+    "cabinC": 22,
+    "co2SetpointMmHg": 2.0,
+    "initialCo2MmHg": 2.0,
+    "initialO2Fraction": 0.8,
+    "initialWaterFraction": 0.75,
+    "co2Warn": { "above": 4, "below": 3 },
+    "co2Danger": { "above": 8, "below": 6 },
+    "o2Low": { "above": 0.3, "below": 0.25 },
+    "waterLow": { "above": 0.25, "below": 0.2 },
+    "health": {
+      "co2PerMmHgHour": 0.02,
+      "hypoxiaPerHour": 0.3,
+      "thirstPerDay": 0.3,
+      "recoverPerHour": 0.03,
+      "low": { "above": 0.6, "below": 0.5 }
+    }
+  },
   "layout": [
     { "id": "core-1", "module": "core" },
     { "id": "array-1", "module": "solar-array", "attach": { "to": "core-1", "port": "starboard", "via": "base" } },
     { "id": "battery-1", "module": "battery-pack", "attach": { "to": "core-1", "port": "nadir", "via": "top" } },
     { "id": "habitat-1", "module": "habitat", "attach": { "to": "core-1", "port": "fore", "via": "aft" } },
-    { "id": "radiator-1", "module": "radiator", "attach": { "to": "core-1", "port": "port", "via": "base" } }
+    { "id": "radiator-1", "module": "radiator", "attach": { "to": "core-1", "port": "port", "via": "base" } },
+    { "id": "life-support-1", "module": "life-support", "attach": { "to": "core-1", "port": "aft", "via": "fore" } }
   ]
 }

@@ -4,9 +4,10 @@
       "id": "core",
       "name": "Core Module",
       "kind": "core",
-      "description": "Command deck, avionics, and the primary life support racks. If this goes dark, so does everyone.",
-      "power": { "drawKw": 5.0, "tier": "critical" },
+      "description": "Command deck, avionics, and crew quarters for three. If this goes dark, so does everyone.",
+      "power": { "drawKw": 3.0, "tier": "critical" },
       "thermal": { "riseCPerKw": 0.9 },
+      "cabin": { "volumeM3": 70, "crew": 3 },
       "ports": [
         { "id": "fore", "position": [4, 0, 0], "direction": [1, 0, 0] },
         { "id": "aft", "position": [-4, 0, 0], "direction": [-1, 0, 0] },
@@ -46,6 +47,7 @@
       "description": "Four paying guests, one large window, and a coffee machine that draws more power than it should. Commercial load: first to go when power runs short.",
       "power": { "drawKw": 6.0, "tier": "commercial" },
       "thermal": { "riseCPerKw": 0.8 },
+      "cabin": { "volumeM3": 90, "guests": 4 },
       "ports": [
         { "id": "aft", "position": [0, 0, 0], "direction": [-1, 0, 0] },
         { "id": "fore", "position": [7, 0, 0], "direction": [1, 0, 0] }
@@ -61,6 +63,21 @@
       "thermal": { "riseCPerKw": 1.0, "rejectKw": 15, "sunlitFactor": 0.66 },
       "ports": [{ "id": "base", "position": [0, 0, 0], "direction": [0, 0, 1] }],
       "greybox": { "shape": "radiator", "length": 6, "wingLength": 7, "wingWidth": 2.2, "light": [0, 0.75, -1.2] }
+    },
+    {
+      "id": "life-support",
+      "name": "Life Support Rack",
+      "kind": "lifesupport",
+      "description": "Splits water into oxygen, scrubs CO2 out of the air, and turns yesterday's coffee back into drinking water. Nobody asks too many questions about that last part.",
+      "power": { "drawKw": 2.0, "tier": "essential" },
+      "thermal": { "riseCPerKw": 1.5 },
+      "cabin": { "volumeM3": 25 },
+      "lifeSupport": { "o2KgPerDay": 7.2, "co2KgPerDay": 14, "waterRecovery": 0.9, "o2TankKg": 24, "waterTankKg": 420 },
+      "ports": [
+        { "id": "fore", "position": [0, 0, 0], "direction": [1, 0, 0] },
+        { "id": "aft", "position": [-4.4, 0, 0], "direction": [-1, 0, 0] }
+      ],
+      "greybox": { "shape": "lifesupport", "length": 4.4, "radius": 1.7, "light": [-2.2, 1.85, 0.6] }
     }
   ]
 }
