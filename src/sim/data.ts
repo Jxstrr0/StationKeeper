@@ -29,6 +29,7 @@ import {
   type TierThreshold,
   type Vec3,
 } from './types';
+import { stars } from './systems/guests';
 
 type Obj = Record<string, unknown>;
 
@@ -494,8 +495,13 @@ function goalDef(raw: unknown): GoalDef {
       if (!Number.isInteger(count) || count < 1) fail('goal.count', 'must be a whole number, 1 or more');
       return withDays({ kind, count });
     }
+    case 'reviews': {
+      const n = num(o.stars, 'goal.stars');
+      if (!Number.isInteger(n) || n < 2 || n > 5) fail('goal.stars', 'must be a whole number from 2 to 5');
+      return withDays({ kind, stars: n });
+    }
     default:
-      return fail('goal.kind', `unknown goal "${kind}" (repayLoan, cash or contracts)`);
+      return fail('goal.kind', `unknown goal "${kind}" (repayLoan, cash, contracts or reviews)`);
   }
 }
 
@@ -554,5 +560,8 @@ export function parseScenario(raw: unknown): ScenarioDef {
     layout,
   };
   if (catalogue) def.catalogue = catalogue;
+  if (goal.kind === 'reviews' && goal.stars > stars(def.guests.base)) {
+    fail('goal.stars', `guests give at most ${stars(def.guests.base)} stars at this station's "guests.base"`);
+  }
   return def;
 }

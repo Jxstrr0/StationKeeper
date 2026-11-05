@@ -129,6 +129,32 @@ describe('endings', () => {
     expect(sim.snapshot().ending.goal).toMatchObject({ kind: 'contracts', current: 2, target: 2, progress: 1 });
   });
 
+  it('a reviews goal is reached when a quarter closes with reviews that good, and not before', () => {
+    const turnaround = (s: ScenarioDef) => {
+      s.goal = { kind: 'reviews', stars: 4, days: 3 };
+      s.guests.start = 0.1;
+      s.guests.perHour = 2; // reputation follows the station within the hour
+      s.crew.needs.illness.perDay = 0;
+    };
+    const sim = makeSim(turnaround);
+    const { goals } = watch(sim);
+    // Before any reviews are posted, the station stands where its reputation starts.
+    expect(sim.snapshot().ending.goal).toMatchObject({ kind: 'reviews', current: 1, target: 4, progress: 0 });
+    sim.run(DAY - 1);
+    expect(sim.snapshot().guests.stars).toBeGreaterThanOrEqual(4); // already four stars' worth, but nobody has posted
+    expect(goals).toEqual([]);
+    sim.run(1);
+    expect(goals).toEqual([{ minutes: DAY }]);
+    expect(sim.snapshot().ending.goal).toMatchObject({ current: 4, progress: 1 });
+
+    // A habitat left dark all quarter earns two stars: a third of the way from one to four.
+    const dark = makeSim(turnaround);
+    dark.command({ type: 'setModuleEnabled', moduleId: 'habitat-1', enabled: false });
+    dark.run(DAY);
+    expect(dark.snapshot().ending.goal).toMatchObject({ current: 2, progress: 1 / 3 });
+    expect(dark.snapshot().ending.goalAtMinutes).toBeNull();
+  });
+
   it('the board replaces you if the goal is not met by its deadline', () => {
     const sim = makeSim((s) => (s.goal = { kind: 'cash', amount: 1000, days: 0.5 }));
     const { over } = watch(sim);
