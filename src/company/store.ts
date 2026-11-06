@@ -1,7 +1,7 @@
 // Keeps the company in localStorage beside the scenario save, which it leaves alone. A mode key says which of the two
 // the title screen's Continue goes back to.
 import { parseScenario } from '../sim/data';
-import { COMPANY_VERSION, type CompanyState } from './company';
+import { COMPANY_VERSION, emptyBoard, type CompanyState } from './company';
 
 export const COMPANY_KEY = 'stationkeeper.company';
 export const MODE_KEY = 'stationkeeper.mode';
@@ -30,6 +30,9 @@ export function parseCompany(raw: string): { ok: true; company: CompanyState } |
   } catch (err) {
     return { ok: false, reason: err instanceof Error ? err.message : String(err) };
   }
+  // Companies saved before the board and the credit line start with neither.
+  if (typeof c.debt !== 'number' || !Number.isFinite(c.debt)) c.debt = 0;
+  if (typeof c.board !== 'object' || c.board === null) c.board = emptyBoard();
   const company = x as CompanyState;
   if (!company.stations.some((s) => s.id === company.activeId)) return { ok: false, reason: 'no active station' };
   return { ok: true, company };

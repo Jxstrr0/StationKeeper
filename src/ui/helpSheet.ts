@@ -181,6 +181,7 @@ export const HELP_PAGES: readonly HelpPage[] = [
     text: [
       '*Company* on the title screen starts a company: no board and no goal, just stations and one bank account they all share.',
       'You run one station at a time. Deputies keep the rest going at three quarters of their income, and they let wear build up and the odd breakdown slip. Buy run-down stations cheap or launch new ones from *Company* in the menu, then *Fly there* to take one over.',
+      'The board posts requests for a bonus. A *seasoned deputy* costs wages and loses less; the credit line lends against what the company is worth; and a station you no longer want can be sold.',
     ],
   },
 ];

@@ -1,6 +1,7 @@
 // The company: every station it owns, what's for sale, new launches, and the milestones so far.
 // Flying to another station reloads into it; buying and launching take two taps, since they spend real money.
-import type { CompanyView } from '../company/view';
+import { SEASONED_LINE, type CompanyView } from '../company/view';
+import type { DeputyKind } from '../company/company';
 import { el, setClass } from './dom';
 import { money } from './format';
 import { TwoTap } from './savesSheet';
@@ -10,6 +11,11 @@ export interface CompanyHandlers {
   onBuy(listingId: string): void;
   onFound(optionId: string): void;
   onWindUp(): void;
+  onAcceptBoard(): void;
+  onBorrow(): void;
+  onRepay(): void;
+  onSell(stationId: string): void;
+  onDeputy(stationId: string, kind: DeputyKind): void;
   onClose(): void;
 }
 
@@ -18,6 +24,8 @@ export class CompanySheet {
   private readonly card = el('section', 'report-sheet menu-sheet saves-sheet company-sheet');
   private readonly title = el('h2', 'end-title');
   private readonly figures = el('div', 'company-figures');
+  private readonly board = el('div', 'saves-list');
+  private readonly credit = el('div', 'saves-list');
   private readonly stations = el('div', 'saves-list');
   private readonly listings = el('div', 'saves-list');
   private readonly found = el('div', 'saves-list');
@@ -39,12 +47,16 @@ export class CompanySheet {
       el('p', 'report-kicker', ['Company']),
       this.title,
       this.figures,
-      ...h('Stations', 'One station is run hands-on at a time. A deputy keeps the others going, a little less well.'),
+      ...h('The board'),
+      this.board,
+      ...h('Stations', `One station is run hands-on at a time. A deputy keeps the others going, a little less well. ${SEASONED_LINE}`),
       this.stations,
       ...h('For sale', 'Run-down stations, cheap. They come and go.'),
       this.listings,
       ...h('Found a station', 'A new core, solar array, battery, habitat, life support and radiator, launched together.'),
       this.found,
+      ...h('Credit'),
+      this.credit,
       ...h('Milestones'),
       this.milestones,
       this.lost,
@@ -84,18 +96,59 @@ export class CompanySheet {
       fig('Day', String(v.day)),
     );
     // Affordability is part of the key: a button that becomes affordable needs its state refreshed.
-    const key = JSON.stringify([v.stations, v.listings.map((l) => [l.id, l.affordable, l.left]), v.found.map((f) => f.affordable), v.milestones, v.lost]);
+    const key = JSON.stringify([v.stations, v.listings.map((l) => [l.id, l.affordable, l.left]), v.found.map((f) => f.affordable), v.milestones, v.lost, v.board, v.credit]);
     if (key === this.key) return;
     this.key = key;
+
+    const plain = (label: string, act: () => void, cls = '') => {
+      const b = el('button', `warn-act ${cls}`.trim(), [label]);
+      b.type = 'button';
+      b.addEventListener('click', act);
+      return b;
+    };
+
+    const boardActions = el('div', 'saves-actions');
+    if (v.board.kind === 'offer') boardActions.append(plain('Accept', () => this.handlers.onAcceptBoard(), 'primary'));
+    this.board.replaceChildren(
+      el('article', `saves-slot company-row${v.board.kind === 'active' ? ' here' : ''}`, [
+        el('div', 'saves-info', [
+          el('span', 'saves-label', [v.board.kind === 'active' ? 'Under way' : v.board.kind === 'offer' ? 'Offered' : 'Quiet']),
+          el('span', 'saves-name', [v.board.title]),
+          el('span', 'saves-line', [v.board.line]),
+          boardActions,
+        ]),
+      ]),
+    );
+
+    const creditActions = el('div', 'saves-actions');
+    const borrow = plain(`Borrow ${money(v.credit.step)}`, () => this.handlers.onBorrow());
+    borrow.disabled = v.credit.left < v.credit.step;
+    creditActions.append(borrow);
+    if (v.credit.debt > 0) {
+      const repay = plain(`Repay ${money(Math.min(v.credit.step, v.credit.debt))}`, () => this.handlers.onRepay());
+      repay.disabled = v.cash <= 0;
+      creditActions.append(repay);
+    }
+    this.credit.replaceChildren(
+      el('article', 'saves-slot company-row', [
+        el('div', 'saves-info', [el('span', 'saves-line', [v.credit.line]), el('span', 'saves-when', [v.credit.left >= v.credit.step ? `Up to ${money(v.credit.left)} more available.` : 'No more credit until the company is worth more.']), creditActions]),
+      ]),
+    );
 
     this.stations.replaceChildren(
       ...v.stations.map((s) => {
         const actions = el('div', 'saves-actions');
         if (!s.here) {
-          const fly = el('button', 'warn-act primary', ['Fly there']);
-          fly.type = 'button';
-          fly.addEventListener('click', () => this.handlers.onFly(s.id));
-          actions.append(fly);
+          actions.append(plain('Fly there', () => this.handlers.onFly(s.id), 'primary'));
+          const seasoned = s.deputy === 'seasoned';
+          const dep = plain(seasoned ? 'Back to a standard deputy' : 'Hire a seasoned deputy', () => this.handlers.onDeputy(s.id, seasoned ? 'standard' : 'seasoned'));
+          dep.title = SEASONED_LINE;
+          actions.append(dep);
+        }
+        if (s.canSell) {
+          const sell = new TwoTap(() => this.handlers.onSell(s.id));
+          sell.set(`Sell for ${money(s.sale)}`, 'Tap again to sell', true);
+          actions.append(sell.button);
         }
         return el('article', `saves-slot company-row${s.here ? ' here' : ''}`, [
           el('div', 'saves-info', [el('span', 'saves-name', [s.name]), el('span', 'saves-line', [s.line]), el('span', 'saves-when', [s.note]), actions]),

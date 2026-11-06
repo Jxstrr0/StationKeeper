@@ -8,7 +8,8 @@ import * as THREE from 'three';
 import modulesJson from './data/modules.json';
 import { SCENARIOS, scenarioById } from './scenarios';
 import { parseModuleDefs } from './sim/data';
-import { activeStation, buyListing, enterStation, foundStation, leaveStation, newCompany, removeStation, stepCompany, summarise } from './company/company';
+import { activeStation, borrow, buyListing, CREDIT_STEP, enterStation, foundStation, leaveStation, newCompany, removeStation, repayCredit, sellStation, setDeputy, stepCompany, summarise } from './company/company';
+import { acceptBoard, stepBoard } from './company/board';
 import { checkMilestones } from './company/milestones';
 import { clearCompany, loadCompany, loadMode, saveCompany, saveMode } from './company/store';
 import { companyView } from './company/view';
@@ -936,6 +937,49 @@ async function start(): Promise<void> {
       clearCompany();
       startCompany();
     },
+    onAcceptBoard: () => {
+      if (company && acceptBoard(company)) {
+        toasts.show('Accepted. The board will be watching.', 'ok');
+        autosave(true);
+      }
+      refreshCompany();
+    },
+    onBorrow: () => {
+      if (!company) return;
+      const got = borrow(company, sim.snapshot().economy.cash, liveSummary());
+      if (got > 0) {
+        send({ type: 'transfer', amount: got });
+        toasts.show(`Borrowed ${money(got)} on the company's credit line.`, 'ok');
+        autosave(true);
+      }
+      refreshCompany();
+    },
+    onRepay: () => {
+      if (!company) return;
+      const paid = repayCredit(company, CREDIT_STEP, sim.snapshot().economy.cash);
+      if (paid > 0) {
+        send({ type: 'transfer', amount: -paid });
+        toasts.show(company.debt > 0 ? `Repaid ${money(paid)}. ${money(company.debt)} still owed.` : 'The credit line is paid off.', 'ok');
+        autosave(true);
+      }
+      refreshCompany();
+    },
+    onSell: (id) => {
+      if (!company) return;
+      const r = sellStation(company, id);
+      if (!r.ok) {
+        toasts.show(`${r.reason}.`, 'warn');
+        return;
+      }
+      send({ type: 'transfer', amount: r.price });
+      toasts.show(`${r.name} is sold for ${money(r.price)}. The new owners have already repainted it.`, 'ok');
+      autosave(true);
+      refreshCompany();
+    },
+    onDeputy: (id, kind) => {
+      if (company && setDeputy(company, id, kind)) autosave(true);
+      refreshCompany();
+    },
     onClose: () => {
       companySheet.close();
       sound.play('close');
@@ -947,6 +991,10 @@ async function start(): Promise<void> {
     const r = stepCompany(company, 60, SCENARIOS, defsById);
     if (Math.abs(r.cash) > 1e-9) sim.command({ type: 'transfer', amount: r.cash });
     for (const n of r.news) toasts.show(n.text, n.kind);
+    const board = stepBoard(company, { cash: sim.snapshot().economy.cash, live: liveSummary() });
+    if (board.cash > 0) sim.command({ type: 'transfer', amount: board.cash });
+    for (const n of board.news) toasts.show(n.text, n.kind);
+    if (board.cash > 0) sound.play('win');
     for (const m of checkMilestones(company, { cash: sim.snapshot().economy.cash, live: liveSummary() })) {
       toasts.show(`Milestone: ${m.label}.`, 'ok');
       sound.play('win');
