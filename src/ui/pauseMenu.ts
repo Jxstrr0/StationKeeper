@@ -17,6 +17,8 @@ export class PauseMenu {
   readonly root = el('div', 'report-scrim menu-scrim');
   private readonly card = el('section', 'report-sheet menu-sheet');
   private readonly sub = el('p', 'menu-sub');
+  /** Where a quiet note (the backup reminder) sits, above the menu. */
+  readonly notice = el('div', 'menu-notice');
   private readonly restart = el('button', 'menu-item');
   private restartTimer: ReturnType<typeof setTimeout> | null = null;
   private open = false;
@@ -44,6 +46,7 @@ export class PauseMenu {
       el('p', 'report-kicker', ['Paused']),
       el('h2', 'end-title', ['Station Keeper']),
       this.sub,
+      this.notice,
       el('div', 'menu-list', [
         item('Resume', handlers.onResume, 'primary'),
         item('Save and load', handlers.onSaves),

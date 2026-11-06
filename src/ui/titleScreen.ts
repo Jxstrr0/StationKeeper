@@ -15,6 +15,8 @@ export class TitleScreen {
   /** The wordmark block and the button block: the view centres the station in the gap between them. */
   readonly head = el('div', 'title-head');
   readonly foot = el('div', 'title-foot');
+  /** Where a quiet note (the backup reminder) sits, above the buttons. */
+  readonly notice = el('div', 'title-notice');
   private readonly cont = el('button', 'title-btn primary');
   private readonly contLine = el('span', 'title-btn-sub');
   private readonly fresh = el('button', 'title-btn');
@@ -40,6 +42,7 @@ export class TitleScreen {
       el('p', 'title-tag', ['Keep the lights on, 400 km up.']),
     );
     this.foot.append(
+      this.notice,
       this.cont,
       this.fresh,
       el('div', 'title-row', [btn('Load', handlers.onLoad), btn('How to play', handlers.onHelp), btn('Settings', handlers.onSettings)]),
