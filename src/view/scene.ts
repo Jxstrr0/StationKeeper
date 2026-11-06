@@ -104,7 +104,7 @@ export function createScene(canvas: HTMLCanvasElement): SceneEnv {
   scene.add(sunLight);
   scene.add(sunLight.target);
   // Earthshine from below, cool sky above. Keeps the station readable in eclipse.
-  const hemi = new THREE.HemisphereLight(0x2b2a3a, 0x3d5f8f, 0.5);
+  const hemi = new THREE.HemisphereLight(0x55536e, 0x4f73a8, 0.5);
   scene.add(hemi);
 
   const sunDir = new THREE.Vector3(0, 1, 0);
@@ -194,7 +194,9 @@ export function createScene(canvas: HTMLCanvasElement): SceneEnv {
     sunDir.set(-Math.sin(phase) * cb, Math.cos(phase) * cb, sz).normalize();
     sunLight.position.copy(sunDir).multiplyScalar(100);
     sunLight.intensity = 2.8 * sunlight;
-    hemi.intensity = 0.32 + 0.5 * sunlight * Math.max(0, sunDir.y);
+    // Fill light is strongest in eclipse, so the station still reads on a phone at normal brightness.
+    // In sunlight the sun carries the scene and the fill drops back to keep the shading.
+    hemi.intensity = 2 - 1.35 * sunlight + 0.2 * sunlight * Math.max(0, sunDir.y);
     sunSprite.position.copy(sunDir).multiplyScalar(3600);
     earth.setSun(sunDir);
     // Inertial things (Earth's surface, stars) turn once per orbit in the station's frame.
