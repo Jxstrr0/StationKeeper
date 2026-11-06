@@ -1,5 +1,6 @@
 // The title screen, laid over the station itself turning slowly in orbit. The HUD stays hidden until the player carries on.
 import { el, setClass } from './dom';
+import { GAME_VERSION } from '../version';
 
 export interface TitleHandlers {
   /** Carry on with the station behind the title. */
@@ -46,6 +47,7 @@ export class TitleScreen {
       el('p', 'title-kicker', ['A Longlight Interactive game']),
       el('h1', 'title-mark', ['Station', el('br'), 'Keeper']),
       el('p', 'title-tag', ['Keep the lights on, 400 km up.']),
+      el('p', 'title-version', [`v${GAME_VERSION}`]),
     );
     this.foot.append(
       this.notice,

@@ -22,3 +22,10 @@ Pushes to `main` are tested, built, and deployed to GitHub Pages by `.github/wor
 - `src/data`: module stats and the starting scenario.
 - `src/backup.ts`: whole-game backups (`SK1:` codes and backup files) for Save and load.
 - `docs/STATUS.md`: what's built, how to test, and what's next.
+
+## Version
+
+The game's version lives in `src/version.ts` (`GAME_VERSION`) and shows small on the title screen. It has four
+numbers, Major.Minor.Patch.Build, the same as every Longlight game: Major = overhaul, Minor = feature batch,
+Patch = tweak or fix, Build = republish. Bump it in the pull request that ships the change. `package.json`
+keeps npm's three-number `version`; leave it alone.
