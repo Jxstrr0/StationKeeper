@@ -1185,6 +1185,17 @@ dd.worn .wear-text {
   }
 }
 
+/* Phones on their side: the full-size HUD would cover half the station. Shrink it as one piece. */
+@media (min-width: 720px) and (max-height: 500px) {
+  .hud {
+    zoom: 0.72;
+  }
+
+  .power-card {
+    width: 360px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sheet,
   .build-sheet,

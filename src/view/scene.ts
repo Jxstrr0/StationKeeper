@@ -11,6 +11,13 @@ export const ALTITUDE = 60;
 const MAX_PIXEL_RATIO = 2;
 const MIN_PIXEL_RATIO = 1;
 
+// A long lens: the narrower of the two fields of view never drops below these, and the
+// camera stands back to compensate. Wide angles bulge whatever is nearest the camera.
+const MIN_HFOV_DEG = 26;
+const MIN_VFOV_DEG = 24;
+const SUN_SCALE = 520; // sprite size at a 50 degree field of view
+const DEG = Math.PI / 180;
+
 export interface SceneEnv {
   renderer: THREE.WebGLRenderer;
   scene: THREE.Scene;
@@ -21,6 +28,10 @@ export interface SceneEnv {
   update(orbit: OrbitSnapshot, phase: number, sunlight: number): void;
   render(): void;
   resize(): void;
+  /** Screen pixels covered by UI along the top and bottom edges; the view centres on what's left. */
+  setInsets(top: number, bottom: number): void;
+  /** How far back the camera stands to fit a sphere of `radius` in the uncovered part of the screen. */
+  fitDistance(radius: number): number;
   /** Lower the resolution if frames are slow. Call once per frame with the frame time in seconds. */
   adapt(dt: number): void;
 }
@@ -96,14 +107,43 @@ export function createScene(canvas: HTMLCanvasElement): SceneEnv {
 
   const sunDir = new THREE.Vector3(0, 1, 0);
 
+  let insetTop = 0;
+  let insetBottom = 0;
+  /** Half-angles (radians) of the uncovered part of the screen, horizontal and vertical. */
+  let halfH = (MIN_HFOV_DEG / 2) * DEG;
+  let halfV = (MIN_VFOV_DEG / 2) * DEG;
+
   function resize(): void {
     const w = canvas.clientWidth || window.innerWidth;
     const h = canvas.clientHeight || window.innerHeight;
     renderer.setSize(w, h, false);
-    camera.aspect = w / h;
-    // Narrow portrait screens get a wider vertical field of view so the station still fits.
-    camera.fov = camera.aspect < 0.8 ? 62 : 50;
+    const aspect = w / h;
+    // Vertical field of view of the visible frame: portrait screens widen it so the width keeps its lens.
+    const vfov = Math.max(MIN_VFOV_DEG * DEG, 2 * Math.atan(Math.tan((MIN_HFOV_DEG / 2) * DEG) / aspect));
+    const tanV = Math.tan(vfov / 2);
+    // Shift the centre of the picture into the gap between the UI at the top and the bottom.
+    // The frustum is drawn for a taller frame and the canvas shows one end of it.
+    const dy = THREE.MathUtils.clamp((insetTop - insetBottom) / 2, -h / 4, h / 4);
+    const fullH = h + 2 * Math.abs(dy);
+    camera.aspect = w / fullH;
+    camera.fov = (2 * Math.atan((tanV * fullH) / h)) / DEG;
+    camera.setViewOffset(w, fullH, 0, dy > 0 ? 0 : 2 * Math.abs(dy), w, h);
     camera.updateProjectionMatrix();
+    const band = Math.max(h * 0.3, h - insetTop - insetBottom);
+    halfH = Math.atan(tanV * aspect);
+    halfV = Math.atan((tanV * band) / h);
+    sunSprite.scale.setScalar((SUN_SCALE * vfov) / (50 * DEG));
+  }
+
+  function setInsets(top: number, bottom: number): void {
+    if (top === insetTop && bottom === insetBottom) return;
+    insetTop = top;
+    insetBottom = bottom;
+    resize();
+  }
+
+  function fitDistance(radius: number): number {
+    return (radius * 0.9) / Math.sin(Math.min(halfH, halfV));
   }
 
   let slowTime = 0;
@@ -146,5 +186,5 @@ export function createScene(canvas: HTMLCanvasElement): SceneEnv {
   }
 
   resize();
-  return { renderer, scene, camera, earth, sunDir, update, render: () => renderer.render(scene, camera), resize, adapt };
+  return { renderer, scene, camera, earth, sunDir, update, render: () => renderer.render(scene, camera), resize, setInsets, fitDistance, adapt };
 }
