@@ -1,8 +1,9 @@
-// A backup of the whole game on this device as one line of text: the station in play, the three slots, settings and
-// records. It can be copied as a code or kept as a small text file, and restored on any browser.
+// A backup of the whole game on this device as one line of text: the station in play, the three slots, settings,
+// records and the company. It can be copied as a code or kept as a small text file, and restored on any browser.
 //
 // The shape: "SK1:" + base64url(UTF-8 JSON) + a 6-character checksum. Restoring checks the whole code before anything
 // is written, then replaces every key at once (and puts the old ones back if the browser refuses part way).
+import { COMPANY_KEY, MODE_KEY } from './company/store';
 import { SAVE_KEY } from './persist';
 import { RECORDS_KEY } from './records';
 import { SETTINGS_KEY } from './settings';
@@ -12,7 +13,7 @@ export const BACKUP_PREFIX = 'SK1:';
 const CHECK_LEN = 6;
 
 /** Every key a backup carries. Only these are ever read or written; the one-load flags (next scenario, skip title) are left out. */
-export const BACKUP_KEYS: readonly string[] = [SAVE_KEY, ...Array.from({ length: SLOT_COUNT }, (_, i) => slotKey(i)), SETTINGS_KEY, RECORDS_KEY];
+export const BACKUP_KEYS: readonly string[] = [SAVE_KEY, ...Array.from({ length: SLOT_COUNT }, (_, i) => slotKey(i)), SETTINGS_KEY, RECORDS_KEY, COMPANY_KEY, MODE_KEY];
 
 export interface BackupBody {
   app: 'stationkeeper';
@@ -150,7 +151,8 @@ export function backupSummary(body: BackupBody, dateText: string): string {
   const parts: string[] = [];
   if (body.keys[SAVE_KEY] !== undefined) parts.push('the station in play');
   if (slots > 0) parts.push(slots === 1 ? '1 slot' : `${slots} slots`);
-  const held = parts.length > 0 ? parts.join(' and ') : 'no stations';
+  if (body.keys[COMPANY_KEY] !== undefined) parts.push('a company');
+  const held = parts.length === 0 ? 'no stations' : parts.length === 1 ? parts[0]! : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]!}`;
   return `Backup from ${dateText}: ${held}. Restoring replaces every station on this device.`;
 }
 

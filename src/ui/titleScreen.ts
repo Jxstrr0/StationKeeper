@@ -8,6 +8,8 @@ export interface TitleHandlers {
   onLoad(): void;
   onHelp(): void;
   onSettings(): void;
+  /** The other mode: company mode from the scenarios, or the scenarios from company mode. */
+  onOtherMode(): void;
 }
 
 export class TitleScreen {
@@ -20,6 +22,7 @@ export class TitleScreen {
   private readonly cont = el('button', 'title-btn primary');
   private readonly contLine = el('span', 'title-btn-sub');
   private readonly fresh = el('button', 'title-btn');
+  private readonly other = el('button', 'title-btn');
   private open = false;
 
   constructor(parent: HTMLElement, handlers: TitleHandlers) {
@@ -35,6 +38,9 @@ export class TitleScreen {
     this.fresh.type = 'button';
     this.fresh.textContent = 'New station';
     this.fresh.addEventListener('click', handlers.onNewStation);
+    this.other.type = 'button';
+    this.other.textContent = 'Company';
+    this.other.addEventListener('click', handlers.onOtherMode);
 
     this.head.append(
       el('p', 'title-kicker', ['A Longlight Interactive game']),
@@ -44,7 +50,7 @@ export class TitleScreen {
     this.foot.append(
       this.notice,
       this.cont,
-      this.fresh,
+      el('div', 'title-pair', [this.fresh, this.other]),
       el('div', 'title-row', [btn('Load', handlers.onLoad), btn('How to play', handlers.onHelp), btn('Settings', handlers.onSettings)]),
     );
     this.root.append(this.head, this.foot);
@@ -60,13 +66,19 @@ export class TitleScreen {
    * `resume` describes the station behind the title when there's one worth carrying on with; otherwise
    * New station leads and Continue starts the fresh station on show.
    */
-  show(resume: string | null): void {
-    this.contLine.textContent = resume ?? 'The first posting, ready to go';
+  show(resume: string | null, fresh = 'The first posting, ready to go'): void {
+    this.contLine.textContent = resume ?? fresh;
     setClass(this.contLine, 'hidden', false);
     (this.cont.firstChild as HTMLElement).textContent = resume ? 'Continue' : 'Start';
     this.open = true;
     setClass(this.root, 'open', true);
     this.root.setAttribute('aria-hidden', 'false');
+  }
+
+  /** Label the mode buttons. In company mode the first goes back to the scenarios and the second opens the company. */
+  setModes(company: boolean): void {
+    this.fresh.textContent = company ? 'Scenarios' : 'New station';
+    this.other.textContent = 'Company';
   }
 
   hide(): void {

@@ -15,7 +15,7 @@ export interface EndStats {
   lifetimeNet: number;
 }
 
-interface Copy {
+export interface Copy {
   kicker: string;
   title: string;
   text: string;
@@ -104,9 +104,10 @@ export class EndSheet {
     return this.kind;
   }
 
-  show(kind: EndKind, goal: { kind: GoalKind; target: number }, stats: EndStats): void {
+  /** `over` replaces the words and the new-game button's label (company mode tells its own story). */
+  show(kind: EndKind, goal: { kind: GoalKind; target: number }, stats: EndStats, over?: { copy: Copy; next: string }): void {
     this.kind = kind;
-    const c = endCopy(kind, goal);
+    const c = over?.copy ?? endCopy(kind, goal);
     const row = (label: string, value: string, cls = '') => el('div', `report-row ${cls}`, [el('span', '', [label]), el('b', '', [value])]);
     const days = stats.days < 1 ? 'Less than a day' : `${Math.floor(stats.days)} ${Math.floor(stats.days) === 1 ? 'day' : 'days'}`;
     this.body.replaceChildren(
@@ -127,7 +128,7 @@ export class EndSheet {
       b.addEventListener('click', act);
       return b;
     };
-    const fresh = button('Start a new station', kind === 'goal' ? '' : 'primary', () => this.handlers.onNewGame());
+    const fresh = button(over?.next ?? 'Start a new station', kind === 'goal' ? '' : 'primary', () => this.handlers.onNewGame());
     if (kind === 'goal') {
       const keep = button('Keep going', 'primary', () => this.keepGoing());
       this.actions.replaceChildren(keep, fresh);
