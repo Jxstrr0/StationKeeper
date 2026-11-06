@@ -36,6 +36,12 @@ export interface SceneEnv {
   fitDistance(radius: number): number;
   /** Lower the resolution if frames are slow. Call once per frame with the frame time in seconds. */
   adapt(dt: number): void;
+  /** Auto adapts the resolution to the frame rate; low and high hold it at one and the screen's own (up to 2). */
+  setQuality(q: 'auto' | 'low' | 'high'): void;
+  /** Draw a frame now and return it as a PNG data URL. Must be called in one go: the buffer clears after compositing. */
+  capture(): string;
+  /** Draw a frame now and return a small 4:3 JPEG of its middle, for a save slot. */
+  thumbnail(width: number): string;
 }
 
 function makeSunTexture(): THREE.Texture {
@@ -163,9 +169,22 @@ export function createScene(canvas: HTMLCanvasElement): SceneEnv {
     return (radius * 0.9) / Math.sin(Math.min(halfH, halfV));
   }
 
+  let quality: 'auto' | 'low' | 'high' = 'auto';
+  const screenRatio = () => Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
+  function setQuality(q: 'auto' | 'low' | 'high'): void {
+    quality = q;
+    const next = q === 'low' ? MIN_PIXEL_RATIO : screenRatio();
+    if (next !== pixelRatio) {
+      pixelRatio = next;
+      renderer.setPixelRatio(pixelRatio);
+      resize();
+    }
+  }
+
   let slowTime = 0;
   let fastTime = 0;
   function adapt(dt: number): void {
+    if (quality !== 'auto') return;
     if (dt > 0.25) return; // Ignore tab switches.
     if (dt > 1 / 40) {
       slowTime += dt;
@@ -179,7 +198,7 @@ export function createScene(canvas: HTMLCanvasElement): SceneEnv {
       renderer.setPixelRatio(pixelRatio);
       resize();
       slowTime = 0;
-    } else if (fastTime > 10 && pixelRatio < Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO)) {
+    } else if (fastTime > 10 && pixelRatio < screenRatio()) {
       pixelRatio = Math.min(pixelRatio + 0.25, MAX_PIXEL_RATIO);
       renderer.setPixelRatio(pixelRatio);
       resize();
@@ -204,6 +223,42 @@ export function createScene(canvas: HTMLCanvasElement): SceneEnv {
     stars.rotation.z = phase;
   }
 
+  function capture(): string {
+    renderer.render(scene, camera);
+    return canvas.toDataURL('image/png');
+  }
+
+  function thumbnail(width: number): string {
+    renderer.render(scene, camera);
+    const height = Math.round(width * 0.75);
+    const c = document.createElement('canvas');
+    c.width = width;
+    c.height = height;
+    const g = c.getContext('2d');
+    if (!g) throw new Error('no 2D canvas');
+    // The largest 4:3 rectangle in the middle of the frame.
+    const sw = Math.min(canvas.width, (canvas.height * 4) / 3);
+    const sh = (sw * 3) / 4;
+    g.drawImage(canvas, (canvas.width - sw) / 2, (canvas.height - sh) / 2, sw, sh, 0, 0, width, height);
+    return c.toDataURL('image/jpeg', 0.72);
+  }
+
   resize();
-  return { renderer, scene, camera, earth, sunDir, update, render: () => renderer.render(scene, camera), resize, ensureSize, setInsets, fitDistance, adapt };
+  return {
+    renderer,
+    scene,
+    camera,
+    earth,
+    sunDir,
+    update,
+    render: () => renderer.render(scene, camera),
+    resize,
+    ensureSize,
+    setInsets,
+    fitDistance,
+    adapt,
+    setQuality,
+    capture,
+    thumbnail,
+  };
 }

@@ -19,6 +19,10 @@ export class OrbitCamera {
   azimuth = -0.9;
   polar = 1.2;
   distance = 60;
+  /** Slow drift around the station, radians per second, while no finger is down (the title screen). */
+  spin = 0;
+  /** A drag keeps turning a little after release. Off for reduced motion. */
+  inertia = true;
   /** Called with client coordinates when the user taps without dragging. */
   onTap: ((x: number, y: number) => void) | null = null;
 
@@ -139,7 +143,8 @@ export class OrbitCamera {
 
   update(dt: number): void {
     if (this.pointers.size === 0) {
-      this.azimuth += this.velAz * dt;
+      if (!this.inertia) this.velAz = this.velPolar = 0;
+      this.azimuth += this.velAz * dt + this.spin * dt;
       this.polar += this.velPolar * dt;
       const decay = Math.exp(-DAMPING * dt);
       this.velAz *= decay;
