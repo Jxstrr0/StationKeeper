@@ -82,6 +82,12 @@ function makeStars(count: number, radius: number): THREE.Points {
   return new THREE.Points(geo, mat);
 }
 
+let currentQuality: 'auto' | 'low' | 'high' = 'auto';
+/** The graphics setting last passed to `setQuality`, for view effects that are cheap to skip on Low. */
+export function viewQuality(): 'auto' | 'low' | 'high' {
+  return currentQuality;
+}
+
 export function createScene(canvas: HTMLCanvasElement): SceneEnv {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
   let pixelRatio = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
@@ -173,6 +179,7 @@ export function createScene(canvas: HTMLCanvasElement): SceneEnv {
   const screenRatio = () => Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
   function setQuality(q: 'auto' | 'low' | 'high'): void {
     quality = q;
+    currentQuality = q;
     const next = q === 'low' ? MIN_PIXEL_RATIO : screenRatio();
     if (next !== pixelRatio) {
       pixelRatio = next;
