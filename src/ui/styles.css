@@ -194,6 +194,7 @@ button {
 }
 
 .orbit-state {
+  cursor: pointer;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -400,6 +401,55 @@ button {
   flex: 1;
   height: 6px;
   border-radius: 3px;
+}
+
+/* Folding the card to one row (phones start folded) */
+
+.fold-toggle {
+  width: 30px;
+  height: 26px;
+  margin: -6px -6px -6px 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+}
+
+.fold-toggle svg {
+  transition: transform 0.2s ease;
+  transform: rotate(180deg);
+}
+
+.power-card.compact .fold-toggle svg {
+  transform: none;
+}
+
+.compact-row {
+  display: none;
+  grid-template-columns: 1.5fr 1fr 1fr 0.9fr;
+  gap: 8px;
+}
+
+.compact-row .battery-bar {
+  height: 3px;
+  margin-top: 2px;
+}
+
+.power-card.compact .compact-row {
+  display: grid;
+}
+
+.power-card.compact .stats,
+.power-card.compact .thermal-row,
+.power-card.compact .heat-legend,
+.power-card.compact .life-row {
+  display: none;
+}
+
+.power-card.compact .orbit-state {
+  margin-bottom: 6px;
 }
 
 /* Life support row */
@@ -1182,6 +1232,29 @@ dd.worn .wear-text {
   .power-card {
     align-self: auto;
     width: 400px;
+  }
+}
+
+/* Narrow phones: the clock and the speed buttons must share one row without running off the edge. */
+@media (max-width: 400px) {
+  .hud-clock {
+    padding: 8px 10px;
+    gap: 6px;
+  }
+
+  .hud-date {
+    font-size: 12px;
+  }
+
+  .speed {
+    min-width: 34px;
+    padding: 0 6px;
+  }
+}
+
+@media (max-width: 350px) {
+  .hud-utc {
+    display: none;
   }
 }
 
