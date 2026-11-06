@@ -1063,6 +1063,28 @@ Play-test feedback: the view felt stretched and out of proportion. The canvas wa
 
 - **The lens leans long, more like a telephoto shot than a wide-angle one.** If the station now feels too distant or flat, the two minimum angles in `src/view/scene.ts` are the knobs.
 
+## Session 24: phone polish
+
+From the iPhone screen recording and a pass over every sheet at 320–440 px wide.
+
+### What was built
+
+- **The power card folds to one row.** It shows Power (generation / load), Battery with a thin bar, Loop and Crew.
+  - Tap the Sunlight/Eclipse row, or its chevron, to fold or unfold it.
+  - Phones (under 720 px wide) start folded; wider screens start unfolded. The choice is remembered per browser (`stationkeeper.hudCompact` in localStorage, wrapped in try/catch).
+  - On an iPhone SE the HUD drops from about 270 px to 145 px of the 667 px screen.
+  - Folded, the Crew figure turns amber or red for air and water problems too, since those readings are hidden. The warning line under the card still spells them out.
+  - Tapping Crew still opens the crew sheet.
+- **The top row fits on narrow phones.** At 375 px and below, the speed buttons ran 4–16 px off the right edge. Under 400 px wide the clock and buttons tighten; under 350 px the "UTC" label goes. Checked at 320, 360, 375 and 390 px.
+- **The station reads in eclipse.** In the recording it all but vanished on the night side.
+  - The hemisphere fill is brighter (sky `0x55536e`, ground `0x4f73a8`) and strongest in eclipse: intensity 2.0 in eclipse, about 0.65 in full sun.
+  - Daylight shading looks the same as before.
+- **Tests:** still 219. These are view and CSS changes, checked by screenshots at iPhone SE and iPhone 16 Pro Max sizes. The build, finance, crew, warnings and module sheets were all checked.
+
+### Choices made
+
+- **Folded is the phone default.** The full card is one tap away, and the station gets the screen. If play-testing shows players missing the coolant gauge or the Heat button, flip the default in `initialCompact()` in `src/ui/hud.ts`.
+
 ## Next
 
 The planned slices are done. Candidates for what's next, roughly in order of value:
