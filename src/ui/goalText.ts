@@ -7,6 +7,7 @@ const days = (d: number) => `${d} ${d === 1 ? 'day' : 'days'}`;
 
 /** "Deliver 6 research contracts within 6 days." */
 export function goalLine(g: GoalDef): string {
+  if (g.kind === 'none') return 'No board to answer to: run it as you see fit.';
   const what =
     g.kind === 'repayLoan'
       ? 'Pay off the loan'
@@ -31,6 +32,8 @@ export function goalProgress(g: GoalSnapshot): string {
       return `${g.current} of ${g.target} delivered`;
     case 'reviews':
       return `Last reviews ${stars(g.current)}`;
+    case 'none':
+      return '';
   }
 }
 
