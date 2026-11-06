@@ -353,9 +353,22 @@ export class Simulation {
     this.deliverDue();
     if (stepCrew(this.crew, this.minutes, this.events)) this.refreshPlant();
     this.solve(true);
+    this.resupply();
     this.stepCrewNeeds();
     stepGuests(this.guests, this.scenario.guests, this.guestInputs(), TICK_HOURS);
     this.checkEnding();
+  }
+
+  /** The water run: every few days a cargo flight fills the tanks, and operations pays by the kilo. */
+  private resupply(): void {
+    const r = this.scenario.lifeSupport.resupply;
+    if (!r || this.minutes % Math.round(r.everyDays * 1440) !== 0) return;
+    const kg = this.lifePlant.waterCapacityKg - this.life.waterKg;
+    if (kg < 1) return;
+    const cost = kg * r.pricePerKg;
+    this.life.waterKg = this.lifePlant.waterCapacityKg;
+    book(this.economy, 'operations', -cost);
+    this.events.emit('waterResupplied', { kg, cost });
   }
 
   /** Comforts (a galley, a cupola) that are running now. */
@@ -784,8 +797,16 @@ export class Simulation {
         // Both halves count: the loan cleared, and the station kept running for the hold. Either can come first.
         const holdMinutes = g.holdDays * 1440;
         const holdLeftMinutes = Math.max(0, holdMinutes - this.minutes);
-        const progress = left > 0 || holdLeftMinutes > 0 ? Math.min(0.999, (repaid + clamp(this.minutes / holdMinutes)) / 2) : 1;
-        return { kind: g.kind, current: left, target: 0, progress, deadlineAtMinutes, holdLeftMinutes };
+        const held = clamp(this.minutes / holdMinutes);
+        if (g.cash === undefined) {
+          const progress = left > 0 || holdLeftMinutes > 0 ? Math.min(0.999, (repaid + held) / 2) : 1;
+          return { kind: g.kind, current: left, target: 0, progress, deadlineAtMinutes, holdLeftMinutes };
+        }
+        // Three halves, as the bank counts: the loan cleared, the station kept running, and cash left in hand.
+        const cash = this.economy.cash;
+        const done = left <= 0 && holdLeftMinutes <= 0 && cash >= g.cash;
+        const progress = done ? 1 : Math.min(0.999, (repaid + held + (left > 0 ? 0 : clamp(cash / g.cash))) / 3);
+        return { kind: g.kind, current: left, target: 0, progress, deadlineAtMinutes, holdLeftMinutes, cash: { current: cash, target: g.cash } };
       }
       case 'none':
         return { kind: g.kind, current: 0, target: 0, progress: 0, deadlineAtMinutes: null, holdLeftMinutes: 0 };

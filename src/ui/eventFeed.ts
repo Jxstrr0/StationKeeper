@@ -164,6 +164,10 @@ export function connectEventFeed(
     toasts.show(`${moduleName(moduleId)} has docked and is coming online.`, 'ok');
   });
 
+  events.on('waterResupplied', ({ kg, cost }) => {
+    toasts.show(`The water run docked: ${Math.round(kg)} kg for ${money(cost)}. Nobody admits to having worried.`, 'ok');
+  });
+
   events.on('contractAccepted', ({ title }) => {
     toasts.show(`Contract signed: ${title}. The lab is on it.`, 'ok');
   });

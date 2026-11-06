@@ -18,6 +18,8 @@ describe('goal text', () => {
     expect(goalProgress(snap({ kind: 'repayLoan', current: 0, target: 0 }))).toBe('Paid off');
     expect(goalProgress(snap({ kind: 'repayLoan', current: 0, target: 0, holdLeftMinutes: 2 * 1440 + 180 }))).toBe('Paid off · 2 d 3 h to go');
     expect(goalLine({ kind: 'repayLoan', holdDays: 5 })).toBe('Pay off the loan and keep the station running for 5 days.');
+    expect(goalLine({ kind: 'repayLoan', holdDays: 5, cash: 30 })).toBe('Pay off the loan with $30.0M left over, and keep the station running for 5 days.');
+    expect(goalProgress(snap({ kind: 'repayLoan', current: 0, target: 0, cash: { current: 12.3, target: 30 } }))).toBe('Paid off · $12.3M of $30.0M in hand');
     expect(goalProgress(snap({ kind: 'cash', current: -4, target: 90 }))).toBe('$0 of $90.0M');
     expect(goalProgress(snap({ kind: 'reviews', current: 2, target: 4 }))).toBe('Last reviews ★★☆☆☆');
   });
