@@ -8,9 +8,11 @@ import * as THREE from 'three';
 import modulesJson from './data/modules.json';
 import { SCENARIOS, scenarioById } from './scenarios';
 import { parseModuleDefs } from './sim/data';
-import { loadGame, replaceGame, saveGame, simFromSave, skipTitleOnce, startNewGame, takeChosenScenario, takeSkipTitle } from './persist';
+import { loadGame, replaceGame, SAVE_KEY, saveGame, simFromSave, skipTitleOnce, startNewGame, takeChosenScenario, takeSkipTitle } from './persist';
+import { backupDue, backupFileName, backupSummary, makeBackupCode, readBackupCode, readStoredKeys, writeBackup, type BackupRead } from './backup';
+import { askToKeepStorage, storageProtected } from './storageCare';
 import { clearSlot, makeSlotFile, parseImport, readSlot, readSlots, writeSlot, type SlotMeta } from './slots';
-import { loadSettings, saveSettings, UI_ZOOM, type Settings } from './settings';
+import { loadSettings, parseSettings, saveSettings, SETTINGS_KEY, UI_ZOOM, type Settings } from './settings';
 import { loadRecords, recordLoss, recordWin } from './records';
 import { forecast } from './sim/forecast';
 import { phaseAt, sunlightAt } from './sim/orbit';
@@ -27,6 +29,7 @@ import { goalLine } from './ui/goalText';
 import { ScenarioPicker } from './ui/scenarioPicker';
 import { Hud } from './ui/hud';
 import { dataUrlToBlob, deliverFile } from './ui/download';
+import { BackupNudge } from './ui/backupNudge';
 import { HelpSheet } from './ui/helpSheet';
 import { PauseMenu } from './ui/pauseMenu';
 import { SavesSheet } from './ui/savesSheet';
@@ -234,6 +237,7 @@ async function start(): Promise<void> {
     closePanels();
     ui.classList.add('title-mode');
     title.show(resumeLine());
+    maybeNudge(title.notice);
     cam.spin = settings.reducedMotion ? 0 : 0.05;
     keepingZoom(measureInsets);
   };
@@ -263,6 +267,7 @@ async function start(): Promise<void> {
     clock.setSpeed(0);
     const s = sim.snapshot();
     menu.show(`${scenario.name} · day ${Math.floor(s.minutes / 1440) + 1} · ${formatDate(s.timeMs)}`);
+    maybeNudge(menu.notice);
     sound.play('open');
   };
   const resumeFromMenu = () => {
@@ -312,7 +317,7 @@ async function start(): Promise<void> {
       photo.blink();
       sound.play('shutter');
       const day = new Date(snap.timeMs).toISOString().slice(0, 10);
-      deliverFile(dataUrlToBlob(url), `station-keeper-${day}.png`);
+      void deliverFile(dataUrlToBlob(url), `station-keeper-${day}.png`);
     },
     exitPhoto,
   );
@@ -321,8 +326,14 @@ async function start(): Promise<void> {
 
   // ---- Save slots and files ----
   const currentLine = (): string | null => resumeLine();
-  const openSaves = () => saves.show(title.isOpen ? null : currentLine(), readSlots(SAVE_VERSION));
-  const refreshSaves = () => saves.update(title.isOpen ? null : currentLine(), readSlots(SAVE_VERSION));
+  const openSaves = () => {
+    saves.show(title.isOpen ? null : currentLine(), readSlots(SAVE_VERSION));
+    refreshBackupStatus();
+  };
+  const refreshSaves = () => {
+    saves.update(title.isOpen ? null : currentLine(), readSlots(SAVE_VERSION));
+    refreshBackupStatus();
+  };
   /** Load a save into the game: it replaces the autosave, and the page reloads straight into play. */
   const playSave = (save: Parameters<typeof replaceGame>[0]): void => {
     try {
@@ -362,8 +373,10 @@ async function start(): Promise<void> {
       } catch {
         // No picture, then; the slot still saves.
       }
-      if (writeSlot(i, makeSlotFile(slotMeta(thumb), sim.save()))) toasts.show(`Saved to slot ${i + 1}.`, 'ok');
-      else toasts.show("This browser wouldn't store that save. It may be full, or in a private window.", 'warn');
+      if (writeSlot(i, makeSlotFile(slotMeta(thumb), sim.save()))) {
+        toasts.show(`Saved to slot ${i + 1}.`, 'ok');
+        askToKeepStorage();
+      } else toasts.show("This browser wouldn't store that save. It may be full, or in a private window.", 'warn');
       refreshSaves();
     },
     onLoad: (i) => {
@@ -378,7 +391,7 @@ async function start(): Promise<void> {
     onExport: () => {
       const day = new Date(snap.timeMs).toISOString().slice(0, 10);
       const blob = new Blob([JSON.stringify(makeSlotFile(slotMeta(null), sim.save()))], { type: 'application/json' });
-      deliverFile(blob, `station-keeper-${scenario.id}-${day}.json`);
+      void deliverFile(blob, `station-keeper-${scenario.id}-${day}.json`);
     },
     onImport: (file) => {
       file
@@ -390,8 +403,132 @@ async function start(): Promise<void> {
         })
         .catch(() => toasts.show("That file couldn't be read.", 'warn'));
     },
+    onCopyCode: async () => {
+      const code = backupCode();
+      try {
+        await navigator.clipboard.writeText(code);
+      } catch {
+        return code; // no clipboard here: the sheet shows the code to copy by hand
+      }
+      markBackedUp();
+      toasts.show('Backup code copied. Keep it somewhere safe, like a note or an email to yourself.', 'ok');
+      return null;
+    },
+    onCopiedByHand: () => markBackedUp(),
+    onSaveBackupFile: () => {
+      const blob = new Blob([`${backupCode()}\n`], { type: 'text/plain' });
+      void deliverFile(blob, backupFileName(new Date())).then((saved) => {
+        if (!saved) return;
+        markBackedUp();
+        toasts.show('Backup file saved. Load it from here to get everything back.', 'ok');
+      });
+    },
+    onCheckCode: (text) => {
+      const read = checkBackup(text);
+      if (!read.ok) return read;
+      const day = new Date(read.body.at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+      return { ok: true, summary: backupSummary(read.body, day) };
+    },
+    onRestore: (text) => {
+      const read = checkBackup(text);
+      if (!read.ok) {
+        saves.restoreFailed(`${read.reason}.`);
+        toasts.show(`${read.reason}.`, 'warn');
+        return;
+      }
+      const body = read.body;
+      // This device's settings stay if the backup has none; either way, the backup itself counts as the last one made.
+      const kept = parseSettings(body.keys[SETTINGS_KEY] ?? null, settings);
+      body.keys[SETTINGS_KEY] = JSON.stringify({ ...kept, lastBackupMs: Math.max(kept.lastBackupMs ?? 0, body.at) });
+      const store = localStore();
+      saving = false; // don't let the closing page autosave the old station over the restored one
+      if (!store || !writeBackup(store, body)) {
+        saving = true;
+        saves.restoreFailed("This browser wouldn't store the backup, so nothing was changed.");
+        toasts.show("This browser wouldn't store the backup, so nothing was changed.", 'warn');
+        return;
+      }
+      askToKeepStorage();
+      location.reload();
+    },
     onClose: () => saves.close(),
   });
+
+  // ---- Backups of the whole game, and asking the browser to keep its storage ----
+  const localStore = (): Storage | null => {
+    try {
+      return window.localStorage;
+    } catch {
+      return null;
+    }
+  };
+  /** The backup code for everything stored now, with the station in play saved first so it's current. */
+  const backupCode = (): string => {
+    if (!title.isOpen) autosave(true);
+    const store = localStore();
+    return makeBackupCode(store ? readStoredKeys(store) : {}, Date.now());
+  };
+  /** A code checked end to end, including that its station loads in this version of the game. */
+  const checkBackup = (text: string): BackupRead => {
+    const read = readBackupCode(text);
+    if (!read.ok) return read;
+    const save = read.body.keys[SAVE_KEY];
+    if (save !== undefined) {
+      try {
+        simFromSave(defs, JSON.parse(save));
+      } catch {
+        return { ok: false, reason: "That backup's station is from another version of the game, so it can't be restored" };
+      }
+    }
+    return read;
+  };
+  const lastBackupLine = (): string => {
+    if (settings.lastBackupMs === null) return 'Last backup: none yet.';
+    const when = new Date(settings.lastBackupMs).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+    return `Last backup: ${when}.`;
+  };
+  const refreshBackupStatus = (): void => {
+    // Something to back up: the station in play, or anything already stored (a played station, a slot).
+    const store = localStore();
+    const stored = store ? readStoredKeys(store) : {};
+    const canBackUp = !title.isOpen || Object.keys(stored).some((k) => k === SAVE_KEY || k.startsWith('stationkeeper.slot.'));
+    saves.setBackupStatus(null, lastBackupLine(), canBackUp);
+    void storageProtected().then((kept) => {
+      const line =
+        kept === null
+          ? null
+          : kept
+            ? 'Storage: protected on this device.'
+            : 'Storage: your browser may clear saves if the phone runs low. Keep a backup file.';
+      saves.setBackupStatus(line, lastBackupLine(), canBackUp);
+    });
+  };
+  const markBackedUp = (): void => {
+    settings = { ...settings, lastBackupMs: Date.now() };
+    saveSettings(settings);
+    askToKeepStorage();
+    nudge.hide();
+    refreshBackupStatus();
+  };
+  // The reminder: once a visit, on the title or the pause menu, when there's a station worth keeping and no recent backup.
+  let nudged = false;
+  const nudge = new BackupNudge(
+    () => openSaves(),
+    () => keepingZoom(measureInsets), // the title keeps the station between the wordmark and the buttons
+  );
+  const maybeNudge = (spot: HTMLElement): void => {
+    if (nudged) return;
+    const played = (started || loaded.kind === 'loaded') && sim.elapsedMinutes >= 24 * 60;
+    const hasProgress = played || readSlots(SAVE_VERSION).some((sl) => sl.kind === 'ok');
+    if (!backupDue(hasProgress, settings.lastBackupMs, Date.now())) return;
+    nudged = true;
+    nudge.show(
+      spot,
+      settings.lastBackupMs === null
+        ? 'No backup yet. If the phone runs low on space, the browser may clear your stations.'
+        : 'Your last backup is over two weeks old. Time for a fresh one?',
+    );
+  };
 
   let settings: Settings = loadSettings();
   const applySettings = () => {
@@ -408,7 +545,7 @@ async function start(): Promise<void> {
     ui,
     settings,
     (next) => {
-      settings = next;
+      settings = { ...next, lastBackupMs: settings.lastBackupMs }; // the sheet's copy doesn't track backups
       saveSettings(settings);
       applySettings();
       keepingZoom(measureInsets);
@@ -680,7 +817,9 @@ async function start(): Promise<void> {
   const autosave = (force = false) => {
     if (!saving) return;
     if (!force && sim.elapsedMinutes === savedAt) return;
-    if (!saveGame(sim) && !warnedNoSave) {
+    if (saveGame(sim)) {
+      askToKeepStorage(); // once a load, and only now there's a save worth keeping
+    } else if (!warnedNoSave) {
       warnedNoSave = true;
       toasts.show("This browser won't keep a save, so the station won't survive a reload.", 'warn');
     }

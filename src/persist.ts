@@ -4,7 +4,8 @@ import { scenarioById } from './scenarios';
 import { SAVE_VERSION, Simulation, type SimSave } from './sim/simulation';
 import type { ModuleDef } from './sim/types';
 
-const KEY = 'stationkeeper.save';
+export const SAVE_KEY = 'stationkeeper.save';
+const KEY = SAVE_KEY;
 /** The scenario picked for the next new game, read once on the reload that starts it. */
 const NEXT_KEY = 'stationkeeper.nextScenario';
 /** Set before a reload that should go straight into the game (a loaded slot), skipping the title screen. */

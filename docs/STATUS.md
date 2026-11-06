@@ -1159,6 +1159,38 @@ The game gets the furniture around it: a title screen, a pause menu, save slots,
 - **Two taps rather than "are you sure?" dialogs**, matching the existing Start a new station button.
 - **The sound hasn't been listened to on a phone yet.** Levels are set by ear on paper: ambient at −30 dB under the cues. Play-testing should check that nothing grates.
 
+## Session 27: save safety
+
+All Longlight games live on one site (`jxstrr0.github.io`), so they share one browser storage. If a phone runs low on space, the browser can clear the whole site at once. This session makes that less likely and easier to recover from.
+
+### What was built
+
+- **Ask the browser to keep the storage** (`src/storageCare.ts`). After the first save of a visit (an autosave or a slot), and after a backup or restore, the game calls `navigator.storage.persist()`, once per page load, only if `persisted()` says it isn't kept yet. Firefox asks the player; Chrome and Safari decide by themselves. Where the API is missing nothing happens.
+- **Backups of the whole game** (`src/backup.ts`), in Save and load under a new Backup heading:
+  - A code: `SK1:` + base64url of the JSON of every Station Keeper key (the station in play, the three slots, settings, records) + a 6-character checksum. The one-load flags (next scenario, skip title) are left out.
+  - **Copy backup code** puts it on the clipboard. Where the clipboard isn't allowed, the code appears in a box to copy by hand.
+  - **Save backup file** writes the same code to `station-keeper-backup-YYYY-MM-DD.txt` (the share sheet on phones, so it can go to Files; a download elsewhere).
+  - **Restore from code** and **Load backup file** both fill the same box. The code is checked end to end as it arrives (checksum, shape, and that its station loads in this version), with a one-line summary or a plain error. Restore takes two taps, then replaces every Station Keeper key at once (or puts them all back if the browser refuses part way) and reloads to the title.
+  - A storage line: "protected on this device", or "your browser may clear saves if the phone runs low". Hidden where the browser can't say.
+  - "Last backup:" with the date.
+- **A reminder.** When there's a station a day or more in (or a slot), and no backup yet or none for 14 days, a quiet note with Back up and Not now appears on the title screen or the pause menu. At most once a visit, never during play.
+- The last backup's time is `lastBackupMs` in the settings (`stationkeeper.settings`), so no new storage key. The settings sheet's own copy doesn't overwrite it. A restore sets it to the backup's own time.
+- The existing Export / Import (one station as JSON) is unchanged.
+- **Tests:** 247 → 255. New ones cover the code round trip, whitespace, cut-off and wrong codes, the file name, the summary, the all-or-nothing restore (with a store that refuses a write), leaving other games' keys alone, and when the reminder is due. Checked in Chromium at 390×844 and landscape: save a slot, save a backup file, delete the slot, load a broken file (error), a stranger's file (error), the real file (restored), copy and paste the code, the reminder on the title. No console errors.
+
+### How to test on a phone
+
+1. Play a station, then ☰ → Save and load. Scroll to Backup: the storage line and "Last backup: none yet." show.
+2. Tap Save backup file and pick Save to Files. "Last backup" turns to today.
+3. Delete a slot (or start a new station), then Load backup file and pick the file. Check the summary, tap Restore twice. The game reloads with everything back.
+4. Pick any other text file: it says it isn't a Station Keeper backup, and nothing changes.
+
+### Choices made
+
+- **The backup carries everything**, not one station: it's for getting the game back after the browser clears it. Export stays for moving one station.
+- **No compression.** A save is about 5 to 20 KB and a slot picture about 10 KB, so a full backup is tens of KB. That's fine for a file and a clipboard.
+- The reminder waits for a day of play, so a first visit isn't nagged.
+
 ## Next
 
 The planned slices are done. Candidates for what's next, roughly in order of value:
