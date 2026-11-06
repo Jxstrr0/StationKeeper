@@ -1384,6 +1384,13 @@ A hands-off Longlight run was evacuated on days 21–26 every time: the water ta
 - A hands-off owner who repays at once and repairs breakdowns reaches it on days 12, 16 and 18 (three seeds), and the station now lasts the full 30-day probe.
 - Progress reads "Paid off · $12.3M of $30.0M in hand" once the loan is gone.
 
+## Version numbers
+
+- **Decision (2026-11-06):** versions use four numbers, Major.Minor.Patch.Build, Kelbo's call, same across all Longlight games. 0.1.0 rolled over to 0.1.0.0.
+- `src/version.ts` holds `GAME_VERSION`, the one place to change it. The title screen shows it small under the tagline ("v0.1.0.0").
+- Bump rule: Major = overhaul, Minor = feature batch, Patch = tweak or fix, Build = republish.
+- `package.json` keeps `"version": "0.1.0"`, because npm only accepts three numbers there. It isn't shown in the game.
+
 ## Next
 
 The planned slices are done. Candidates for what's next, roughly in order of value:
