@@ -223,6 +223,14 @@
   color: var(--muted);
 }
 
+.title-version {
+  margin: 6px 0 0;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  opacity: 0.7;
+}
+
 .title-foot {
   display: flex;
   flex-direction: column;
