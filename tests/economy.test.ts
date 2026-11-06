@@ -90,11 +90,12 @@ describe('money', () => {
     expect(sim.command({ type: 'repayLoan', amount: 10 })).toEqual({ ok: true });
     expect(sim.snapshot().economy).toMatchObject({ cash: econ.startCash - 10, loan: econ.loan.principal - 10 });
     sim.run(60);
-    expect(sim.snapshot().economy.ledger.interest).toBeCloseTo((-60 * 50 * econ.loan.ratePerQuarter) / 1440, 9);
+    expect(sim.snapshot().economy.ledger.interest).toBeCloseTo((-60 * (econ.loan.principal - 10) * econ.loan.ratePerQuarter) / 1440, 9);
     expect(sim.command({ type: 'repayLoan', amount: 0 }).ok).toBe(false);
-    // Can't repay more than you have.
+    // Can't repay more than is owed, or more than you have.
+    const before = sim.snapshot().economy;
     sim.command({ type: 'repayLoan', amount: 1000 });
-    expect(cash(sim)).toBe(0);
+    expect(sim.snapshot().economy).toMatchObject({ loan: Math.max(0, before.loan - before.cash), cash: Math.max(0, before.cash - before.loan) });
   });
 });
 

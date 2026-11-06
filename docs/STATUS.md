@@ -419,7 +419,7 @@ A station left completely alone (5 seeds) is lost to **evacuation in 23–42 hou
 - **Board takeover:** a goal with `days` that isn't met by then ends the game with a new outcome, `replaced` ("The board has replaced you"). A goal met in time stays met. The goal sheet's wording follows the goal.
 - **Sim:** the snapshot's `ending.goal` gives the kind, where the station stands, the target, progress from 0 to 1, and the deadline. Saves are keyed by scenario id instead of seed, so `SAVE_VERSION` is now 3.
 - **Scenarios** now live in `src/data/scenarios/`, each with an `id` and a `blurb`, and are listed in `src/scenarios.ts`:
-  - **Longlight One** (as before): $40M cash, a $60M loan, no deadline. Goal: pay off the loan.
+  - **Longlight One** (as before): $40M cash, a $60M loan, no deadline. Goal: pay off the loan. (Since session 27: a $30M loan, and the station must also run 5 days.)
   - **Kittiwake Outpost** (new):
     - a lab already aboard;
     - $25M cash and a $20M loan;
@@ -1158,6 +1158,17 @@ The game gets the furniture around it: a title screen, a pause menu, save slots,
 - **Loading a slot reloads the page.** The main loop is built around one sim, so a reload is simpler and safer than tearing the scene down. It costs about a second.
 - **Two taps rather than "are you sure?" dialogs**, matching the existing Start a new station button.
 - **The sound hasn't been listened to on a phone yet.** Levels are set by ear on paper: ambient at −30 dB under the cues. Play-testing should check that nothing grates.
+
+## Session 27: an easier Longlight One
+
+### What was built
+- **Smaller loan.** Longlight One's loan is now $30M instead of $60M, at the same 3% a quarter, with $40M starting cash. A player can clear it on day one and keep $10M, or build first and repay later without the interest eating the start.
+- **A hold on the goal.** A `repayLoan` goal can now take `holdDays`: the loan must be cleared *and* the station must have run that long, in either order. Longlight One uses 5 days, so repaying on minute one isn't a win by itself. Finance shows "Paid off · 2 d 3 h to go" while the hold runs. The progress bar averages the two halves and doesn't fill until both are done. `holdDays` is checked at load: it must be positive and no longer than `days`.
+- **Snapshot:** `ending.goal.holdLeftMinutes` (0 for goals without a hold).
+
+### Choices made
+- **5 days**, picked by the user from a pop-up over a cash target or leaving an instant win. It matches the old trace, where a good build was comfortable by about day 5.
+- **Old saves** keep the loan they were saved with ($60M), because the loan lives in the save. Only new games get $30M.
 
 ## Next
 

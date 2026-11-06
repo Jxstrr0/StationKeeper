@@ -2,7 +2,7 @@
   "id": "longlight-one",
   "name": "Longlight One",
   "blurb": "A small guest station on a hand-me-down loan. Keep the lights on, keep the air clean, and pay the bank back.",
-  "goal": { "kind": "repayLoan" },
+  "goal": { "kind": "repayLoan", "holdDays": 5 },
   "seed": 1201,
   "startDate": "2041-06-14T06:00:00Z",
   "orbit": { "altitudeKm": 420, "betaDeg": 0, "startPhaseDeg": 70 },
@@ -57,7 +57,7 @@
   },
   "economy": {
     "startCash": 40,
-    "loan": { "principal": 60, "ratePerQuarter": 0.03 },
+    "loan": { "principal": 30, "ratePerQuarter": 0.03 },
     "quarterDays": 1,
     "guestPerDay": 1.5,
     "operationsPerDay": 0.3,
