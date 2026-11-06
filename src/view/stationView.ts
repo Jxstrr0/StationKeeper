@@ -3,8 +3,13 @@
 import * as THREE from 'three';
 import { mountPort } from '../sim/station';
 import type { DeliverySnapshot, ModuleDef, ModuleSnapshot, ModuleStatus, SimSnapshot } from '../sim/types';
+import { CargoTraffic, reachAlong } from './cargo';
 import { heatRgb } from './heatScale';
+import { emberPulse, failFlicker, guestOccupancy, sparkBurst, wearLookInto, windowLights, type WearLook } from './lifeMath';
 import type { ModuleModel, ModuleModelSource } from './moduleModels';
+import { ALTITUDE, viewQuality } from './scene';
+import { makeSparks, setSparkTime } from './sparks';
+import { applyWear, type WearUniforms } from './wear';
 
 const STATUS_COLORS: Record<ModuleStatus, number> = {
   powered: 0xb48ce8, // lilac: healthy
@@ -27,6 +32,15 @@ interface Entry {
   /** Heat overlay: this module's tint material, and the materials it replaced. */
   heatMaterial: THREE.MeshStandardMaterial;
   swapped: { mesh: THREE.Mesh; material: THREE.Material | THREE.Material[] }[];
+  /** Grime, scorch and ember on this module's own copies of its materials. */
+  wear: WearUniforms;
+  /** Window panes per ring as built, for guest modules; the rings draw fewer while guests are few. */
+  windowCounts: number[];
+  /** Emissive intensity last given to the glow materials, so it's only written when it changes. */
+  glow: number;
+  sparks: THREE.Points | null;
+  /** 0..1, so failed modules flicker and spark out of step. */
+  seed: number;
 }
 
 function makeHaloTexture(): THREE.Texture {
@@ -80,6 +94,17 @@ export class StationView {
   private selectedId: string | null = null;
   private blink = 0;
   private heatOverlay = false;
+  private readonly look: WearLook = { grime: 0, scorch: 0, ember: 0 };
+  private readonly cargo = new CargoTraffic(
+    (id, port, position, direction) => this.portInto(id, port, position, direction),
+    (id, position, direction) => {
+      const order = this.orders.get(id);
+      if (!order) return null;
+      order.updateWorldMatrix(true, true);
+      return reachAlong(order, position, direction);
+    },
+    -ALTITUDE + 14,
+  );
   /** Fires when a module finishes loading, so the caller can re-frame the camera. */
   onModuleAdded: (() => void) | null = null;
 
@@ -148,6 +173,8 @@ export class StationView {
     object.name = m.id;
     object.userData.moduleId = m.id;
     object.add(model.root);
+    // Before the status light and the heat overlay, so neither gets a wear copy.
+    const wear = applyWear(model.root, model.glowMaterials);
 
     if (m.attach && !this.place(object, def, m.attach.to, m.attach.port, m.attach.via)) {
       throw new Error(`Cannot place "${m.id}": missing parent or port`);
@@ -169,7 +196,22 @@ export class StationView {
 
     this.root.add(object);
     const heatMaterial = new THREE.MeshStandardMaterial({ roughness: 0.65, metalness: 0, side: THREE.DoubleSide });
-    const entry: Entry = { id: m.id, def, object, model, lightCore, halo, status: null, heatMaterial, swapped: [] };
+    const entry: Entry = {
+      id: m.id,
+      def,
+      object,
+      model,
+      lightCore,
+      halo,
+      status: null,
+      heatMaterial,
+      swapped: [],
+      wear,
+      windowCounts: model.windows?.map((w) => w.count) ?? [],
+      glow: -1,
+      sparks: null,
+      seed: Math.random(),
+    };
     this.entries.set(m.id, entry);
     if (this.heatOverlay) this.applyHeat(entry, true);
     this.onModuleAdded?.();
@@ -191,6 +233,16 @@ export class StationView {
     object.quaternion.setFromUnitVectors(new THREE.Vector3(...cPort.direction).normalize(), pDir.negate().normalize());
     const cOffset = new THREE.Vector3(...cPort.position).applyQuaternion(object.quaternion);
     object.position.copy(pPos).sub(cOffset);
+    return true;
+  }
+
+  /** portFrame without allocating: writes into `position` and `direction`. False if there's no such port. */
+  private portInto(moduleId: string, portId: string, position: THREE.Vector3, direction: THREE.Vector3): boolean {
+    const e = this.entries.get(moduleId);
+    const p = e?.def.ports.find((x) => x.id === portId);
+    if (!e || !p) return false;
+    position.set(p.position[0], p.position[1], p.position[2]).applyQuaternion(e.object.quaternion).add(e.object.position);
+    direction.set(p.direction[0], p.direction[1], p.direction[2]).applyQuaternion(e.object.quaternion).normalize();
     return true;
   }
 
@@ -275,6 +327,10 @@ export class StationView {
   update(snap: SimSnapshot, sunDirWorld: THREE.Vector3, dt: number): void {
     this.blink += dt;
     const blinkOn = Math.sin(this.blink * 6) > -0.2;
+    const reduceMotion = document.documentElement.classList.contains('reduce-motion');
+    const sparksOk = !reduceMotion && viewQuality() !== 'low';
+    const occupancy = guestOccupancy(snap.guests.places, snap.guests.booked);
+    setSparkTime(this.blink);
     for (const m of snap.modules) {
       const e = this.entries.get(m.id);
       if (!e) continue;
@@ -283,9 +339,8 @@ export class StationView {
         const color = STATUS_COLORS[m.status];
         (e.lightCore.material as THREE.MeshBasicMaterial).color.setHex(color);
         (e.halo.material as THREE.SpriteMaterial).color.setHex(color);
-        const glow = m.status === 'powered' ? 1.6 : m.status === 'throttled' ? 0.8 : 0.02;
-        for (const g of e.model.glowMaterials) g.emissiveIntensity = glow;
       }
+      this.updateLife(e, m, occupancy, reduceMotion, sparksOk);
       if (this.heatOverlay) {
         const [r, g, b] = heatRgb(m.tempC);
         e.heatMaterial.color.setRGB(r, g, b, THREE.SRGBColorSpace);
@@ -303,6 +358,44 @@ export class StationView {
       const e = this.entries.get(this.selectedId);
       if (e) this.selection.setFromObject(e.object);
     }
+    if (!this.cargo.root.parent && this.root.parent) this.root.parent.add(this.cargo.root); // outside root, so it's not in bounds()
+    this.cargo.update(snap.economy.deliveries, dt, reduceMotion);
+  }
+
+  /** Wear on the hull, lit windows by guests aboard, and the flicker and sparks of a failed module. */
+  private updateLife(e: Entry, m: ModuleSnapshot, occupancy: number, reduceMotion: boolean, sparksOk: boolean): void {
+    const failed = m.status === 'failed';
+    const look = wearLookInto(this.look, m.wear, m.status);
+    e.wear.uGrime.value = look.grime;
+    e.wear.uScorch.value = look.scorch;
+    e.wear.uEmber.value = look.ember * emberPulse(this.blink, e.seed, reduceMotion);
+
+    // Windows and other glow: lit while running, by guests aboard for guest modules; a failed one flickers now and then.
+    const lit = m.status === 'powered' || m.status === 'throttled';
+    const flicker = failed && failFlicker(this.blink, e.seed, reduceMotion);
+    let glow = m.status === 'powered' ? 1.6 : m.status === 'throttled' ? 0.8 : 0.02;
+    const windows = e.model.windows;
+    if (windows) {
+      for (let i = 0; i < windows.length; i++) {
+        const w = windowLights(e.windowCounts[i] ?? 0, occupancy, lit);
+        windows[i]!.count = w.shown;
+        if (lit) glow = w.intensity * (m.status === 'throttled' ? 0.5 : 1);
+      }
+    }
+    if (flicker) glow = 0.9;
+    if (glow !== e.glow) {
+      e.glow = glow;
+      for (const g of e.model.glowMaterials) g.emissiveIntensity = glow;
+    }
+
+    const sparking = failed && sparksOk;
+    if (sparking && !e.sparks) {
+      e.sparks = makeSparks();
+      // Beside the status light, which sits on the hull's outer face.
+      e.sparks.position.copy(e.model.statusLight.position).add(tmpV.set(0.7, 0.1, 0.3));
+      e.model.statusLight.parent?.add(e.sparks);
+    }
+    if (e.sparks) e.sparks.visible = sparking && sparkBurst(this.blink, e.seed);
   }
 
   /** Rotate the wings about the gimbal axis so the panel normal points as close to the sun as it can. */
