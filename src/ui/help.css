@@ -1,0 +1,357 @@
+/* ---------- How to play ---------- */
+
+/* Its own scrim rules, so the guide also works outside #ui (a title screen); under #ui the shared report rules apply too. */
+.help-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 8, 10, 0.55);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  z-index: 7;
+}
+
+.help-scrim.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Above the scenario picker (6), since the guide can open from anywhere. */
+#ui > .report-scrim.help-scrim {
+  z-index: 7;
+}
+
+/* A fixed height, so Back and Next stay put as the pages change; the body scrolls if a page runs long. */
+.report-sheet.help-sheet {
+  width: min(440px, calc(100% - 24px));
+  height: min(620px, calc(100% - 32px - var(--safe-top) - var(--safe-bottom)));
+  max-height: none;
+  overflow: hidden;
+  padding: 12px 16px 14px;
+  gap: 10px;
+  /* Vertical drags scroll the page; sideways ones are left to the swipe handler. */
+  touch-action: pan-y;
+}
+
+.help-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-right: -6px;
+}
+
+.help-close {
+  flex: none;
+}
+
+.help-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.help-page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.help-page.from-right {
+  animation: help-in-right 0.22s ease both;
+}
+
+.help-page.from-left {
+  animation: help-in-left 0.22s ease both;
+}
+
+@keyframes help-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+}
+
+@keyframes help-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-18px);
+  }
+}
+
+.help-art {
+  flex: none;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.help-art svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 128px;
+  overflow: visible;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.help-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.help-title {
+  font-size: 22px;
+}
+
+.help-text {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.help-text b {
+  font-weight: 600;
+  color: var(--ivory);
+}
+
+/* Dots over the two buttons; on a short landscape screen they share one row (below). */
+.help-foot {
+  flex: none;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-areas:
+    'dots dots'
+    'back next';
+  gap: 8px 10px;
+  padding-bottom: var(--safe-bottom);
+}
+
+.help-dots {
+  grid-area: dots;
+  display: flex;
+  justify-content: center;
+}
+
+.help-back {
+  grid-area: back;
+}
+
+.help-next {
+  grid-area: next;
+}
+
+/* Hidden, not removed, so Next keeps its place on the first page. */
+.help-back:disabled {
+  visibility: hidden;
+}
+
+/* A fingertip-sized target around a small dot. */
+.help-dot {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  background: none;
+  display: grid;
+  place-items: center;
+}
+
+.help-dot::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 4px;
+  background: var(--line);
+  transition:
+    width 0.2s ease,
+    background 0.2s ease;
+}
+
+.help-dot.on::before {
+  width: 18px;
+  background: var(--lilac);
+}
+
+/* Illustration strokes and fills, from the palette. */
+.help-art .ha-ivory {
+  stroke: var(--ivory);
+}
+
+.help-art .ha-lilac {
+  stroke: var(--lilac);
+}
+
+.help-art .ha-clay {
+  stroke: var(--clay);
+}
+
+.help-art .ha-purple {
+  stroke: var(--purple);
+}
+
+.help-art .ha-dim {
+  stroke: var(--dim);
+}
+
+.help-art .ha-line-track {
+  stroke: var(--line);
+  stroke-width: 4;
+}
+
+.help-art .ha-bg {
+  fill: var(--surface);
+}
+
+.help-art .ha-earth {
+  fill: color-mix(in srgb, var(--purple) 28%, var(--surface));
+}
+
+.help-art .ha-soft {
+  fill: color-mix(in srgb, var(--lilac) 22%, transparent);
+}
+
+.help-art .ha-shade {
+  fill: rgba(0, 0, 0, 0.32);
+  stroke: none;
+}
+
+.help-art .ha-fill-lilac {
+  fill: var(--lilac);
+  stroke: none;
+}
+
+.help-art .ha-dash {
+  stroke-dasharray: 3 5;
+}
+
+.help-art .ha-thin {
+  stroke-width: 1.5;
+}
+
+/* Butt ends, so the gauge's two arcs meet without a bump. */
+.help-art .ha-thick {
+  stroke-width: 5;
+  stroke-linecap: butt;
+}
+
+.help-art .ha-text {
+  fill: var(--muted);
+  stroke: none;
+  font: 600 11px var(--font);
+  letter-spacing: 0.06em;
+}
+
+.help-art .ha-text-lilac {
+  fill: var(--lilac);
+}
+
+.help-art .ha-text-clay {
+  fill: var(--clay);
+}
+
+.help-art .ha-mid {
+  text-anchor: middle;
+}
+
+/* The glowing port's ring, as in build mode. */
+.help-art .ha-pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: help-pulse 1.8s ease-out infinite;
+}
+
+@keyframes help-pulse {
+  from {
+    opacity: 0.9;
+    transform: scale(0.55);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.25);
+  }
+}
+
+@media (max-width: 350px) {
+  .report-sheet.help-sheet {
+    width: calc(100% - 16px);
+    padding: 10px 12px 12px;
+  }
+
+  .help-title {
+    font-size: 20px;
+  }
+
+  .help-text {
+    font-size: 14px;
+  }
+}
+
+/* Phones held sideways: picture beside the words, and the dots between Back and Next, so the words get the height. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .report-sheet.help-sheet {
+    width: min(720px, calc(100% - 24px - var(--safe-left) - var(--safe-right)));
+    height: calc(100% - 16px - var(--safe-top) - var(--safe-bottom));
+    padding: 8px 14px 10px;
+    gap: 6px;
+  }
+
+  .help-page {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+    align-items: start;
+    gap: 16px;
+  }
+
+  .help-art {
+    padding: 8px;
+  }
+
+  .help-art svg {
+    max-height: none;
+  }
+
+  .help-title {
+    font-size: 19px;
+  }
+
+  .help-text {
+    font-size: 14px;
+    line-height: 1.4;
+  }
+
+  .help-foot {
+    grid-template-columns: 1fr auto 1fr;
+    grid-template-areas: 'back dots next';
+    align-items: center;
+    padding-bottom: 0;
+  }
+
+  .help-foot .report-continue {
+    height: 38px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .help-scrim,
+  .help-dot::before {
+    transition: none;
+  }
+
+  .help-page.from-right,
+  .help-page.from-left,
+  .help-art .ha-pulse {
+    animation: none;
+  }
+}

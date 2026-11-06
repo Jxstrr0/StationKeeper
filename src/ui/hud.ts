@@ -12,6 +12,9 @@ const PAUSE_ICON =
 const CHEVRON_ICON =
   '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
+const MENU_ICON =
+  '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M3 4.5h10M3 8h10M3 11.5h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
+
 const COMPACT_KEY = 'stationkeeper.hudCompact';
 
 /** Phones start with the power card folded to one row; the choice is remembered per browser. */
@@ -33,6 +36,7 @@ export interface HudHandlers {
   onHeatOverlay(on: boolean): void;
   /** The crew reading was tapped. */
   onCrew(): void;
+  onMenu(): void;
 }
 
 export class Hud {
@@ -73,6 +77,7 @@ export class Hud {
   private readonly cLoop = el('span', 'mini-v');
   private readonly cCrew = el('span', 'mini-v');
   private compact = initialCompact();
+  private clock24 = true;
 
   constructor(parent: HTMLElement, handlers: HudHandlers) {
     const speeds = el('div', 'speeds');
@@ -156,11 +161,21 @@ export class Hud {
     );
     this.setCompact(this.compact, false);
 
+    const menu = el('button', 'speed hud-menu');
+    menu.type = 'button';
+    menu.innerHTML = MENU_ICON;
+    menu.setAttribute('aria-label', 'Menu');
+    menu.addEventListener('click', handlers.onMenu);
+
     this.root = el('header', 'hud', [
-      el('div', 'hud-row', [el('div', 'hud-clock', [this.date, this.time, el('span', 'hud-utc', ['UTC'])]), speeds]),
+      el('div', 'hud-row', [el('div', 'hud-clock', [this.date, this.time, el('span', 'hud-utc', ['UTC'])]), el('div', 'hud-controls', [speeds, menu])]),
       this.card,
     ]);
     parent.append(this.root);
+  }
+
+  setClock24(on: boolean): void {
+    this.clock24 = on;
   }
 
   private setCompact(on: boolean, remember = true): void {
@@ -195,7 +210,7 @@ export class Hud {
 
   update(snap: SimSnapshot, speed: Speed): void {
     setText(this.date, formatDate(snap.timeMs));
-    setText(this.time, formatTime(snap.timeMs));
+    setText(this.time, formatTime(snap.timeMs, this.clock24));
     for (const [s, b] of this.speedButtons) {
       setClass(b, 'active', s === speed);
       b.setAttribute('aria-pressed', String(s === speed));

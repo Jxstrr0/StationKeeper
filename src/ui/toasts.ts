@@ -8,6 +8,8 @@ const MAX_VISIBLE = 3;
 
 export class Toasts {
   readonly root = el('div', 'toasts');
+  /** Told about every toast as it appears (the sound cue). */
+  onShow: ((kind: ToastKind) => void) | null = null;
 
   constructor(parent: HTMLElement) {
     this.root.setAttribute('role', 'status');
@@ -17,6 +19,7 @@ export class Toasts {
 
   show(text: string, kind: ToastKind): void {
     const t = el('div', `toast ${kind}`, [text]);
+    this.onShow?.(kind);
     this.root.prepend(t);
     while (this.root.children.length > MAX_VISIBLE) this.root.lastElementChild?.remove();
     requestAnimationFrame(() => t.classList.add('in'));
