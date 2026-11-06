@@ -19,6 +19,7 @@ export class SettingsSheet {
     initial: Settings,
     private readonly onChange: (s: Settings) => void,
     private readonly onClose: () => void,
+    onGuide?: () => void,
   ) {
     this.current = { ...initial };
     const done = el('button', 'warn-act primary report-continue', ['Done']);
@@ -111,6 +112,7 @@ export class SettingsSheet {
             volume,
           ]),
         ),
+        ...(onGuide ? [this.row('Getting started', 'The short guide from the first posting.', this.guideButton(onGuide))] : []),
       ]),
       done,
     );
@@ -124,6 +126,13 @@ export class SettingsSheet {
     });
     parent.append(this.root);
     this.refresh();
+  }
+
+  private guideButton(onGuide: () => void): HTMLElement {
+    const b = el('button', 'warn-act', ['Show the guide again']);
+    b.type = 'button';
+    b.addEventListener('click', onGuide);
+    return b;
   }
 
   private row(label: string, hint: string | null, control: HTMLElement): HTMLElement {
