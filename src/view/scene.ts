@@ -13,7 +13,7 @@ const MIN_PIXEL_RATIO = 1;
 
 // A long lens: the narrower of the two fields of view never drops below these, and the
 // camera stands back to compensate. Wide angles bulge whatever is nearest the camera.
-const MIN_HFOV_DEG = 26;
+const MIN_HFOV_DEG = 22;
 const MIN_VFOV_DEG = 24;
 const SUN_SCALE = 520; // sprite size at a 50 degree field of view
 const DEG = Math.PI / 180;
@@ -28,6 +28,8 @@ export interface SceneEnv {
   update(orbit: OrbitSnapshot, phase: number, sunlight: number): void;
   render(): void;
   resize(): void;
+  /** Resize if the canvas's laid-out size changed since the last frame. True when it did. */
+  ensureSize(): boolean;
   /** Screen pixels covered by UI along the top and bottom edges; the view centres on what's left. */
   setInsets(top: number, bottom: number): void;
   /** How far back the camera stands to fit a sphere of `radius` in the uncovered part of the screen. */
@@ -113,9 +115,13 @@ export function createScene(canvas: HTMLCanvasElement): SceneEnv {
   let halfH = (MIN_HFOV_DEG / 2) * DEG;
   let halfV = (MIN_VFOV_DEG / 2) * DEG;
 
+  let sizedW = 0;
+  let sizedH = 0;
   function resize(): void {
     const w = canvas.clientWidth || window.innerWidth;
     const h = canvas.clientHeight || window.innerHeight;
+    sizedW = w;
+    sizedH = h;
     renderer.setSize(w, h, false);
     const aspect = w / h;
     // Vertical field of view of the visible frame: portrait screens widen it so the width keeps its lens.
@@ -133,6 +139,17 @@ export function createScene(canvas: HTMLCanvasElement): SceneEnv {
     halfH = Math.atan(tanV * aspect);
     halfV = Math.atan((tanV * band) / h);
     sunSprite.scale.setScalar((SUN_SCALE * vfov) / (50 * DEG));
+  }
+
+  // Mobile browsers resize the page when the address bar slides or the phone turns, and the
+  // resize event can fire before layout settles. A stale drawing buffer then gets stretched to
+  // the new shape, so check the laid-out size every frame instead of trusting the event.
+  function ensureSize(): boolean {
+    const w = canvas.clientWidth || window.innerWidth;
+    const h = canvas.clientHeight || window.innerHeight;
+    if (w === sizedW && h === sizedH) return false;
+    resize();
+    return true;
   }
 
   function setInsets(top: number, bottom: number): void {
@@ -186,5 +203,5 @@ export function createScene(canvas: HTMLCanvasElement): SceneEnv {
   }
 
   resize();
-  return { renderer, scene, camera, earth, sunDir, update, render: () => renderer.render(scene, camera), resize, setInsets, fitDistance, adapt };
+  return { renderer, scene, camera, earth, sunDir, update, render: () => renderer.render(scene, camera), resize, ensureSize, setInsets, fitDistance, adapt };
 }

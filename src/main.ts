@@ -379,10 +379,7 @@ async function start(): Promise<void> {
     }
     env.setInsets(Math.round(top), Math.round(bottom));
   };
-  window.addEventListener('resize', () => {
-    env.resize();
-    measureInsets();
-  });
+  window.addEventListener('resize', measureInsets); // the canvas itself is resized in the frame loop
   new ResizeObserver(measureInsets).observe(hud.root);
   measureInsets();
   cam.setDistance(env.fitDistance(frame.radius));
@@ -425,6 +422,7 @@ async function start(): Promise<void> {
     const dt = Math.min(0.1, (now - last) / 1000);
     const realDt = (now - last) / 1000;
     last = now;
+    if (env.ensureSize()) measureInsets();
 
     const ticks = clock.advance(realDt);
     if (ticks > 0) {
