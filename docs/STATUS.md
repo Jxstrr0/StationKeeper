@@ -526,7 +526,7 @@ So the deadline asks one thing of the player: notice that the lab needs power th
   - $30M cash and a $40M loan;
   - guests pay $2.2M a day each;
   - two engineers and no scientists;
-  - the goal is $90M in cash within 10 days.
+  - the goal is $90M in cash within 10 days. (Since session 30: $80M.)
   - Power is never short, but radiators only shed 66% of their rating in sunlight, and here it is always sunlight. The starting station already runs too hot for its one radiator, so the habitat throttles within hours.
 - **Catalogues.** A scenario can list the modules it sells (`catalogue`). Without one, everything with a price is for sale.
   - Halyard sells no Research Lab and offers no contracts. Its Finance sheet leaves the contracts section out, and its crew sheet only hires engineers.
@@ -1238,6 +1238,93 @@ An endless mode beside the scenarios, picked by the user from pop-ups: one stati
 - **The company starts on the first posting, with its $30M loan.** New stations come without loans.
 - **The first listings appear after the first company hour**, so the very first look at the sheet may say nothing is for sale.
 - **Untuned:** the deputy share, incident rates and prices are first guesses. A headless check had founded stations earning $3.5–4.4M a day and derelicts $3–7M a day before deputy losses.
+
+## Session 30: balance pass
+
+Every shipped scenario was played headless by scripted players, on 12 seeds each (1–12), with failures on. The bots look at the station once an in-game hour, unless the table says otherwise.
+- **Sensible** repairs anything failed at once, services the most worn module (60% or more) when the crew's list is empty, and signs the best-paying offer per lab hour that has time to spare. It skips steady-loop offers until there are two radiators. It buys a short list in order, each item once cash covers the price plus $8M. On Longlight it repays the whole loan as soon as cash covers it.
+- **Lazy** follows the same plan but looks in only every 12 hours: a player who checks in twice a day.
+- **Greedy** keeps buying whatever it can afford (habitats and labs first, with a node when ports run out), down to $0, and repairs only failures.
+
+The bot throwaway files (`tests/zz-*.ts`) were deleted, as in earlier sessions.
+
+### Results (W = goal reached, E = evacuated, B = bankrupt, R = replaced; days)
+
+| Scenario (deadline) | Strategy | Outcome over 12 seeds |
+| --- | --- | --- |
+| Longlight One (none; 5-day hold) | Neglect | E on all, day 0.9–2.5 |
+| | Repay the loan at once, then repairs and services | W on all, day 5.0. Cash never falls below $9.6M; it ends at $17–23M |
+| | Lab, battery, radiator, then repay | W 11/12, day 5.0–7.8; E 1 (day 4.6) |
+| | Battery, then lab, then repay | W 8/12, day 5.0–12.9; E 2, R 2 (still owing at day 14) |
+| | Repay at once, repair failures only (no services) | W 10/12; E 2 |
+| | Lazy, repay at once | W 7/12; E 5 (day 3.0–4.0) |
+| | Repay at once, never repair | E on all, day 0.9–2.5 |
+| | Greedy | B or E on all, day 2–7 |
+| Kittiwake (6 days) | Neglect | E on all, day 1.1–3.5 |
+| | Repairs only, or keep the lab busy with no builds | R on all (one E) |
+| | Battery only | R on all (one E) |
+| | **Sensible: battery, radiator** | **W 11/12, day 3.1–5.1**; R 1 |
+| | Lazy: battery, radiator | W 1/12; R 9, E 2 |
+| | Battery, radiator, never repair | E on all, day 1.2–2.7 |
+| | Greedy | B or E on all, day 2–5 |
+| Halyard Sunward (10 days, now $80M) | Neglect | E on all, day 1.0–1.9 |
+| | Repairs only | R on all, at $60–66M |
+| | Two radiators, no habitat | R on all, at $59–69M |
+| | **Sensible: radiator, habitat** | **W on all, day 7.0–8.1** |
+| | Cupola, radiator, habitat | W on all, day 7.1–7.9 |
+| | Radiator, habitat, no services | W on all, day 7.3–8.7 |
+| | Lazy: radiator, habitat | W 4/12, day 8.4–9.5; E 5, R 3 |
+| | Greedy | B on 10, R on 2 |
+| Saltglass Rest (8 days) | Neglect | E on all, day 1.7–2.1 |
+| | Repairs only, or radiator and battery | R on all |
+| | **Sensible: radiator, battery, array** | **W 11/12, day 3–7 (median 4)**; R 1 |
+| | The same, no services | W 10/12, day 4–8 |
+| | Lazy: the same | W 1/12; E 6, R 5 |
+| | Greedy | B on 10, R on 2 |
+| Velvet Reach (9 days) | Neglect | E on all, day 1.1–2.5 |
+| | Repairs only, or lounge and radiator | R on all |
+| | **Sensible: lounge, radiator, battery** | **W on all, day 5–8 (median 5)** |
+| | The same, no services | W 9/12, day 5–8; R 3 |
+| | Lazy: the same | W 1/12; R 11 |
+| | Greedy | R on 10, B on 2 |
+
+### What changed, and why
+
+- **Halyard Sunward's goal is now $80M in 10 days, down from $90M.** At $90M the sensible line won on every seed, but only on day 7.9–8.8. That is 79–88% of the deadline, and the bot buys the habitat the moment it can, which a person won't. At $80M it wins on day 7.0–8.1, while the losing lines stay well short. Repairs only peaks at $66M, two radiators at $69M, and greedy goes bankrupt. Cash grows about $10M a day by then, so each $5M off the goal saves only about half a day. ($85M gave day 7.3–8.4.)
+- **Nothing else changed.** The other four are inside the target:
+  - Kittiwake wins on day 3.1–5.1 of 6.
+  - Saltglass wins on day 3–7 of 8.
+  - Velvet Reach wins on day 5–8 of 9.
+  - In each, neglect, greedy, and every half-plan that has lost since its session still lose.
+
+### Findings left alone
+
+- **Longlight One is easy, and that is by design (session 28).** The $30M loan and 5-day hold do stop a minute-one win. But repaying at once and then tending the station wins at exactly day 5 on every seed, with cash never under $9.6M. The game is lost only through neglect: no repairs, or looking in only twice a day. Building a lab never beat repaying straight away, because the lab doesn't earn back its price inside the hold. If Longlight should ask more of the player, the lever is cash or the loan (for example a loan larger than starting cash), not the hold.
+- **Preventive services hardly matter on the hotel postings.** Dropping services and only repairing failures does about as well on Halyard (12/12) and only slightly worse on Saltglass and Velvet Reach. Two engineers clear a failure fast, and a service takes a working habitat or radiator offline too. If services should matter more, the sim levers are `reliability.newFailShare`, `repairFactor`, or `repairCostShare`. They weren't changed: every scenario shares them, and earlier sessions tuned around them.
+- **Checking in every 12 hours loses almost everywhere,** usually to evacuation after one failure goes unrepaired for half a day. That fits an active-play game, but it may be harsh for players who leave a phone game running. Phone play-testing should say whether failures need a slower cascade.
+- **Interest is 3% a quarter on one-day quarters,** so about 3% a day. That is $0.9M a day on Longlight's loan. It was tuned with the economy and is fine for these short postings, but it reads oddly next to the "a quarter" label.
+
+## Session 32: company depth
+
+The user picked all four "what next" options: company depth, a balance pass, visual wear and life, and a first-time tutorial. The balance pass and the visuals went to two helper agents in their own worktrees; this session is the company depth.
+
+### What was built
+- **Selling:** any station but the one you're on sells for 40% of its modules' worth, less its loan. A test checks that nothing bought (a launch or a derelict) can be sold straight back for a profit; at the first guess of 60%, a $50M launch sold for $57M.
+- **Seasoned deputies:** per station, for $0.4M a day. They keep 90% of the income instead of 75%, and have half as many incidents. They pay for themselves from about $2.7M a day of income, before counting the incidents they prevent.
+- **The board** (`src/company/board.ts`): one request at a time, starting on day 1 and then 1.5 days after each one ends. An offer stands for a day; accept it from the sheet. The kinds are:
+  - cash in the bank, not counting credit;
+  - own one more station;
+  - n-star reviews at any station (only offered once a station has reviews);
+  - company income per day.
+  Bonuses run $12–18M and grow with each one done. Missing a task costs nothing but a terse email.
+- **Credit line:** borrow $20M at a time, up to 40% of the company's worth (before debt), at 3% a day (the station loans' rate). Interest comes out hourly with the deputies' money. Repay $20M at a time from cash. The company's worth subtracts the debt, and the $100M milestone and the board's cash requests count cash net of debt, so borrowing can't meet them.
+- The sheet has new sections for the board and credit, plus Sell / Hire-a-seasoned-deputy buttons on each station.
+- Older companies load with no debt and an empty board, so `COMPANY_VERSION` stays 1.
+- How to play's Company page gains a line on all of this.
+
+### Choices made
+- Selling the station you're on isn't allowed: fly elsewhere first. That keeps the live sim and the company consistent.
+- The board's "own one more station" request could be met by buying and reselling, but the resale loss (a station sells for far less than it was bought for) is bigger than the bonus.
 
 ## Next
 

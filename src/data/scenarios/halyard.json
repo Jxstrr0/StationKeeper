@@ -2,7 +2,7 @@
   "id": "halyard",
   "name": "Halyard Sunward",
   "blurb": "An orbit that never leaves the sun: free power, and nowhere to put the heat. The owners want a hotel that pays, and they have put that in writing.",
-  "goal": { "kind": "cash", "amount": 90, "days": 10 },
+  "goal": { "kind": "cash", "amount": 80, "days": 10 },
   "seed": 5581,
   "startDate": "2043-09-21T09:00:00Z",
   "orbit": { "altitudeKm": 520, "betaDeg": 78, "startPhaseDeg": 0 },
