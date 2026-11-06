@@ -3,7 +3,7 @@
 import type { SimSave } from './sim/simulation';
 
 export const SLOT_COUNT = 3;
-const slotKey = (i: number) => `stationkeeper.slot.${i + 1}`;
+export const slotKey = (i: number) => `stationkeeper.slot.${i + 1}`;
 /** Marks an exported file as ours. Bumped only if the wrapper itself changes; the save inside has its own version. */
 const FILE_FORMAT = 1;
 

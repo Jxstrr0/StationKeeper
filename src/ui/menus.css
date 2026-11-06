@@ -487,6 +487,122 @@
   grid-column: 1 / -1;
 }
 
+/* The whole-game backup: a code or a small text file, and the restore box. */
+.saves-backup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.saves-backup-title {
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.saves-backup-line {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.saves-storage {
+  color: var(--ivory);
+}
+
+.saves-backup .warn-act {
+  height: auto;
+  min-height: 44px;
+  white-space: normal;
+}
+
+.saves-backup .warn-act:disabled {
+  opacity: 0.45;
+}
+
+.saves-code {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.saves-code-box {
+  width: 100%;
+  min-height: 72px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--slate);
+  color: var(--ivory);
+  font: 12px/1.4 ui-monospace, Menlo, Consolas, monospace;
+  word-break: break-all;
+  resize: vertical;
+}
+
+.saves-code-box:focus-visible {
+  outline: 2px solid var(--lilac);
+  outline-offset: 1px;
+}
+
+.saves-code-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.saves-code-note.bad {
+  color: var(--clay);
+}
+
+.saves-code-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.saves-code-actions .warn-act.hidden + .warn-act {
+  grid-column: 1 / -1;
+}
+
+/* The backup reminder, on the title screen or the pause menu. */
+.backup-nudge {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--lilac);
+  border-radius: 12px;
+  background: rgba(31, 30, 27, 0.94);
+}
+
+.backup-nudge-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.backup-nudge-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.backup-nudge-actions .warn-act {
+  min-height: 44px;
+}
+
+.title-notice:empty,
+.menu-notice:empty {
+  display: none;
+}
+
 @media (max-width: 359px) {
   .saves-slot {
     grid-template-columns: 72px 1fr;
