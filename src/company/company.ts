@@ -27,8 +27,10 @@ const SALE_SHARE = 0.4;
 /** Wear a deputy-run module picks up per day away; the player finds it waiting on their return. */
 const AWAY_WEAR_PER_DAY = 0.03;
 /** An incident knocks this much off a station's income until the player visits, and this share of its value in parts. */
-const INCIDENT_INCOME_HIT = 0.75;
+const INCIDENT_INCOME_HIT = 0.85;
 const INCIDENT_COST_SHARE = 0.015;
+/** However many breakdowns pile up, a deputy keeps this much of the income coming. */
+const INCOME_FLOOR = 0.4;
 const INCIDENT_WEAR = 0.2;
 const MAX_WEAR = 0.9;
 /** Listings: how many at once, how often a fresh batch comes in, and how long one stays up. */
@@ -284,9 +286,9 @@ export function stepCompany(c: CompanyState, minutes: number, templates: readonl
     const d = deputyOf(s);
     cash += (s.summary.netPerDay * d.share * s.incomeFactor - d.wagesPerDay) * days;
     // A worn station has more to go wrong with it; a seasoned deputy catches more of it.
-    if (rng.chance(Math.min(0.9, (0.1 + 0.4 * s.summary.wear) * d.incidents * days))) {
+    if (rng.chance(Math.min(0.9, (0.05 + 0.25 * s.summary.wear) * d.incidents * days))) {
       s.incidents++;
-      s.incomeFactor = Math.max(0.25, s.incomeFactor * INCIDENT_INCOME_HIT);
+      s.incomeFactor = Math.max(INCOME_FLOOR, s.incomeFactor * INCIDENT_INCOME_HIT);
       const cost = s.summary.value * INCIDENT_COST_SHARE;
       cash -= cost;
       news.push({ text: `${s.name}: a breakdown the deputy couldn't fix cost ${cost.toFixed(1)}M in parts. Income is down until you visit.`, kind: 'warn' });

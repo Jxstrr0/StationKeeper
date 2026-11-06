@@ -1334,6 +1334,21 @@ The user picked all four "what next" options: company depth, a balance pass, vis
 - Settings has *Show the guide again*.
 - Choice: the guide never pauses the game. Longlight One is gentle enough in its first hours, and pausing would fight the first step (change the speed).
 
+## Session 34: company numbers
+
+A throwaway headless probe ran 40-day companies from Longlight One: a hands-off owner who only repairs, services and repays; one who buys the cheapest listing it can afford; one who launches stations; and one handed $300M on day 1 to watch the deputies. The probe was deleted, as before.
+- **What it showed:**
+  - A hands-off Longlight earns about $2–3.5M a day, so the second station comes around day 10–20 unless the player builds.
+  - At those earnings the board's requests were out of reach: 0 of 3 met. For example, it asked for $40M more cash in four days.
+  - Deputies had 8–10 breakdowns in 20 days and sank to the 25% income floor.
+- **The board now scales with the company:**
+  - A cash request asks for 70% of four days' income (at least $8M) on top of the cash net of debt, plus $5M per request done.
+  - Income requests ask for 25% more plus $0.5M a day.
+  - "Own one more station" is offered only when the cheapest listing or launch is affordable within its six days.
+  - Bonuses now grow $3M per request done.
+- **Deputy breakdowns** happen at 0.05 + 0.25 × wear a day, down from 0.1 + 0.4 × wear. Each one now costs 15% of the income rather than 25%, and the floor is 40% rather than 25%. That comes to one every 5–7 days at the derelicts' usual wear. Visiting a station still resets it.
+- **Fixed:** the board's news lowercased the whole title, which printed "$3.5m".
+
 ## Next
 
 The planned slices are done. Candidates for what's next, roughly in order of value:
