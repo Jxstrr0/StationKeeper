@@ -68,34 +68,7 @@ button {
   display: none !important;
 }
 
-/* ---------- Boot screen ---------- */
-
-#boot {
-  position: fixed;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  background: var(--slate);
-  color: var(--muted);
-  font: 500 14px/1 var(--font);
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  transition: opacity 0.5s ease;
-  z-index: 10;
-}
-
-#boot.done {
-  opacity: 0;
-  pointer-events: none;
-}
-
-#boot.error {
-  color: var(--clay);
-  letter-spacing: 0;
-  text-transform: none;
-  padding: 24px;
-  text-align: center;
-}
+/* The boot (loading) screen is styled inline in index.html, so it looks right before this file loads. */
 
 /* ---------- HUD ---------- */
 

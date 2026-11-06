@@ -49,6 +49,7 @@ import { ModuleSheet } from './ui/moduleSheet';
 import { ReportSheet } from './ui/reportSheet';
 import { Toasts } from './ui/toasts';
 import { WarningsPanel } from './ui/warningsPanel';
+import { bootDone, bootFail, bootProgress } from './ui/bootScreen';
 import { BuildView, type PortRef } from './view/buildView';
 import { OrbitCamera } from './view/camera';
 import { ModuleModelLoader } from './view/moduleModels';
@@ -61,7 +62,12 @@ function byId<T extends HTMLElement>(id: string): T {
   return node as T;
 }
 
+/** Shader warm-up gets this long at most; past it the first frames compile whatever is left, as before. */
+const WARMUP_MAX_MS = 4000;
+
 async function start(): Promise<void> {
+  // The code has downloaded (the biggest part of loading), so the bar starts part-filled.
+  await bootProgress(0.4, 'Reading the logbook');
   const defs = parseModuleDefs(modulesJson);
   const defsById = indexDefs(defs);
   // Company mode keeps its own save beside the scenario one; the mode key says which this visit opens.
@@ -99,10 +105,13 @@ async function start(): Promise<void> {
 
   const canvas = byId<HTMLCanvasElement>('scene');
   const ui = byId<HTMLDivElement>('ui');
-  const boot = byId<HTMLDivElement>('boot');
 
+  await bootProgress(0.5, 'Lighting up the Earth');
   const env = createScene(canvas);
-  const models = new ModuleModelLoader();
+  // Each module the station needs (and any model file) ticks the bar along from 60% to 85%.
+  const loading = new THREE.LoadingManager();
+  loading.onProgress = (_url, done, total) => void bootProgress(0.6 + 0.25 * (done / Math.max(1, total)), undefined, false);
+  const models = new ModuleModelLoader(loading);
   const stationView = new StationView(defsById, models);
   env.scene.add(stationView.root);
   const buildView = new BuildView(stationView, models);
@@ -114,11 +123,21 @@ async function start(): Promise<void> {
   const cam = new OrbitCamera(env.camera, canvas, { minDistance: 14, maxDistance: 420, floorY: -ALTITUDE + 8 });
 
   let snap = sim.snapshot();
+  await bootProgress(0.6, 'Docking the modules');
   await stationView.sync(snap);
   const frame = stationView.bounds();
   cam.target.copy(frame.center);
   let fitRadius = frame.radius;
   cam.setDistance(env.fitDistance(fitRadius));
+
+  // Compile the shaders now, behind the loading screen, so the first frames of play don't stutter.
+  await bootProgress(0.88, 'Warming up the shaders');
+  try {
+    await Promise.race([env.renderer.compileAsync(env.scene, env.camera), new Promise((r) => setTimeout(r, WARMUP_MAX_MS))]);
+  } catch (err) {
+    console.warn('Shader warm-up skipped:', err);
+  }
+  await bootProgress(0.96, 'Opening the hatch');
 
   // ---- Sound: nothing plays until the first tap or key, which is when browsers allow it ----
   const sound = new Sound();
@@ -1175,15 +1194,10 @@ async function start(): Promise<void> {
   };
   requestAnimationFrame(loop);
 
-  boot.classList.add('done');
-  setTimeout(() => boot.remove(), 600);
+  bootDone();
 }
 
 start().catch((err: unknown) => {
   console.error(err);
-  const boot = document.getElementById('boot');
-  if (boot) {
-    boot.classList.add('error');
-    boot.textContent = `Station Keeper could not start: ${err instanceof Error ? err.message : String(err)}`;
-  }
+  bootFail(err);
 });
