@@ -1391,6 +1391,12 @@ A hands-off Longlight run was evacuated on days 21–26 every time: the water ta
 - Bump rule: Major = overhaul, Minor = feature batch, Patch = tweak or fix, Build = republish.
 - `package.json` keeps `"version": "0.1.0"`, because npm only accepts three numbers there. It isn't shown in the game.
 
+## Home screen icon (0.1.1.0)
+
+- "Add to Home Screen" on an iPhone now shows a proper icon instead of a screenshot of the page. The icon is the favicon's station (purple mast, lilac panel, ivory module) over the blue curve of Earth on slate, redrawn for a big tile.
+- Files: `public/icons/apple-touch-icon.png` (180, iPhone), `icon-192.png` and `icon-512.png` (Android and the PNG favicon fallback), `icon-512-maskable.png` (the art inside the middle 80%, so Android can crop it to a circle or squircle), and `public/manifest.webmanifest` (name, standalone, any orientation, slate colours). `index.html` links them and sets the home-screen title.
+- To test: on an iPhone open the live site in Safari, Share, Add to Home Screen. The preview should show the station icon and "Station Keeper". Opening it from the home screen starts full screen.
+
 ## Next
 
 The planned slices are done. Candidates for what's next, roughly in order of value:
