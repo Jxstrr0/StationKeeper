@@ -2,16 +2,19 @@
 import './ui/styles.css';
 import './ui/finance.css';
 import './ui/menus.css';
+import './ui/help.css';
+import { Sound } from './audio/sound';
 import * as THREE from 'three';
 import modulesJson from './data/modules.json';
 import { SCENARIOS, scenarioById } from './scenarios';
 import { parseModuleDefs } from './sim/data';
-import { loadGame, saveGame, startNewGame, takeChosenScenario, takeSkipTitle } from './persist';
+import { loadGame, replaceGame, saveGame, simFromSave, skipTitleOnce, startNewGame, takeChosenScenario, takeSkipTitle } from './persist';
+import { clearSlot, makeSlotFile, parseImport, readSlot, readSlots, writeSlot, type SlotMeta } from './slots';
 import { loadSettings, saveSettings, UI_ZOOM, type Settings } from './settings';
 import { loadRecords, recordLoss, recordWin } from './records';
 import { forecast } from './sim/forecast';
 import { phaseAt, sunlightAt } from './sim/orbit';
-import { Simulation } from './sim/simulation';
+import { SAVE_VERSION, Simulation } from './sim/simulation';
 import { indexDefs, mountPort } from './sim/station';
 import { Clock, SPEEDS, type Speed } from './sim/time';
 import { BuildPanel, previewRows } from './ui/buildPanel';
@@ -24,7 +27,9 @@ import { goalLine } from './ui/goalText';
 import { ScenarioPicker } from './ui/scenarioPicker';
 import { Hud } from './ui/hud';
 import { dataUrlToBlob, deliverFile } from './ui/download';
+import { HelpSheet } from './ui/helpSheet';
 import { PauseMenu } from './ui/pauseMenu';
+import { SavesSheet } from './ui/savesSheet';
 import { PhotoBar } from './ui/photoBar';
 import { SettingsSheet } from './ui/settingsSheet';
 import { TitleScreen } from './ui/titleScreen';
@@ -81,6 +86,13 @@ async function start(): Promise<void> {
   let fitRadius = frame.radius;
   cam.setDistance(env.fitDistance(fitRadius));
 
+  // ---- Sound: nothing plays until the first tap or key, which is when browsers allow it ----
+  const sound = new Sound();
+  const unlockSound = () => sound.unlock();
+  window.addEventListener('pointerdown', unlockSound, true);
+  window.addEventListener('keydown', unlockSound, true);
+  sound.setAmbient(true);
+
   // ---- UI ----
   const hud = new Hud(ui, {
     // The quarterly report holds the game paused until Continue.
@@ -101,6 +113,11 @@ async function start(): Promise<void> {
     },
   });
   const toasts = new Toasts(ui);
+  toasts.onShow = (kind) => sound.play(kind === 'alarm' ? 'alarm' : kind === 'warn' ? 'warn' : 'toast');
+  // Every button in the overlay ticks.
+  ui.addEventListener('click', (e) => {
+    if (e.target instanceof Element && e.target.closest('button')) sound.play('click');
+  });
   const select = (id: string | null) => {
     stationView.select(id);
     if (id) {
@@ -202,8 +219,8 @@ async function start(): Promise<void> {
   const title = new TitleScreen(ui, {
     onContinue: () => enterPlay(),
     onNewStation: () => picker.show(),
-    onLoad: () => toasts.show('Save slots are on their way.', 'ok'),
-    onHelp: () => toasts.show('The guide is on its way.', 'ok'),
+    onLoad: () => openSaves(),
+    onHelp: () => help.show(),
     onSettings: () => settingsSheet.show(),
   });
   /** What the title's Continue button carries on with, or null for a station nobody has played yet. */
@@ -234,32 +251,35 @@ async function start(): Promise<void> {
     } else {
       clock.setSpeed(1);
       toasts.show(`${scenario.name}. ${goalLine(scenario.goal)} The goal is in Finance.`, 'ok');
+      if (Object.keys(loadRecords()).length === 0 && loaded.kind === 'none') toasts.show('New to this? How to play is in the menu, top right.', 'ok');
     }
     if (loaded.kind === 'discarded') toasts.show("Your saved station couldn't be loaded after an update, so here's a fresh one.", 'warn');
   };
 
   let menuResume: Speed = 1;
   const openMenu = () => {
-    if (menu.isOpen || title.isOpen || photo.isOpen || report.isOpen || ending.isOpen || picker.isOpen) return;
+    if (menu.isOpen || help.isOpen || saves.isOpen || title.isOpen || photo.isOpen || report.isOpen || ending.isOpen || picker.isOpen) return;
     menuResume = clock.speed;
     clock.setSpeed(0);
     const s = sim.snapshot();
     menu.show(`${scenario.name} · day ${Math.floor(s.minutes / 1440) + 1} · ${formatDate(s.timeMs)}`);
+    sound.play('open');
   };
   const resumeFromMenu = () => {
     menu.close();
+    sound.play('close');
     if (!sim.ended && !report.isOpen && !ending.isOpen) clock.setSpeed(menuResume);
   };
   const menu = new PauseMenu(ui, {
     onResume: resumeFromMenu,
-    onSaves: () => toasts.show('Save slots are on their way.', 'ok'),
+    onSaves: () => openSaves(),
     onRestart: () => {
       saving = false;
       startNewGame(sim.scenario.id);
       location.reload();
     },
     onSettings: () => settingsSheet.show(),
-    onHelp: () => toasts.show('The guide is on its way.', 'ok'),
+    onHelp: () => help.show(),
     onPhoto: () => {
       menu.close();
       closePanels();
@@ -290,11 +310,88 @@ async function start(): Promise<void> {
         return;
       }
       photo.blink();
+      sound.play('shutter');
       const day = new Date(snap.timeMs).toISOString().slice(0, 10);
       deliverFile(dataUrlToBlob(url), `station-keeper-${day}.png`);
     },
     exitPhoto,
   );
+
+  const help = new HelpSheet(ui, { onClose: () => undefined });
+
+  // ---- Save slots and files ----
+  const currentLine = (): string | null => resumeLine();
+  const openSaves = () => saves.show(title.isOpen ? null : currentLine(), readSlots(SAVE_VERSION));
+  const refreshSaves = () => saves.update(title.isOpen ? null : currentLine(), readSlots(SAVE_VERSION));
+  /** Load a save into the game: it replaces the autosave, and the page reloads straight into play. */
+  const playSave = (save: Parameters<typeof replaceGame>[0]): void => {
+    try {
+      simFromSave(defs, save);
+    } catch {
+      toasts.show("That save doesn't fit this version of the game, so it can't be loaded.", 'warn');
+      return;
+    }
+    saving = false; // don't let the closing page autosave the old station over the one being loaded
+    if (!replaceGame(save)) {
+      saving = true;
+      toasts.show("This browser wouldn't store the station, so it can't be loaded here.", 'warn');
+      return;
+    }
+    skipTitleOnce();
+    location.reload();
+  };
+  const slotMeta = (thumb: string | null): SlotMeta => {
+    const s = sim.snapshot();
+    return {
+      scenarioId: scenario.id,
+      scenarioName: scenario.name,
+      timeMs: s.timeMs,
+      minutes: s.minutes,
+      cash: s.economy.cash,
+      modules: s.modules.length,
+      ended: sim.ended,
+      savedAtMs: Date.now(),
+      thumb,
+    };
+  };
+  const saves = new SavesSheet(ui, {
+    onSave: (i) => {
+      let thumb: string | null = null;
+      try {
+        thumb = env.thumbnail(192);
+      } catch {
+        // No picture, then; the slot still saves.
+      }
+      if (writeSlot(i, makeSlotFile(slotMeta(thumb), sim.save()))) toasts.show(`Saved to slot ${i + 1}.`, 'ok');
+      else toasts.show("This browser wouldn't store that save. It may be full, or in a private window.", 'warn');
+      refreshSaves();
+    },
+    onLoad: (i) => {
+      const slot = readSlot(i, SAVE_VERSION);
+      if (slot.kind === 'ok') playSave(slot.file.save);
+      else refreshSaves();
+    },
+    onDelete: (i) => {
+      clearSlot(i);
+      refreshSaves();
+    },
+    onExport: () => {
+      const day = new Date(snap.timeMs).toISOString().slice(0, 10);
+      const blob = new Blob([JSON.stringify(makeSlotFile(slotMeta(null), sim.save()))], { type: 'application/json' });
+      deliverFile(blob, `station-keeper-${scenario.id}-${day}.json`);
+    },
+    onImport: (file) => {
+      file
+        .text()
+        .then((text) => {
+          const result = parseImport(text, SAVE_VERSION);
+          if (result.ok) playSave(result.save);
+          else toasts.show(`${result.reason}.`, 'warn');
+        })
+        .catch(() => toasts.show("That file couldn't be read.", 'warn'));
+    },
+    onClose: () => saves.close(),
+  });
 
   let settings: Settings = loadSettings();
   const applySettings = () => {
@@ -304,6 +401,8 @@ async function start(): Promise<void> {
     cam.inertia = !settings.reducedMotion;
     if (title.isOpen) cam.spin = settings.reducedMotion ? 0 : 0.05;
     hud.setClock24(settings.clock24);
+    sound.setVolume(settings.volume);
+    sound.setMuted(settings.muted);
   };
   const settingsSheet = new SettingsSheet(
     ui,
@@ -321,6 +420,7 @@ async function start(): Promise<void> {
   // The books close each quarter: pause on the report until the player carries on.
   const report = new ReportSheet(ui);
   sim.events.on('quarterReport', ({ report: r }) => {
+    sound.play('report');
     const resume = clock.speed;
     clock.setSpeed(0);
     exitBuild();
@@ -359,19 +459,24 @@ async function start(): Promise<void> {
   };
   // Each ending is recorded once: the events fire only on the tick it happens, never again after a reload.
   sim.events.on('gameOver', ({ outcome }) => {
+    sound.play('lose');
     recordLoss(sim.scenario.id, outcome);
     if (report.isOpen) report.close(); // its Continue won't restart a lost game
     showEnding(outcome);
     autosave(true);
   });
   sim.events.on('goalReached', ({ minutes }) => {
+    sound.play('win');
     recordWin(sim.scenario.id, minutes);
     goalResume = clock.speed === 0 ? 1 : clock.speed;
     showEnding('goal');
   });
   // A module docks on a later tick than it was ordered, so the 3D view catches up in the frame loop.
   let needsSync = false;
-  sim.events.on('moduleAdded', () => (needsSync = true));
+  sim.events.on('moduleAdded', () => {
+    needsSync = true;
+    sound.play('docked');
+  });
 
   // ---- Build mode: tray → tap a port → preview → build ----
   const PREVIEW_MINUTES = Math.ceil(sim.orbit.periodMinutes * 2);
@@ -453,6 +558,7 @@ async function start(): Promise<void> {
       }
       snap = sim.snapshot();
       exitBuild();
+      sound.play('build');
     },
   });
 
@@ -469,6 +575,16 @@ async function start(): Promise<void> {
   };
 
   window.addEventListener('keydown', (e) => {
+    if (help.isOpen) {
+      e.preventDefault();
+      if (e.key === 'Escape') help.close();
+      else help.keydown(e.key);
+      return;
+    }
+    if (saves.isOpen) {
+      if (e.key === 'Escape') saves.close();
+      return;
+    }
     if (settingsSheet.isOpen) {
       if (e.key === 'Escape') settingsSheet.close();
       return;
@@ -581,6 +697,7 @@ async function start(): Promise<void> {
 
   // ---- Frame loop ----
   let last = performance.now();
+  let alarmBefore = snap.warnings.some((w) => w.severity === 'alarm');
   const loop = (now: number) => {
     const dt = Math.min(0.1, (now - last) / 1000);
     const realDt = (now - last) / 1000;
@@ -608,7 +725,14 @@ async function start(): Promise<void> {
     // Interpolate the orbit between ticks so the light and Earth move smoothly.
     const t = snap.minutes + (clock.speed === 0 ? 0 : clock.alpha);
     const phase = phaseAt(sim.orbit, t);
-    env.update(snap.orbit, phase, sunlightAt(sim.orbit, phase));
+    const sunlight = sunlightAt(sim.orbit, phase);
+    env.update(snap.orbit, phase, sunlight);
+    sound.setEclipse(1 - sunlight);
+    sound.setPace(clock.speed / 20);
+    // A new alarm gets the master-alarm tone once, when it first appears.
+    const alarmNow = snap.warnings.some((w) => w.severity === 'alarm');
+    if (alarmNow && !alarmBefore) sound.play('alarm');
+    alarmBefore = alarmNow;
     env.earth.setCloudShift(t * 0.0006);
 
     stationView.update(snap, env.sunDir, dt);

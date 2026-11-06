@@ -1119,6 +1119,46 @@ Every grey-box module got surface detail and parts, all still drawn in code: no 
 - **Textures over geometry for fine detail.** Seams, rivets and quilting are texture and bump, not polygons, so the triangle count rose about 15% while the station looks far busier up close.
 - A `.glb` named in a module's `model` field still replaces its grey-box entirely, as before.
 
+## Session 26: menus, saves, guide, sound
+
+The game gets the furniture around it: a title screen, a pause menu, save slots, settings, a How to play guide, photo mode, and sound.
+
+### What was built
+
+- **Title screen over the live station.** The station from the autosave (or the first posting's, on a first visit) turns slowly behind the wordmark.
+  - Buttons: Continue (or Start), New station, Load, How to play, Settings.
+  - The view centres the station between the wordmark and the buttons in portrait. Landscape phones put the wordmark left, the buttons right, and the station between.
+  - A new game, a restart or a loaded slot reloads straight into play (`stationkeeper.skipTitle`, read once). Any other visit opens on the title.
+- **Pause menu** from a new ☰ button at the end of the top row, or Escape. Opening it pauses the clock; Resume puts back the speed it had.
+  - Items: Resume, Save and load, Restart this posting (two taps), Settings, How to play, Photo mode, Quit to title.
+  - Quit to title autosaves first. Continue then carries on paused.
+- **Save slots** (`src/slots.ts`, `src/ui/savesSheet.ts`):
+  - The autosave stays as it was: the station in play.
+  - Three manual slots hold the whole save plus a summary line and a 192×144 JPEG of the view.
+  - Overwrite, Load and Delete each take two taps.
+  - A slot from an older save version is shown as unreadable, kept until deleted.
+  - If storage is full, a slot is saved again without its picture.
+- **Export and import.** Export downloads the station as JSON; on phones it opens the share sheet, so it can go to Files. Import accepts that file or a bare autosave, checks it fully (`simFromSave`) and only then replaces the game.
+- **Settings** (`src/settings.ts`), remembered per browser:
+  - Graphics: Low, Auto or High. Auto is the old adaptive resolution; Low and High hold the pixel ratio at 1 and at the screen's own (up to 2).
+  - Interface size: CSS `zoom` on `#ui` (0.88, 1, 1.15). The HUD's narrow-screen rules moved to container queries so they follow the zoomed width.
+  - Clock: 24 h or 12 h.
+  - Reduce motion: no camera fling or title drift, and no CSS transitions. It defaults to the system preference.
+  - Sound: on or off, and volume.
+- **How to play** (`src/ui/helpSheet.ts`): seven swipeable pages, each with a small drawn diagram, written against the sim's real numbers. First-time players get a toast pointing to it.
+- **Photo mode** hides all UI but a shutter and a close button. The shutter saves a PNG: the share sheet on touch devices (Save Image), a download elsewhere.
+- **Sound** (`src/audio/sound.ts`) is synthesised with Web Audio; no audio files.
+  - A quiet hum: brown-noise air handlers and a 57 Hz tone. It shifts in eclipse and lifts a little with game speed.
+  - Cues: button ticks, menu open and close, toasts, warnings, docking, ordering, the quarterly report, win and lose, the shutter, and a master-alarm two-tone when an alarm first appears (at most every 4 s).
+  - It starts on the first tap, as iOS requires.
+- **Tests:** 219 → 247. New ones cover settings parsing, the 12 h clock, slot and import parsing, the help sheet's paging (against a small fake DOM), and the sound engine (against a fake AudioContext).
+
+### Choices made
+
+- **Loading a slot reloads the page.** The main loop is built around one sim, so a reload is simpler and safer than tearing the scene down. It costs about a second.
+- **Two taps rather than "are you sure?" dialogs**, matching the existing Start a new station button.
+- **The sound hasn't been listened to on a phone yet.** Levels are set by ear on paper: ambient at −30 dB under the cues. Play-testing should check that nothing grates.
+
 ## Next
 
 The planned slices are done. Candidates for what's next, roughly in order of value:
@@ -1127,3 +1167,4 @@ The planned slices are done. Candidates for what's next, roughly in order of val
 2. **More scenarios**, perhaps with their own modules or prices. Saltglass and Velvet Reach use the reviews goal; a crew-heavy posting where morale is the problem is another idea.
 3. **More for guests to want**: perhaps a choice of fare level, or a second amenity to stack with the lounge.
 4. **Art**: the grey-boxes now carry procedural detail (session 25). Blender models can still replace any of them; the loader prefers a `.glb`.
+5. **Sound tuning** after a listen on real phones, and perhaps a cue for a module breaking down.
