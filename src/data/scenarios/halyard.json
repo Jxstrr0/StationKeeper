@@ -30,6 +30,7 @@
   "lifeSupport": {
     "perPerson": { "o2KgPerDay": 0.84, "co2KgPerDay": 1.0, "waterKgPerDay": 3.5 },
     "waterPerKgO2": 1.125,
+    "resupply": { "everyDays": 7, "pricePerKg": 0.02 },
     "cabinC": 22,
     "co2SetpointMmHg": 2.0,
     "initialCo2MmHg": 2.0,

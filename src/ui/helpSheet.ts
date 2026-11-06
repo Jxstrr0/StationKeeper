@@ -140,7 +140,7 @@ export const HELP_PAGES: readonly HelpPage[] = [
     art: ART.air,
     text: [
       'The Life Support Rack makes oxygen, scrubs CO₂ and recycles water for everyone aboard, guests included, but only while it has power.',
-      'So a power or heat problem soon becomes a breathing problem: CO₂ builds in hours, oxygen runs out in days, water in weeks. If crew condition falls below 15%, everyone is evacuated, and they will have notes.',
+      'So a power or heat problem soon becomes a breathing problem: CO₂ builds in hours, oxygen runs out in days. Water lasts about a week between the cargo runs that top it up, which operations pays for by the kilo. If crew condition falls below 15%, everyone is evacuated, and they will have notes.',
     ],
   },
   {
