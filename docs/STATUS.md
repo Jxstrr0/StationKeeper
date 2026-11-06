@@ -1304,6 +1304,26 @@ The bot throwaway files (`tests/zz-*.ts`) were deleted, as in earlier sessions.
 - **Checking in every 12 hours loses almost everywhere,** usually to evacuation after one failure goes unrepaired for half a day. That fits an active-play game, but it may be harsh for players who leave a phone game running. Phone play-testing should say whether failures need a slower cascade.
 - **Interest is 3% a quarter on one-day quarters,** so about 3% a day. That is $0.9M a day on Longlight's loan. It was tuned with the economy and is fine for these short postings, but it reads oddly next to the "a quarter" label.
 
+## Session 31: visual wear and life
+
+The 3D view now shows what the snapshot already says: wear, deliveries and guests. All of it is in `src/view/`; no sim or `main.ts` changes.
+
+### What was built
+- **Wear on the hull** (`src/view/wear.ts`). Each module gets its own copies of its standard materials, which share one set of three uniforms. A small shader patch adds value noise over the module's own coordinates.
+  - From 15% wear, panels grime up in blotches and yellow a little. The effect is full at 90%. Past half wear, a few dark scorch patches appear.
+  - A failed module is always scorched. A faint warm rim glows at one or two of its scorch edges, breathing slowly. Its lit windows go out, with an occasional flicker, and every few seconds it throws a short burst of sparks beside its status light (`src/view/sparks.ts`: 14 GPU-animated points, one shared geometry and material).
+  - The heat overlay still replaces every material, so wear doesn't muddy it. The selection box is unchanged.
+- **Deliveries arrive** (`src/view/cargo.ts`). During the last in-game hour of an order, a small freighter (a can, a service module, two wings and a blinking nav light) comes in along the port's direction. It slows as it nears and curves in from the side. It stops just past where the module's outline reaches, and it disappears when the module docks. A port facing Earth gets a shorter run in from the side, so the freighter never starts below the camera floor. Vehicles are pooled and kept outside `StationView.root`, so they don't affect `bounds()` or picking.
+- **Guest windows by occupancy.** Guest habitat and lounge window panes are built in a fixed, scattered order (`scatterOrder`). The view draws only the first N, where N follows the share of guest places booked (`guests.booked / guests.places`), and at least one stays lit while the module is powered. The window band shows dark where panes aren't drawn, and brightness rises a little with occupancy. When unpowered, failed or off, every pane is drawn dark.
+- **Settings respected:** with reduce motion on, there are no sparks or flicker, the ember glows steadily and the nav light doesn't blink. On Low graphics there are no sparks (`viewQuality()` in `scene.ts` records the last `setQuality`).
+- **Pure helpers** in `src/view/lifeMath.ts` (wear look, flicker and spark timing, approach progress and path, window counts, occupancy) with 13 tests in `tests/viewLife.test.ts`. Tests: 282.
+- **Checked** at 390×844 in Chromium in sunlight and eclipse: clean against worn, a failed habitat and radiator, sparks, 25% and full occupancy, the freighter's run in to the core's zenith port and its exit on docking, the heat overlay, selection, and reduce motion. No console errors.
+
+### Choices made
+- **Per-module material copies, not a shared material with per-object uniforms.** Modules are already merged into one mesh per material, so the copies add no draw calls. The patched shader uses one cache key, so the copies share compiled programs: the start station draws 59 calls with 11 programs, against 59 and 10 before. A clean module skips the noise behind a uniform branch.
+- **Occupancy is station-wide.** The snapshot carries only total places and bookings, so every guest module lights the same share of its windows.
+- **Sparks are tiny** (2–6 px) and use CSS-pixel point sizes, so on a 3× phone they look smaller still. If they read too faintly on a phone, `gl_PointSize` in `sparks.ts` is the knob.
+
 ## Session 32: company depth
 
 The user picked all four "what next" options: company depth, a balance pass, visual wear and life, and a first-time tutorial. The balance pass and the visuals went to two helper agents in their own worktrees; this session is the company depth.

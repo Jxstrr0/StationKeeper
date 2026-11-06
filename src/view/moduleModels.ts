@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import type { ModuleDef, Vec3 } from '../sim/types';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { handrails, openTruss, surfaceMaterials, tileUv } from './detail';
+import { scatterOrder } from './lifeMath';
 
 export interface ModuleModel {
   root: THREE.Object3D;
@@ -16,6 +17,8 @@ export interface ModuleModel {
   gimbal?: THREE.Object3D;
   /** Materials that glow while the module is powered (habitat windows, etc.). */
   glowMaterials: THREE.MeshStandardMaterial[];
+  /** Guest modules: the window panes, in a scattered order, so drawing the first N lights N windows round the hull. */
+  windows?: THREE.InstancedMesh[];
 }
 
 export interface ModuleModelSource {
@@ -275,10 +278,13 @@ function buildHabitat(def: ModuleDef, group: THREE.Group): Partial<ModuleModel> 
   });
   const mid = L / 2;
   const obj = new THREE.Object3D();
+  const rings: THREE.InstancedMesh[] = [];
   /** A ring of `count` windows at x, each w wide (along X) and h tall (round the hull), skipping a sector if asked. */
   const windowRing = (x: number, count: number, w: number, h: number, skipFrom = -1, skipTo = -1) => {
-    const idx: number[] = [];
-    for (let i = 0; i < count; i++) if (i < skipFrom || i > skipTo) idx.push(i);
+    const ring: number[] = [];
+    for (let i = 0; i < count; i++) if (i < skipFrom || i > skipTo) ring.push(i);
+    // Scattered, so lighting the first few (by occupancy) doesn't light one side only.
+    const idx = scatterOrder(ring.length, count).map((k) => ring[k]!);
     const inst = new THREE.InstancedMesh(new THREE.BoxGeometry(w, 0.08, h), windowMat, idx.length);
     idx.forEach((i, k) => {
       const a = (i / count) * Math.PI * 2;
@@ -288,6 +294,7 @@ function buildHabitat(def: ModuleDef, group: THREE.Group): Partial<ModuleModel> 
       inst.setMatrixAt(k, obj.matrix);
     });
     group.add(inst);
+    rings.push(inst);
   };
 
   switch (def.kind) {
@@ -319,7 +326,8 @@ function buildHabitat(def: ModuleDef, group: THREE.Group): Partial<ModuleModel> 
     }
   }
   group.add(handrails(1.7, L - 1.7, r, [Math.PI / 2, -Math.PI / 2], railMaterial));
-  return { glowMaterials: [windowMat] };
+  const guests = def.kind === 'habitat' || def.kind === 'lounge';
+  return guests ? { glowMaterials: [windowMat], windows: rings } : { glowMaterials: [windowMat] };
 }
 
 /** Truss out along -Z from the base port, then a T of radiator panels that face the orbit normal (edge-on to the Sun). */
@@ -559,6 +567,7 @@ export function buildGreybox(def: ModuleDef): ModuleModel {
     glowMaterials: extra.glowMaterials ?? [],
   };
   if (extra.gimbal) model.gimbal = extra.gimbal;
+  if (extra.windows) model.windows = extra.windows;
   return model;
 }
 
