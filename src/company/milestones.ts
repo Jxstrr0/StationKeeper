@@ -18,7 +18,7 @@ const summaries = (c: CompanyState, v: MilestoneView) => c.stations.map((s) => (
 export const MILESTONES: readonly Milestone[] = [
   { id: 'debt-free', label: 'Every loan paid off', reached: (c, v) => summaries(c, v).every((s) => s.loan <= 0) },
   { id: 'stations-2', label: 'A second station', reached: (c) => c.stations.length >= 2 },
-  { id: 'cash-100', label: '$100M in the bank', reached: (_, v) => v.cash >= 100 },
+  { id: 'cash-100', label: '$100M in the bank, debts aside', reached: (c, v) => v.cash - c.debt >= 100 },
   { id: 'value-250', label: 'A company worth $250M', reached: (c, v) => companyValue(c, v.cash, v.live) >= 250 },
   { id: 'stations-3', label: 'Three stations', reached: (c) => c.stations.length >= 3 },
   { id: 'five-star', label: 'Five-star reviews at a station', reached: (c, v) => summaries(c, v).some((s) => (s.stars ?? 0) >= 5) },
