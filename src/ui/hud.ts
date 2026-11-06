@@ -9,6 +9,22 @@ import { celsius, formatDate, formatTime, kw, minutes } from './format';
 const PAUSE_ICON =
   '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="3" y="2.5" width="3.5" height="11" rx="1" fill="currentColor"/><rect x="9.5" y="2.5" width="3.5" height="11" rx="1" fill="currentColor"/></svg>';
 
+const CHEVRON_ICON =
+  '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+const COMPACT_KEY = 'stationkeeper.hudCompact';
+
+/** Phones start with the power card folded to one row; the choice is remembered per browser. */
+function initialCompact(): boolean {
+  try {
+    const saved = localStorage.getItem(COMPACT_KEY);
+    if (saved === '1' || saved === '0') return saved === '1';
+  } catch {
+    // Storage blocked: fall through to the screen-size default.
+  }
+  return window.matchMedia('(max-width: 719px)').matches;
+}
+
 const HEAT_ICON =
   '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M6.5 2.5a1.5 1.5 0 0 1 3 0v6.3a3 3 0 1 1-3 0z" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="11.3" r="1.4" fill="currentColor"/></svg>';
 
@@ -47,6 +63,16 @@ export class Hud {
   private readonly water = el('span', 'mini-v');
   private readonly crew = el('span', 'mini-v');
   private readonly aboard = el('span', 'mini-u');
+  // The folded card: one row of the readings that matter minute to minute.
+  private readonly card = el('div', 'power-card');
+  private readonly foldButton = el('button', 'fold-toggle');
+  private readonly cPower = el('span', 'mini-v');
+  private readonly cBattery = el('span', 'mini-v');
+  private readonly cBatteryFill = el('i');
+  private readonly cBatteryBar = el('div', 'battery-bar', [this.cBatteryFill]);
+  private readonly cLoop = el('span', 'mini-v');
+  private readonly cCrew = el('span', 'mini-v');
+  private compact = initialCompact();
 
   constructor(parent: HTMLElement, handlers: HudHandlers) {
     const speeds = el('div', 'speeds');
@@ -76,7 +102,11 @@ export class Hud {
     const stat = (label: string, value: HTMLElement, unit: string, extra: Node[] = []) =>
       el('div', 'stat', [el('span', 'stat-k', [label]), el('span', 'stat-line', [value, el('span', 'stat-u', [unit])]), ...extra]);
 
-    this.orbitState.append(el('span', 'orbit-dot'), this.orbitLabel, this.orbitEta);
+    this.foldButton.type = 'button';
+    this.foldButton.innerHTML = CHEVRON_ICON;
+    // The whole orbit row folds the card: a bigger target than the chevron alone.
+    this.orbitState.addEventListener('click', () => this.setCompact(!this.compact));
+    this.orbitState.append(el('span', 'orbit-dot'), this.orbitLabel, this.orbitEta, this.foldButton);
 
     this.heatButton.type = 'button';
     this.heatButton.innerHTML = `${HEAT_ICON}<span>Heat</span>`;
@@ -93,34 +123,57 @@ export class Hud {
     ramp.style.background = heatGradientCss();
     this.legend.append(el('span', '', [`${HEAT_MIN_C}°`]), ramp, el('span', '', [`${HEAT_MAX_C}°C`]));
 
+    const compactRow = el('div', 'compact-row', [
+      mini('Power', this.cPower, 'kW'),
+      el('div', 'mini', [el('span', 'stat-k', ['Battery']), el('span', 'stat-line', [this.cBattery, el('span', 'stat-u', ['%'])]), this.cBatteryBar]),
+      mini('Loop', this.cLoop, '°C'),
+      this.crewCell(mini('Crew', this.cCrew, '%'), handlers.onCrew),
+    ]);
+    this.card.append(
+      this.orbitState,
+      el('div', 'stats', [
+        stat('Generation', this.gen, 'kW'),
+        stat('Load', this.load, 'kW'),
+        stat('Battery', this.battery, '%', [this.batteryBar, this.flow]),
+      ]),
+      el('div', 'thermal-row', [
+        el('div', 'stat loop-stat', [
+          el('span', 'stat-k', ['Coolant loop']),
+          el('span', 'stat-line', [this.loop, el('span', 'stat-u', ['°C'])]),
+        ]),
+        el('div', 'loop-gauge', [this.loopBar, this.loopFlow]),
+        this.heatButton,
+      ]),
+      this.legend,
+      el('div', 'life-row', [
+        mini('CO₂', this.co2, 'mmHg'),
+        mini('O₂', this.o2, '%'),
+        mini('Water', this.water, '%'),
+        this.crewCell(mini('Crew', this.crew, '%', this.aboard), handlers.onCrew),
+      ]),
+      compactRow,
+      this.shedNote,
+    );
+    this.setCompact(this.compact, false);
+
     this.root = el('header', 'hud', [
       el('div', 'hud-row', [el('div', 'hud-clock', [this.date, this.time, el('span', 'hud-utc', ['UTC'])]), speeds]),
-      el('div', 'power-card', [
-        this.orbitState,
-        el('div', 'stats', [
-          stat('Generation', this.gen, 'kW'),
-          stat('Load', this.load, 'kW'),
-          stat('Battery', this.battery, '%', [this.batteryBar, this.flow]),
-        ]),
-        el('div', 'thermal-row', [
-          el('div', 'stat loop-stat', [
-            el('span', 'stat-k', ['Coolant loop']),
-            el('span', 'stat-line', [this.loop, el('span', 'stat-u', ['°C'])]),
-          ]),
-          el('div', 'loop-gauge', [this.loopBar, this.loopFlow]),
-          this.heatButton,
-        ]),
-        this.legend,
-        el('div', 'life-row', [
-          mini('CO₂', this.co2, 'mmHg'),
-          mini('O₂', this.o2, '%'),
-          mini('Water', this.water, '%'),
-          this.crewCell(mini('Crew', this.crew, '%', this.aboard), handlers.onCrew),
-        ]),
-        this.shedNote,
-      ]),
+      this.card,
     ]);
     parent.append(this.root);
+  }
+
+  private setCompact(on: boolean, remember = true): void {
+    this.compact = on;
+    setClass(this.card, 'compact', on);
+    this.foldButton.setAttribute('aria-expanded', String(!on));
+    this.foldButton.setAttribute('aria-label', on ? 'Show all readings' : 'Fold the readings to one row');
+    if (!remember) return;
+    try {
+      localStorage.setItem(COMPACT_KEY, on ? '1' : '0');
+    } catch {
+      // Storage blocked: the choice lasts until the page closes.
+    }
   }
 
   /** The crew reading doubles as the way into the crew sheet. */
@@ -166,6 +219,10 @@ export class Hud {
     this.batteryFill.style.width = `${pct}%`;
     setClass(this.batteryBar, 'low', p.charge < 0.3);
     const net = p.chargeKw - p.dischargeKw;
+    setText(this.cPower, `${kw(p.generationKw)} / ${kw(p.loadKw)}`);
+    setText(this.cBattery, String(pct));
+    this.cBatteryFill.style.width = `${pct}%`;
+    setClass(this.cBatteryBar, 'low', p.charge < 0.3);
     setText(this.flow, Math.abs(net) < 0.05 ? (p.charge > 0.995 ? 'Full' : 'Idle') : `${net > 0 ? '+' : '−'}${kw(Math.abs(net))} kW`);
     setClass(this.flow, 'charging', net > 0.05);
     setClass(this.flow, 'discharging', net < -0.05);
@@ -173,6 +230,9 @@ export class Hud {
     // Coolant loop: the gauge runs from the setpoint (empty) to the first trip (full).
     const th = snap.thermal;
     setText(this.loop, celsius(th.loopC));
+    setText(this.cLoop, celsius(th.loopC));
+    setClass(this.cLoop, 'warn', th.loopC > th.throttleAboveC || th.throttled);
+    setClass(this.cLoop, 'alarm', th.tripped.commercial);
     const span = Math.max(1e-6, th.tripAboveC - th.setpointC);
     const frac = Math.min(1, Math.max(0, (th.loopC - th.setpointC) / span));
     this.loopFill.style.width = `${(frac * 100).toFixed(1)}%`;
@@ -200,6 +260,12 @@ export class Hud {
     setClass(this.water, 'alarm', a.waterOut);
     setClass(this.crew, 'warn', ls.health < 0.995);
     setClass(this.crew, 'alarm', a.healthLow);
+    setText(this.cCrew, String(Math.round(ls.health * 100)));
+    // Folded, the crew figure also stands in for the air and water readings it hides.
+    const lsWarn = ls.health < 0.995 || a.co2Warn || a.o2Low || a.waterLow;
+    const lsAlarm = a.healthLow || a.co2Danger || a.o2Out || a.waterOut;
+    setClass(this.cCrew, 'warn', lsWarn && !lsAlarm);
+    setClass(this.cCrew, 'alarm', lsAlarm);
 
     const notes: string[] = [];
     const shed = [p.shedTiers.essential && 'Essential', (p.shedTiers.commercial || p.shedTiers.essential) && 'Commercial'].filter(Boolean);
