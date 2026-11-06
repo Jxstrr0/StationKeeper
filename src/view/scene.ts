@@ -40,6 +40,8 @@ export interface SceneEnv {
   setQuality(q: 'auto' | 'low' | 'high'): void;
   /** Draw a frame now and return it as a PNG data URL. Must be called in one go: the buffer clears after compositing. */
   capture(): string;
+  /** Draw a frame now and return a small 4:3 JPEG of its middle, for a save slot. */
+  thumbnail(width: number): string;
 }
 
 function makeSunTexture(): THREE.Texture {
@@ -226,6 +228,21 @@ export function createScene(canvas: HTMLCanvasElement): SceneEnv {
     return canvas.toDataURL('image/png');
   }
 
+  function thumbnail(width: number): string {
+    renderer.render(scene, camera);
+    const height = Math.round(width * 0.75);
+    const c = document.createElement('canvas');
+    c.width = width;
+    c.height = height;
+    const g = c.getContext('2d');
+    if (!g) throw new Error('no 2D canvas');
+    // The largest 4:3 rectangle in the middle of the frame.
+    const sw = Math.min(canvas.width, (canvas.height * 4) / 3);
+    const sh = (sw * 3) / 4;
+    g.drawImage(canvas, (canvas.width - sw) / 2, (canvas.height - sh) / 2, sw, sh, 0, 0, width, height);
+    return c.toDataURL('image/jpeg', 0.72);
+  }
+
   resize();
   return {
     renderer,
@@ -242,5 +259,6 @@ export function createScene(canvas: HTMLCanvasElement): SceneEnv {
     adapt,
     setQuality,
     capture,
+    thumbnail,
   };
 }
