@@ -38,6 +38,8 @@ import { Hud } from './ui/hud';
 import { dataUrlToBlob, deliverFile } from './ui/download';
 import { BackupNudge } from './ui/backupNudge';
 import { HelpSheet } from './ui/helpSheet';
+import { Coach } from './ui/coach';
+import { loadTutorial, saveTutorial, Tutorial } from './tutorial';
 import { PauseMenu } from './ui/pauseMenu';
 import { SavesSheet } from './ui/savesSheet';
 import { PhotoBar } from './ui/photoBar';
@@ -295,7 +297,8 @@ async function start(): Promise<void> {
     } else {
       clock.setSpeed(1);
       toasts.show(`${scenario.name}. ${goalLine(scenario.goal)} The goal is in Finance.`, 'ok');
-      if (Object.keys(loadRecords()).length === 0 && loaded.kind === 'none') toasts.show('New to this? How to play is in the menu, top right.', 'ok');
+      if (scenario.id === SCENARIOS[0]!.id && loadTutorial() === null) startGuide();
+      else if (Object.keys(loadRecords()).length === 0 && loaded.kind === 'none') toasts.show('New to this? How to play is in the menu, top right.', 'ok');
     }
     if (loaded.kind === 'discarded') toasts.show("Your saved station couldn't be loaded after an update, so here's a fresh one.", 'warn');
   };
@@ -596,6 +599,10 @@ async function start(): Promise<void> {
       keepingZoom(measureInsets);
     },
     () => settingsSheet.close(),
+    () => {
+      settingsSheet.close();
+      startGuide();
+    },
   );
   applySettings();
 
@@ -1035,6 +1042,50 @@ async function start(): Promise<void> {
     saving = false;
   };
 
+  // ---- The first posting's guide ----
+  let guide: Tutorial | null = null;
+  const modulesAtStart = snap.modules.length;
+  const endGuide = (how: 'done' | 'skipped') => {
+    guide = null;
+    coach.hide();
+    saveTutorial(how);
+  };
+  const coach = new Coach(ui, ui, {
+    onNext: () => {
+      if (!guide) return;
+      guide.next();
+      showGuide();
+    },
+    onSkip: () => endGuide('skipped'),
+  });
+  const showGuide = () => {
+    if (!guide) return;
+    const step = guide.step;
+    if (!step) return endGuide('done');
+    coach.show(step, guide.index, guide.steps.length);
+    ui.style.setProperty('--coach-h', `${coach.root.offsetHeight + 8}px`);
+  };
+  function startGuide(): void {
+    guide = new Tutorial();
+    saveTutorial(null);
+    showGuide();
+  }
+  const guideTick = () => {
+    if (!guide) return;
+    const changed = guide.update({
+      speed: clock.speed,
+      moduleOpen: sheet.openId !== null,
+      financeOpen: finance.isOpen,
+      buildOpen: buildPanel.isOpen,
+      crewOpen: crew.isOpen,
+      ordered: snap.economy.deliveries.length > 0 || snap.modules.length > modulesAtStart,
+    });
+    if (changed) {
+      sound.play('toast');
+      showGuide();
+    } else coach.refresh();
+  };
+
   // ---- Saving: every few seconds while the clock runs, and whenever the page is hidden or closed ----
   const SAVE_EVERY_MS = 5000;
   let saving = true;
@@ -1115,6 +1166,7 @@ async function start(): Promise<void> {
     finance.update(snap);
     crew.update(snap);
     buildPanel.setCash(snap.economy.cash);
+    guideTick();
     void stationView.syncOrders(snap.economy.deliveries);
     if (now - lastSaveMs > SAVE_EVERY_MS) autosave();
     env.render();

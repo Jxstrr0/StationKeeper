@@ -161,3 +161,28 @@ describe('credit and the board', () => {
     expect(checkMilestones(c, { cash: 120, live }).map((m) => m.id)).not.toContain('cash-100');
   });
 });
+
+describe('what the board asks', () => {
+  it('only asks for another station when one is within reach, and scales cash asks to income', () => {
+    const live = activeStation(newCompany(first, byId, 5)).summary;
+    const kinds = new Set<string>();
+    for (let seed = 1; seed <= 40; seed++) {
+      const c = newCompany(first, byId, seed);
+      c.minutes = DAY;
+      c.listings = [];
+      // Broke and earning nothing: no station is affordable within six days.
+      stepBoard(c, { cash: 0, live: { ...live, netPerDay: 0, stars: null } });
+      kinds.add(c.board.offer!.kind);
+      if (c.board.offer!.kind === 'cash') expect(c.board.offer!.target).toBeLessThanOrEqual(10);
+    }
+    expect(kinds.has('stations')).toBe(false);
+    expect(kinds.has('cash')).toBe(true);
+  });
+
+  it('keeps the dollar sign’s M upper case in its news', () => {
+    const c = newCompany(first, byId, 2);
+    c.minutes = DAY;
+    const r = stepBoard(c, { cash: 0, live: { ...activeStation(c).summary, netPerDay: 3, stars: null } });
+    expect(r.news[0]!.text).not.toMatch(/\$\d+(\.\d+)?m\b/);
+  });
+});

@@ -1515,3 +1515,102 @@ dd.worn .wear-text {
     transition: none;
   }
 }
+
+/* ---------- First-posting guide ---------- */
+
+.coach {
+  position: absolute;
+  left: calc(var(--safe-left) + 14px);
+  bottom: calc(var(--safe-bottom) + 74px);
+  width: min(360px, calc(100% - var(--safe-left) - var(--safe-right) - 28px));
+  padding: 12px 14px 10px;
+  border-radius: 14px;
+  background: rgba(31, 30, 27, 0.96);
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--lilac);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+.coach.hidden,
+.title-mode .coach {
+  display: none;
+}
+
+.coach-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.coach-count {
+  color: var(--dim);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.coach-title {
+  font-size: 15px;
+}
+
+.coach-text {
+  margin: 6px 0 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.coach-acts {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.coach-acts button {
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 18px;
+  font: inherit;
+  font-size: 13px;
+}
+
+.coach-skip {
+  border: none;
+  background: none;
+  color: var(--dim);
+}
+
+.coach-next {
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ivory);
+}
+
+.coaching .toasts {
+  bottom: calc(var(--safe-bottom) + 74px + var(--coach-h, 150px));
+}
+
+.coach-target {
+  animation: coach-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes coach-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(180, 140, 232, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(180, 140, 232, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .coach-target {
+    animation: none;
+    outline: 2px solid var(--lilac);
+  }
+}
+
+.reduce-motion .coach-target {
+  animation: none;
+  outline: 2px solid var(--lilac);
+}
