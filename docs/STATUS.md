@@ -1326,6 +1326,14 @@ The user picked all four "what next" options: company depth, a balance pass, vis
 - Selling the station you're on isn't allowed: fly elsewhere first. That keeps the live sim and the company consistent.
 - The board's "own one more station" request could be met by buying and reselling, but the resale loss (a station sells for far less than it was bought for) is bigger than the bonus.
 
+## Session 33: the first posting's guide
+
+- `src/tutorial.ts` holds six steps: the clock, the modules, Finance, Build, the crew, and a last word on warnings. Each step except the last moves on when the player actually does the thing, and can be skipped. Its control pulses (outlined instead under reduced motion).
+- `src/ui/coach.ts` is the card, at the bottom left above the buttons. Toasts move up while it shows.
+- It appears on a fresh start of the first scenario (Longlight One) until it's finished or skipped once. That replaces the old "New to this?" toast there.
+- Settings has *Show the guide again*.
+- Choice: the guide never pauses the game. Longlight One is gentle enough in its first hours, and pausing would fight the first step (change the speed).
+
 ## Next
 
 The planned slices are done. Candidates for what's next, roughly in order of value:
