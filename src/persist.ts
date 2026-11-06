@@ -2,7 +2,7 @@
 // Storage can be missing or full (private windows, quota), so every call fails quietly and the game plays on.
 import { scenarioById } from './scenarios';
 import { SAVE_VERSION, Simulation, type SimSave } from './sim/simulation';
-import type { ModuleDef } from './sim/types';
+import type { ModuleDef, ScenarioDef } from './sim/types';
 
 export const SAVE_KEY = 'stationkeeper.save';
 const KEY = SAVE_KEY;
@@ -32,11 +32,14 @@ function looksLikeSave(x: unknown): x is SimSave {
   );
 }
 
-/** A sim from parsed save data. Throws, with a reason, if it isn't a save this version of the game can use. */
-export function simFromSave(defs: readonly ModuleDef[], parsed: unknown): Simulation {
+/**
+ * A sim from parsed save data. Throws, with a reason, if it isn't a save this version of the game can use.
+ * `given` is the station's own scenario, for a company station that isn't one of the shipped scenarios.
+ */
+export function simFromSave(defs: readonly ModuleDef[], parsed: unknown, given?: ScenarioDef): Simulation {
   if (!looksLikeSave(parsed)) throw new Error('not a save');
   if (parsed.version !== SAVE_VERSION) throw new Error(`save version ${parsed.version}`);
-  const scenario = scenarioById(parsed.scenarioId);
+  const scenario = given ?? scenarioById(parsed.scenarioId);
   if (!scenario) throw new Error(`no scenario "${parsed.scenarioId}"`);
   const sim = Simulation.fromSave(defs, scenario, parsed);
   sim.snapshot(); // a save that loads but can't be read is no use either

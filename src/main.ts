@@ -8,7 +8,12 @@ import * as THREE from 'three';
 import modulesJson from './data/modules.json';
 import { SCENARIOS, scenarioById } from './scenarios';
 import { parseModuleDefs } from './sim/data';
-import { loadGame, replaceGame, SAVE_KEY, saveGame, simFromSave, skipTitleOnce, startNewGame, takeChosenScenario, takeSkipTitle } from './persist';
+import { activeStation, buyListing, enterStation, foundStation, leaveStation, newCompany, removeStation, stepCompany, summarise } from './company/company';
+import { checkMilestones } from './company/milestones';
+import { clearCompany, loadCompany, loadMode, saveCompany, saveMode } from './company/store';
+import { companyView } from './company/view';
+import { CompanySheet } from './ui/companySheet';
+import { loadGame, replaceGame, SAVE_KEY, type LoadResult, saveGame, simFromSave, skipTitleOnce, startNewGame, takeChosenScenario, takeSkipTitle } from './persist';
 import { backupDue, backupFileName, backupSummary, makeBackupCode, readBackupCode, readStoredKeys, writeBackup, type BackupRead } from './backup';
 import { askToKeepStorage, storageProtected } from './storageCare';
 import { clearSlot, makeSlotFile, parseImport, readSlot, readSlots, writeSlot, type SlotMeta } from './slots';
@@ -17,6 +22,7 @@ import { loadRecords, recordLoss, recordWin } from './records';
 import { forecast } from './sim/forecast';
 import { phaseAt, sunlightAt } from './sim/orbit';
 import { SAVE_VERSION, Simulation } from './sim/simulation';
+import type { ScenarioDef } from './sim/types';
 import { indexDefs, mountPort } from './sim/station';
 import { Clock, SPEEDS, type Speed } from './sim/time';
 import { BuildPanel, previewRows } from './ui/buildPanel';
@@ -55,13 +61,35 @@ function byId<T extends HTMLElement>(id: string): T {
 async function start(): Promise<void> {
   const defs = parseModuleDefs(modulesJson);
   const defsById = indexDefs(defs);
-  // Pick up a saved game if there is one; it starts paused so the player can get their bearings.
-  const loaded = loadGame(defs);
+  // Company mode keeps its own save beside the scenario one; the mode key says which this visit opens.
   const chosen = takeChosenScenario();
+  const company = chosen === null && loadMode() === 'company' ? loadCompany() : null;
+  if (!company) saveMode('scenario');
   // A new game or a loaded slot reloads straight into play; any other visit opens on the title screen.
   const skipTitle = takeSkipTitle() || chosen !== null;
-  const scenario = loaded.kind === 'loaded' ? loaded.sim.scenario : (scenarioById(chosen ?? '') ?? SCENARIOS[0]!);
-  const sim = loaded.kind === 'loaded' ? loaded.sim : new Simulation(defs, scenario);
+  let loaded: LoadResult;
+  let scenario: ScenarioDef;
+  let sim: Simulation;
+  if (company) {
+    // The station the company was last at, its clock moved on to company time and its cash the company's.
+    const entry = enterStation(company, company.activeId);
+    let resumed: Simulation | null = null;
+    if (entry.save) {
+      try {
+        resumed = simFromSave(defs, entry.save, entry.scenario);
+      } catch (err) {
+        console.warn(`Company station restarted: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+    scenario = entry.scenario;
+    sim = resumed ?? new Simulation(defs, scenario);
+    loaded = resumed ? { kind: 'loaded', sim: resumed } : { kind: 'none' };
+  } else {
+    // Pick up a saved game if there is one; it starts paused so the player can get their bearings.
+    loaded = loadGame(defs);
+    scenario = loaded.kind === 'loaded' ? loaded.sim.scenario : (scenarioById(chosen ?? '') ?? SCENARIOS[0]!);
+    sim = loaded.kind === 'loaded' ? loaded.sim : new Simulation(defs, scenario);
+  }
   const clock = new Clock();
   if (loaded.kind === 'loaded') clock.setSpeed(0);
   if (loaded.kind === 'discarded') console.warn(`Saved game discarded: ${loaded.reason}`);
@@ -199,7 +227,9 @@ async function start(): Promise<void> {
   }, scenario.goal, scenario.economy.contracts.pool.length > 0);
   // A new station: choose a scenario, then reload into it.
   const picker = new ScenarioPicker(ui, SCENARIOS, (id) => {
+    if (company) autosave(true); // the company waits, saved, for whenever the player comes back to it
     saving = false;
+    saveMode('scenario');
     startNewGame(id);
     location.reload();
   }, loadRecords);
@@ -221,15 +251,18 @@ async function start(): Promise<void> {
   let started = false; // whether the player has carried on into this station since the page loaded
   const title = new TitleScreen(ui, {
     onContinue: () => enterPlay(),
-    onNewStation: () => picker.show(),
+    onNewStation: () => (company ? otherMode() : picker.show()),
     onLoad: () => openSaves(),
     onHelp: () => help.show(),
     onSettings: () => settingsSheet.show(),
+    onOtherMode: () => (company ? openCompany() : otherMode()),
   });
+  title.setModes(company !== null);
   /** What the title's Continue button carries on with, or null for a station nobody has played yet. */
   const resumeLine = (): string | null => {
-    if (!started && loaded.kind !== 'loaded') return null;
     const s = sim.snapshot();
+    if (company) return `${company.name} · ${scenario.name} · ${money(s.economy.cash)}`;
+    if (!started && loaded.kind !== 'loaded') return null;
     return `${scenario.name} · ${formatDate(s.timeMs)} · ${sim.ended ? 'ended' : money(s.economy.cash)}`;
   };
   const enterTitle = () => {
@@ -250,6 +283,12 @@ async function start(): Promise<void> {
     started = true;
     if (sim.ended) {
       showEnding(sim.snapshot().ending.outcome ?? 'bankrupt');
+    } else if (company) {
+      if (loaded.kind === 'loaded') toasts.show(`${scenario.name}, ${formatDate(snap.timeMs)}. Paused until you press play.`, 'ok');
+      else {
+        clock.setSpeed(1);
+        toasts.show(`${scenario.name} is ${company.stations.length === 1 ? 'the company’s first station' : 'yours'}. Every station shares one bank account. The company is in the menu.`, 'ok');
+      }
     } else if (loaded.kind === 'loaded') {
       toasts.show(`Welcome back. Your station is as you left it, paused on ${formatDate(snap.timeMs)}. Press play to carry on.`, 'ok');
     } else {
@@ -266,7 +305,8 @@ async function start(): Promise<void> {
     menuResume = clock.speed;
     clock.setSpeed(0);
     const s = sim.snapshot();
-    menu.show(`${scenario.name} · day ${Math.floor(s.minutes / 1440) + 1} · ${formatDate(s.timeMs)}`);
+    const day = Math.floor((company ? company.minutes : s.minutes) / 1440) + 1;
+    menu.show(`${company ? `${company.name} · ` : ''}${scenario.name} · day ${day} · ${formatDate(s.timeMs)}`);
     maybeNudge(menu.notice);
     sound.play('open');
   };
@@ -297,6 +337,7 @@ async function start(): Promise<void> {
       autosave(true);
       enterTitle();
     },
+    ...(company ? { onCompany: () => openCompany() } : {}),
   });
   const exitPhoto = () => {
     photo.hide();
@@ -325,7 +366,8 @@ async function start(): Promise<void> {
   const help = new HelpSheet(ui, { onClose: () => undefined });
 
   // ---- Save slots and files ----
-  const currentLine = (): string | null => resumeLine();
+  // Company stations aren't scenarios a slot could load, so slots are for the scenarios only.
+  const currentLine = (): string | null => (company ? null : resumeLine());
   const openSaves = () => {
     saves.show(title.isOpen ? null : currentLine(), readSlots(SAVE_VERSION));
     refreshBackupStatus();
@@ -342,7 +384,9 @@ async function start(): Promise<void> {
       toasts.show("That save doesn't fit this version of the game, so it can't be loaded.", 'warn');
       return;
     }
+    if (company) autosave(true);
     saving = false; // don't let the closing page autosave the old station over the one being loaded
+    saveMode('scenario');
     if (!replaceGame(save)) {
       saving = true;
       toasts.show("This browser wouldn't store the station, so it can't be loaded here.", 'warn');
@@ -491,7 +535,7 @@ async function start(): Promise<void> {
     // Something to back up: the station in play, or anything already stored (a played station, a slot).
     const store = localStore();
     const stored = store ? readStoredKeys(store) : {};
-    const canBackUp = !title.isOpen || Object.keys(stored).some((k) => k === SAVE_KEY || k.startsWith('stationkeeper.slot.'));
+    const canBackUp = !title.isOpen || Object.keys(stored).some((k) => k === SAVE_KEY || k === 'stationkeeper.company' || k.startsWith('stationkeeper.slot.'));
     saves.setBackupStatus(null, lastBackupLine(), canBackUp);
     void storageProtected().then((kept) => {
       const line =
@@ -576,8 +620,10 @@ async function start(): Promise<void> {
     onKeepGoing: () => {
       if (!report.isOpen) clock.setSpeed(goalResume);
     },
-    onNewGame: () => newGame(),
+    onNewGame: () => endNext(),
   });
+  let endNext = (): void => newGame();
+  let endOver: Parameters<typeof ending.show>[3];
   const showEnding = (kind: EndKind) => {
     clock.setSpeed(0);
     exitBuild();
@@ -592,19 +638,20 @@ async function start(): Promise<void> {
       loan: s.economy.loan,
       modules: s.modules.length,
       lifetimeNet: Object.values(sim.lifetimeLedger).reduce((a, b) => a + b, 0),
-    });
+    }, endOver);
   };
   // Each ending is recorded once: the events fire only on the tick it happens, never again after a reload.
   sim.events.on('gameOver', ({ outcome }) => {
     sound.play('lose');
-    recordLoss(sim.scenario.id, outcome);
+    if (company) companyLoss(outcome);
+    else recordLoss(sim.scenario.id, outcome);
     if (report.isOpen) report.close(); // its Continue won't restart a lost game
     showEnding(outcome);
     autosave(true);
   });
   sim.events.on('goalReached', ({ minutes }) => {
     sound.play('win');
-    recordWin(sim.scenario.id, minutes);
+    if (!company) recordWin(sim.scenario.id, minutes);
     goalResume = clock.speed === 0 ? 1 : clock.speed;
     showEnding('goal');
   });
@@ -722,6 +769,10 @@ async function start(): Promise<void> {
       if (e.key === 'Escape') saves.close();
       return;
     }
+    if (companySheet.isOpen) {
+      if (e.key === 'Escape') companySheet.close();
+      return;
+    }
     if (settingsSheet.isOpen) {
       if (e.key === 'Escape') settingsSheet.close();
       return;
@@ -808,6 +859,134 @@ async function start(): Promise<void> {
   measureInsets();
   cam.setDistance(env.fitDistance(fitRadius));
 
+  // ---- Company mode: the other stations, the market, flying between them ----
+  /** Set once the live station is lost: the company carries on without it, so it's no longer saved back. */
+  let stationGone = false;
+  let companyAt = sim.elapsedMinutes;
+  const liveSummary = () => summarise(sim.snapshot(), scenario, defsById);
+  /** Save the company, with the live station's state folded in first. */
+  const saveCompanyNow = (): boolean => {
+    if (!company) return false;
+    if (!stationGone) leaveStation(company, sim.save(), sim.snapshot(), defsById);
+    return saveCompany(company);
+  };
+  const reloadInto = (mode: 'company' | 'scenario') => {
+    saving = false;
+    saveMode(mode);
+    skipTitleOnce();
+    location.reload();
+  };
+  /** A brand-new company, starting on the first posting. */
+  const startCompany = () => {
+    if (!saveCompany(newCompany(SCENARIOS[0]!, defsById, Date.now() % 2 ** 31))) {
+      toasts.show("This browser wouldn't store a company, so it can't be started here.", 'warn');
+      return;
+    }
+    reloadInto('company');
+  };
+  /** From the title: switch between the scenarios and the company, keeping whichever is left saved for later. */
+  const otherMode = () => {
+    if (started || loaded.kind === 'loaded') autosave(true);
+    if (company) {
+      let hasScenario = false;
+      try {
+        hasScenario = localStorage.getItem(SAVE_KEY) !== null;
+      } catch {
+        // No storage: nothing to go back to.
+      }
+      if (hasScenario) reloadInto('scenario');
+      else picker.show();
+    } else if (loadCompany()) reloadInto('company');
+    else startCompany();
+  };
+  const flyTo = (id: string) => {
+    if (!company || id === company.activeId) return;
+    saveCompanyNow();
+    company.activeId = id;
+    if (!saveCompany(company)) {
+      toasts.show("This browser wouldn't store the company, so you can't fly just now.", 'warn');
+      return;
+    }
+    reloadInto('company');
+  };
+  const refreshCompany = () => {
+    if (company && companySheet.isOpen) companySheet.update(companyView(company, sim.snapshot().economy.cash, liveSummary()));
+  };
+  const openCompany = () => {
+    if (!company) return;
+    companySheet.show(companyView(company, sim.snapshot().economy.cash, liveSummary()));
+    sound.play('open');
+  };
+  const afterPurchase = (r: ReturnType<typeof buyListing>) => {
+    if (!r.ok) {
+      toasts.show(`${r.reason}.`, 'warn');
+      return;
+    }
+    send({ type: 'transfer', amount: -r.cost });
+    toasts.show(`${r.station.name} is the company's. A deputy is in charge until you fly there.`, 'ok');
+    sound.play('build');
+    autosave(true);
+    refreshCompany();
+  };
+  const companySheet = new CompanySheet(ui, {
+    onFly: (id) => flyTo(id),
+    onBuy: (id) => company && afterPurchase(buyListing(company, id, sim.snapshot().economy.cash, SCENARIOS, defsById)),
+    onFound: (id) => company && afterPurchase(foundStation(company, id, sim.snapshot().economy.cash, SCENARIOS[0]!, defsById)),
+    onWindUp: () => {
+      clearCompany();
+      startCompany();
+    },
+    onClose: () => {
+      companySheet.close();
+      sound.play('close');
+    },
+  });
+  /** An hour on the company clock: the deputies' money comes in, news goes out, milestones are ticked off. */
+  const companyHour = () => {
+    if (!company) return;
+    const r = stepCompany(company, 60, SCENARIOS, defsById);
+    if (Math.abs(r.cash) > 1e-9) sim.command({ type: 'transfer', amount: r.cash });
+    for (const n of r.news) toasts.show(n.text, n.kind);
+    for (const m of checkMilestones(company, { cash: sim.snapshot().economy.cash, live: liveSummary() })) {
+      toasts.show(`Milestone: ${m.label}.`, 'ok');
+      sound.play('win');
+    }
+    refreshCompany();
+  };
+  /** The live station is lost. One shared account means the bank takes everything; an evacuation loses just this station. */
+  const companyLoss = (outcome: 'bankrupt' | 'evacuated' | 'replaced') => {
+    if (!company) return;
+    const name = activeStation(company).name;
+    company.cash = sim.snapshot().economy.cash;
+    stationGone = true;
+    const others = outcome === 'evacuated' && removeStation(company, company.activeId, 'evacuated');
+    if (others) {
+      saveCompany(company);
+      const next = activeStation(company);
+      endOver = {
+        copy: { kicker: 'Station lost', title: `${name} has been evacuated`, text: `The crew are home safe and the company carries on without it. ${next.name} is next in line for your attention.` },
+        next: `Fly to ${next.name}`,
+      };
+      endNext = () => reloadInto('company');
+    } else {
+      clearCompany();
+      saveMode('scenario');
+      endOver = {
+        copy: {
+          kicker: 'Game over',
+          title: 'The company is wound up',
+          text:
+            outcome === 'bankrupt'
+              ? 'One account paid for every station, and it ran dry. The receivers have changed the locks on all of them.'
+              : 'The last station is gone, and a company with no stations is a letterhead. The receivers are polite about it.',
+        },
+        next: 'Start a new company',
+      };
+      endNext = () => startCompany();
+    }
+    saving = false;
+  };
+
   // ---- Saving: every few seconds while the clock runs, and whenever the page is hidden or closed ----
   const SAVE_EVERY_MS = 5000;
   let saving = true;
@@ -817,7 +996,7 @@ async function start(): Promise<void> {
   const autosave = (force = false) => {
     if (!saving) return;
     if (!force && sim.elapsedMinutes === savedAt) return;
-    if (saveGame(sim)) {
+    if (company ? saveCompanyNow() : saveGame(sim)) {
       askToKeepStorage(); // once a load, and only now there's a save worth keeping
     } else if (!warnedNoSave) {
       warnedNoSave = true;
@@ -849,6 +1028,11 @@ async function start(): Promise<void> {
     if (ticks > 0) {
       // Stop early if a tick paused the game (the quarterly report does).
       for (let i = 0; i < ticks && clock.speed !== 0; i++) sim.tick();
+      // The other stations move on by the hour, alongside this one.
+      while (company && !stationGone && !sim.ended && sim.elapsedMinutes - companyAt >= 60) {
+        companyAt += 60;
+        companyHour();
+      }
       snap = sim.snapshot();
     }
     if (needsSync) {
