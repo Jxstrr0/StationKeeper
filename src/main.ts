@@ -61,15 +61,16 @@ async function start(): Promise<void> {
   env.scene.add(buildView.root);
 
   // Dev server only: the sim and views on window, for poking at from the console. Not in production builds.
-  if (import.meta.env.DEV) Object.assign(window, { __sim: sim, __station: stationView, __build: buildView, __defs: defsById });
+  if (import.meta.env.DEV) Object.assign(window, { __sim: sim, __station: stationView, __build: buildView, __defs: defsById, __env: env });
 
-  const cam = new OrbitCamera(env.camera, canvas, { minDistance: 12, maxDistance: 170, floorY: -ALTITUDE + 8 });
+  const cam = new OrbitCamera(env.camera, canvas, { minDistance: 14, maxDistance: 420, floorY: -ALTITUDE + 8 });
 
   let snap = sim.snapshot();
   await stationView.sync(snap);
   const frame = stationView.bounds();
   cam.target.copy(frame.center);
-  cam.setDistance(frame.radius * (env.camera.aspect < 0.8 ? 3.4 : 2.4));
+  let fitRadius = frame.radius;
+  cam.setDistance(env.fitDistance(fitRadius));
 
   // ---- UI ----
   const hud = new Hud(ui, {
@@ -360,7 +361,36 @@ async function start(): Promise<void> {
       clock.setSpeed(SPEEDS[Number(e.key) - 1] as Speed);
     }
   });
-  window.addEventListener('resize', () => env.resize());
+  // Keep the station in the gap between the HUD and the bottom buttons. Only UI that crosses the
+  // middle third of the screen counts.
+  const measureInsets = (): void => {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const crossesMiddle = (r: DOMRect): boolean => r.width > 0 && r.height > 0 && r.left < w * 0.66 && r.right > w * 0.34;
+    let top = 0;
+    for (const child of hud.root.children) {
+      const r = child.getBoundingClientRect();
+      // Landscape screens have room beside the HUD, so it only pushes the view down in portrait.
+      if (w < h && crossesMiddle(r) && r.top < h / 2) top = Math.max(top, r.bottom);
+    }
+    let bottom = 0;
+    for (const b of document.querySelectorAll('.warn-fab, .fin-fab, .build-fab')) {
+      const r = b.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0 && r.top > h / 2) bottom = Math.max(bottom, h - r.top);
+    }
+    env.setInsets(Math.round(top), Math.round(bottom));
+  };
+  // When the screen changes shape, keep the player's zoom relative to what fits.
+  const keepingZoom = (change: () => void): void => {
+    const before = env.fitDistance(fitRadius);
+    change();
+    const after = env.fitDistance(fitRadius);
+    if (Math.abs(after - before) > 0.5) cam.setDistance(cam.distance * (after / before));
+  };
+  window.addEventListener('resize', () => keepingZoom(measureInsets)); // the canvas itself is resized in the frame loop
+  new ResizeObserver(measureInsets).observe(hud.root); // a warning line in the HUD recentres the view but leaves the zoom alone
+  measureInsets();
+  cam.setDistance(env.fitDistance(fitRadius));
 
   // ---- Saving: every few seconds while the clock runs, and whenever the page is hidden or closed ----
   const SAVE_EVERY_MS = 5000;
@@ -400,6 +430,9 @@ async function start(): Promise<void> {
     const dt = Math.min(0.1, (now - last) / 1000);
     const realDt = (now - last) / 1000;
     last = now;
+    keepingZoom(() => {
+      if (env.ensureSize()) measureInsets();
+    });
 
     const ticks = clock.advance(realDt);
     if (ticks > 0) {
@@ -412,7 +445,8 @@ async function start(): Promise<void> {
       snap = sim.snapshot(); // fresh: a module can dock outside a tick (the dev console's deliverAll)
       void stationView.sync(snap).then(() => {
         const b = stationView.bounds();
-        cam.focus(b.center, Math.max(cam.distance, b.radius * (env.camera.aspect < 0.8 ? 3.4 : 2.4)));
+        fitRadius = b.radius;
+        cam.focus(b.center, Math.max(cam.distance, env.fitDistance(b.radius)));
       });
     }
 
