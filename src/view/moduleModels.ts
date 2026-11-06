@@ -575,11 +575,24 @@ export function buildGreybox(def: ModuleDef): ModuleModel {
 export class ModuleModelLoader implements ModuleModelSource {
   private gltfLoader: Promise<{ loadAsync(url: string): Promise<{ scene: THREE.Group }> }> | null = null;
 
+  /** Every module build (and any .glb file and its textures) is counted on `manager`, which feeds the loading bar. */
+  constructor(private readonly manager: THREE.LoadingManager = THREE.DefaultLoadingManager) {}
+
   async load(def: ModuleDef): Promise<ModuleModel> {
+    const item = `module:${def.id}`;
+    this.manager.itemStart(item);
+    try {
+      return await this.build(def);
+    } finally {
+      this.manager.itemEnd(item);
+    }
+  }
+
+  private async build(def: ModuleDef): Promise<ModuleModel> {
     if (!def.model) return buildGreybox(def);
     try {
       // Only pull in the glTF loader once a module actually uses a model.
-      this.gltfLoader ??= import('three/examples/jsm/loaders/GLTFLoader.js').then((m) => new m.GLTFLoader());
+      this.gltfLoader ??= import('three/examples/jsm/loaders/GLTFLoader.js').then((m) => new m.GLTFLoader(this.manager));
       const gltf = await (await this.gltfLoader).loadAsync(`${import.meta.env.BASE_URL}${def.model}`);
       const root = gltf.scene;
       const glowMaterials: THREE.MeshStandardMaterial[] = [];
