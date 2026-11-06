@@ -1397,6 +1397,15 @@ A hands-off Longlight run was evacuated on days 21–26 every time: the water ta
 - Files: `public/icons/apple-touch-icon.png` (180, iPhone), `icon-192.png` and `icon-512.png` (Android and the PNG favicon fallback), `icon-512-maskable.png` (the art inside the middle 80%, so Android can crop it to a circle or squircle), and `public/manifest.webmanifest` (name, standalone, any orientation, slate colours). `index.html` links them and sets the home-screen title.
 - To test: on an iPhone open the live site in Safari, Share, Add to Home Screen. The preview should show the station icon and "Station Keeper". Opening it from the home screen starts full screen.
 
+## Loading screen (0.1.2.0)
+
+- The loading screen is now a real screen instead of the name in plain text: the STATION KEEPER wordmark (as on the title), a line saying what's loading, a lilac progress bar, a faint Earth limb and stars, and "A Longlight Interactive game" along the bottom. It lives inline in `index.html` (markup and its own `<style>`), so it paints on the first frame.
+- The bar is driven by the real boot (`src/ui/bootScreen.ts`, called from `start()` in `src/main.ts`): it sweeps while the game's code downloads, then fills through "Reading the logbook", "Lighting up the Earth", "Docking the modules" (a `THREE.LoadingManager` counts each module and any `.glb` file and texture), "Warming up the shaders" and "Opening the hatch", then fades out as before.
+- New: the shaders are compiled behind the loading screen (`renderer.compileAsync`, at most 4 s), so the first frames on the title don't stutter.
+- If the game can't start, the bar gives way to the reason and a Reload button. A small script in the `<head>` catches the game's code failing to download (a dropped connection) and shows the same.
+- Phone-first: safe areas, a smaller wordmark in landscape, and with Reduce Motion on the bar holds still instead of sweeping.
+- To test: open the live site on a phone. The loading screen shows the wordmark and a bar that sweeps, then fills, then fades into the title. On a slow connection (or with the phone in flight mode after the page starts) you should see it longer, or the error with Reload.
+
 ## Next
 
 The planned slices are done. Candidates for what's next, roughly in order of value:
