@@ -1036,6 +1036,29 @@ Traced on four seeds per line:
 
 - **Five stars needs a near-perfect quarter.** The goal is to keep everything running for a whole day, not just to fix the station.
 
+## Session 23: camera lens and framing
+
+Play-test feedback: the view felt stretched and out of proportion. The canvas was the right size. The lens was the problem.
+
+### What was built
+
+- **A longer lens.** The field of view was 50° vertical in landscape, which is about 90° across on a phone held sideways, and that bulged whatever was nearest the camera.
+  - Now the narrower of the two angles is never under 26° across or 24° up and down, and the camera stands back to compensate.
+  - The near solar wing no longer dwarfs the far one.
+  - The sun sprite scales with the field of view, so it stays the same size on screen.
+- **Framing that knows where the UI is** (`SceneEnv.setInsets`, `fitDistance`). The picture's centre moves into the gap between the HUD and the bottom buttons, so the station isn't half under the power card on a phone.
+  - The shift uses `camera.setViewOffset`, so tapping a module still hits the right one.
+  - Only UI that crosses the middle third of the screen counts. The top HUD counts only in portrait.
+  - The opening distance and the refit after a module docks both use `fitDistance`, not the old 2.4/3.4 multipliers.
+  - Zoom limits are now 14 to 420 m, up from 12 to 170, since everything sits further back.
+- **A smaller HUD on phones held sideways** (landscape at 500 px tall or less). The HUD is scaled to 72% as a whole and the power card is narrower.
+- `__env` is on `window` in dev builds, next to `__sim`, for checking the camera.
+- **Tests:** still 219. This was a view-only change, checked by screenshots on Pixel 7, iPhone 13 (portrait and landscape) and a 1440×900 desktop.
+
+### Choices made
+
+- **The lens leans long, more like a telephoto shot than a wide-angle one.** If the station now feels too distant or flat, the two minimum angles in `src/view/scene.ts` are the knobs.
+
 ## Next
 
 The planned slices are done. Candidates for what's next, roughly in order of value:
