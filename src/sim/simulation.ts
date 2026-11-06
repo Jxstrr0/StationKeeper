@@ -9,6 +9,7 @@ import {
   acceptContract,
   acceptProblem,
   book,
+  emptyLedger,
   contractSnapshots,
   createEconomyState,
   labCount,
@@ -109,7 +110,9 @@ export type SimCommand =
   /** Send someone home, or cancel their flight up. */
   | { type: 'dismissCrew'; crewId: string }
   /** A one-off bonus for everyone aboard, to lift morale. */
-  | { type: 'payBonus' };
+  | { type: 'payBonus' }
+  /** Money in from the company's other stations (or out to them, if negative). Booked as `fleet`. */
+  | { type: 'transfer'; amount: number };
 
 /** A module paid for and on its way up. Its port is reserved until it docks. */
 interface Delivery {
@@ -472,6 +475,12 @@ export class Simulation {
         this.solve(false);
         return { ok: true, crewId: m.id };
       }
+      case 'transfer': {
+        if (!Number.isFinite(cmd.amount)) return { ok: false, reason: 'Not an amount of money' };
+        book(this.economy, 'fleet', cmd.amount);
+        this.checkEnding();
+        return { ok: true };
+      }
       case 'payBonus': {
         const problem = bonusProblem(this.crew, this.scenario.crew, this.economy.cash, this.minutes);
         if (problem) return { ok: false, reason: problem };
@@ -628,7 +637,10 @@ export class Simulation {
     sim.thermal = { ...s.thermal, modules: toMap(s.thermal.modules, ids, 'thermal') };
     sim.life = s.life;
     sim.reliability = { ...s.reliability, modules: toMap(s.reliability.modules, ids, 'reliability') };
-    sim.economy = s.economy;
+    // Saves from before a ledger line existed read it as zero.
+    const fill = (l: Ledger): Ledger => ({ ...emptyLedger(), ...l });
+    sim.economy = { ...s.economy, ledger: fill(s.economy.ledger), lifetime: fill(s.economy.lifetime) };
+    if (sim.economy.lastReport) sim.economy.lastReport = { ...sim.economy.lastReport, ledger: fill(sim.economy.lastReport.ledger) };
     sim.deliveries = s.deliveries;
     sim.ending = s.ending;
     sim.crew = s.crew;
@@ -775,6 +787,8 @@ export class Simulation {
         const progress = left > 0 || holdLeftMinutes > 0 ? Math.min(0.999, (repaid + clamp(this.minutes / holdMinutes)) / 2) : 1;
         return { kind: g.kind, current: left, target: 0, progress, deadlineAtMinutes, holdLeftMinutes };
       }
+      case 'none':
+        return { kind: g.kind, current: 0, target: 0, progress: 0, deadlineAtMinutes: null, holdLeftMinutes: 0 };
       case 'cash':
         return { kind: g.kind, current: this.economy.cash, target: g.amount, progress: clamp(this.economy.cash / g.amount), deadlineAtMinutes, holdLeftMinutes: 0 };
       case 'contracts':

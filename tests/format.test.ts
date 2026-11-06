@@ -21,7 +21,7 @@ describe('money', () => {
 describe('quarter verdict', () => {
   const report = (net: number, cash = 10): QuarterReport => ({
     quarter: 1,
-    ledger: { guests: 0, contracts: 0, wages: 0, operations: 0, interest: 0, construction: 0, repairs: 0, penalties: 0 },
+    ledger: { guests: 0, contracts: 0, fleet: 0, wages: 0, operations: 0, interest: 0, construction: 0, repairs: 0, penalties: 0 },
     net,
     cash,
     loan: 60,

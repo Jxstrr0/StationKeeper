@@ -66,6 +66,9 @@ function goalCopy(kind: GoalKind, target: number): Copy {
         title: `${target}-star reviews`,
         text: 'The guests have stopped mentioning the smell. The owners have framed a review. Keep going and keep it that way.',
       };
+    case 'none':
+      // Never reached: there's nothing to reach.
+      return { kicker: 'Still going', title: 'The station runs on', text: 'Nobody set a goal here, so nobody can say you missed it.' };
   }
 }
 

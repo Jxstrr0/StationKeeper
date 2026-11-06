@@ -498,6 +498,8 @@ function goalDef(raw: unknown): GoalDef {
       if (days !== undefined && holdDays > days) fail('goal.holdDays', 'must not be longer than "days"');
       return withDays({ kind, holdDays });
     }
+    case 'none':
+      return { kind };
     case 'cash': {
       const amount = num(o.amount, 'goal.amount');
       if (!(amount > 0)) fail('goal.amount', 'must be more than 0');
@@ -514,7 +516,7 @@ function goalDef(raw: unknown): GoalDef {
       return withDays({ kind, stars: n });
     }
     default:
-      return fail('goal.kind', `unknown goal "${kind}" (repayLoan, cash, contracts or reviews)`);
+      return fail('goal.kind', `unknown goal "${kind}" (repayLoan, cash, contracts, reviews or none)`);
   }
 }
 
