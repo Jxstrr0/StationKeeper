@@ -9,6 +9,8 @@ export interface PauseMenuHandlers {
   onHelp(): void;
   onPhoto(): void;
   onQuit(): void;
+  /** Company mode only: the company sheet. Its presence also drops Restart, which has no meaning there. */
+  onCompany?: () => void;
 }
 
 const CONFIRM_MS = 3500;
@@ -49,8 +51,9 @@ export class PauseMenu {
       this.notice,
       el('div', 'menu-list', [
         item('Resume', handlers.onResume, 'primary'),
+        ...(handlers.onCompany ? [item('Company', handlers.onCompany)] : []),
         item('Save and load', handlers.onSaves),
-        this.restart,
+        ...(handlers.onCompany ? [] : [this.restart]),
         item('Settings', handlers.onSettings),
         item('How to play', handlers.onHelp),
         item('Photo mode', handlers.onPhoto),

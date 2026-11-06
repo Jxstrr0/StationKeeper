@@ -177,3 +177,19 @@ describe('company', () => {
     expect(parseCompany(JSON.stringify({ ...c, activeId: 'nope' })).ok).toBe(false);
   });
 });
+
+describe('company view', () => {
+  it('lists stations, listings and launches with what the player can afford', async () => {
+    const { companyView } = await import('../src/company/view');
+    const c = newCompany(first, byId, 7);
+    stepCompany(c, 60, SCENARIOS, byId);
+    const live = activeStation(c).summary;
+    const v = companyView(c, 60, live);
+    expect(v.stations).toEqual([expect.objectContaining({ id: 'co-1', here: true, note: expect.stringContaining('You are here') })]);
+    expect(v.listings).toHaveLength(2);
+    expect(v.listings.every((l) => l.affordable === l.price <= 60)).toBe(true);
+    expect(v.found.map((f) => f.affordable)).toEqual(FOUND_OPTIONS.map((o) => o.price <= 60));
+    expect(v.milestones.every((m) => !m.done)).toBe(true);
+    expect(v.day).toBe(1);
+  });
+});

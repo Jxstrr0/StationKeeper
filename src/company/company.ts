@@ -1,7 +1,7 @@
 // Company mode: one company, several stations, one bank account. The player runs one station hands-on; the others are
 // left to a deputy and kept on a cheap summary (income, wear, the odd incident) until the player flies back.
 // Everything here is plain data and pure functions, so it saves as JSON and tests without a sim running.
-import type { SimSave } from '../sim/simulation';
+import { Simulation, type SimSave } from '../sim/simulation';
 import { Rng } from '../sim/rng';
 import type { LayoutEntry, ModuleDef, OrbitConfig, ScenarioDef, SimSnapshot } from '../sim/types';
 
@@ -66,6 +66,8 @@ export interface Listing {
   /** For the card: module count and value, worked out when it was listed. */
   modules: number;
   value: number;
+  /** The guess at what it would earn hands-on, from a day run headless. */
+  netPerDay: number;
 }
 
 export interface LostStation {
@@ -104,9 +106,9 @@ export interface FoundOption {
 }
 
 export const FOUND_OPTIONS: readonly FoundOption[] = [
-  { id: 'equatorial', label: 'Low and equatorial', line: '420 km, long eclipses every orbit. The cheap launch.', orbit: { altitudeKm: 420, betaDeg: 0, startPhaseDeg: 0 }, price: 55 },
-  { id: 'inclined', label: 'Inclined', line: '450 km, shorter eclipses. A fair middle.', orbit: { altitudeKm: 450, betaDeg: 40, startPhaseDeg: 0 }, price: 64 },
-  { id: 'dawn-dusk', label: 'Dawn–dusk', line: '520 km, riding the terminator: sun nearly all the time.', orbit: { altitudeKm: 520, betaDeg: 76, startPhaseDeg: 0 }, price: 80 },
+  { id: 'equatorial', label: 'Low and equatorial', line: '420 km, long eclipses every orbit. The cheap launch.', orbit: { altitudeKm: 420, betaDeg: 0, startPhaseDeg: 0 }, price: 50 },
+  { id: 'inclined', label: 'Inclined', line: '450 km, shorter eclipses. A fair middle.', orbit: { altitudeKm: 450, betaDeg: 40, startPhaseDeg: 0 }, price: 58 },
+  { id: 'dawn-dusk', label: 'Dawn–dusk', line: '520 km, riding the terminator: sun nearly all the time, and the heat that comes with it.', orbit: { altitudeKm: 520, betaDeg: 76, startPhaseDeg: 0 }, price: 64 },
 ];
 
 const NAME_A = ['Tern', 'Marrow', 'Sable', 'Halcyon', 'Brindle', 'Corrie', 'Gannet', 'Wren', 'Lantern', 'Skerry', 'Fallow', 'Ochre', 'Merlin', 'Thistle', 'Calder', 'Juniper', 'Pellam', 'Rook', 'Selkie', 'Tamsin'];
@@ -259,22 +261,26 @@ export function stepCompany(c: CompanyState, minutes: number, templates: readonl
   return { cash, news };
 }
 
+/** A listed station's scenario, as it would be if bought now. */
+function listingScenario(c: CompanyState, l: Pick<Listing, 'name' | 'seed' | 'extraWear'>, t: ScenarioDef, templates: readonly ScenarioDef[], id: string): ScenarioDef {
+  return stationScenario(t, { id, name: l.name, seed: l.seed, startDate: isoPlus(c.startDate, c.minutes), cash: 0, loan: 0, extraWear: l.extraWear, contracts: templates[0]?.economy.contracts });
+}
+
 function makeListing(c: CompanyState, rng: Rng, templates: readonly ScenarioDef[], defs: ReadonlyMap<string, ModuleDef>): Listing {
   const t = templates[rng.int(0, templates.length - 1)]!;
-  const extraWear = Math.round(rng.range(0.1, 0.3) * 100) / 100;
-  const wear = t.reliability.initialWear;
-  const value = layoutValue(t.layout, defs, (id) => (id === 'core-1' ? 0 : Math.min(0.85, (wear[id] ?? 0) + extraWear)));
+  const base = { name: pickName(c, rng), seed: rng.int(1, 2 ** 31 - 1), extraWear: Math.round(rng.range(0.1, 0.3) * 100) / 100 };
+  const est = estimateSummary(listingScenario(c, base, t, templates, 'listing'), defs);
+  // Cheap for what it's made of, since someone gave up on it, but a station that earns well still asks more.
+  const price = Math.max(10, Math.round(est.value * rng.range(0.3, 0.4) + Math.max(0, est.netPerDay) * 4));
   const listing: Listing = {
     id: `listing-${c.nextNo}`,
-    name: pickName(c, rng),
+    ...base,
     templateId: t.id,
-    // Sold for under half what it's worth: someone else gave up on it.
-    price: Math.round(value * rng.range(0.35, 0.5)),
-    extraWear,
-    seed: rng.int(1, 2 ** 31 - 1),
+    price,
     expiresAt: c.minutes + LISTING_LIFE_DAYS * DAY,
     modules: t.layout.length,
-    value,
+    value: est.value,
+    netPerDay: est.netPerDay,
   };
   c.nextNo++;
   return listing;
@@ -282,8 +288,19 @@ function makeListing(c: CompanyState, rng: Rng, templates: readonly ScenarioDef[
 
 export type Purchase = { ok: true; cost: number; station: CompanyStation } | { ok: false; reason: string };
 
+/**
+ * What a station nobody has run yet would earn: a day of it run headless, with nothing breaking, as a deputy's guess.
+ * Its wear and value stay as listed.
+ */
+export function estimateSummary(scenario: ScenarioDef, defs: ReadonlyMap<string, ModuleDef>): StationSummary {
+  const base = summariseScenario(scenario, defs);
+  const trial = new Simulation([...defs.values()], structuredClone(scenario), scenario.layout, { failures: false });
+  trial.run(DAY);
+  return { ...base, netPerDay: summarise(trial.snapshot(), scenario, defs).netPerDay };
+}
+
 function addStation(c: CompanyState, scenario: ScenarioDef, defs: ReadonlyMap<string, ModuleDef>): CompanyStation {
-  const station: CompanyStation = { id: scenario.id, name: scenario.name, scenario, save: null, summary: summariseScenario(scenario, defs), leftAt: c.minutes, incidents: 0, incomeFactor: 1 };
+  const station: CompanyStation = { id: scenario.id, name: scenario.name, scenario, save: null, summary: estimateSummary(scenario, defs), leftAt: c.minutes, incidents: 0, incomeFactor: 1 };
   c.stations.push(station);
   return station;
 }
@@ -295,8 +312,7 @@ export function buyListing(c: CompanyState, listingId: string, cash: number, tem
   if (cash < l.price) return { ok: false, reason: `Not enough cash: it costs ${l.price}M` };
   const t = templates.find((x) => x.id === l.templateId);
   if (!t) return { ok: false, reason: 'That station is no longer for sale' };
-  const id = `co-${c.nextNo++}`;
-  const scenario = stationScenario(t, { id, name: l.name, seed: l.seed, startDate: isoPlus(c.startDate, c.minutes), cash: 0, loan: 0, extraWear: l.extraWear, contracts: templates[0]?.economy.contracts });
+  const scenario = listingScenario(c, l, t, templates, `co-${c.nextNo++}`);
   c.listings = c.listings.filter((x) => x !== l);
   return { ok: true, cost: l.price, station: addStation(c, scenario, defs) };
 }

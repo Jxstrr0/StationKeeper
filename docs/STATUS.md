@@ -1202,6 +1202,43 @@ All Longlight games live on one site (`jxstrr0.github.io`), so they share one br
 - **5 days**, picked by the user from a pop-up over a cash target or leaving an instant win. It matches the old trace, where a good build was comfortable by about day 5.
 - **Old saves** keep the loan they were saved with ($60M), because the loan lives in the save. Only new games get $30M.
 
+## Session 29: company mode
+
+An endless mode beside the scenarios, picked by the user from pop-ups: one station live with the rest summarised, stations bought as derelicts or founded new, sandbox with milestones, and a separate entry on the title screen.
+
+### What was built
+- **Sim groundwork** (`src/sim`):
+  - A goal of kind `none`: never reached, no deadline. Finance hides its goal section.
+  - A `transfer` command books money on a new `fleet` ledger line ("Other stations"). Saves from before it read the line as zero, so `SAVE_VERSION` stays 8.
+  - `simFromSave` can take the station's own scenario instead of looking a shipped one up.
+- **Company model** (`src/company/company.ts`, plain data and pure functions):
+  - A company has one bank account, a company clock, its stations (each with its own generated `ScenarioDef`, its last save and a summary), market listings, milestones and stations lost.
+  - The live station's sim holds the cash. `leaveStation` folds the sim back in (on every autosave, too), and `enterStation` makes a station live: the company's cash goes in, its clock is shifted so the date shows company time, and the wear the deputy let build up is added.
+  - **Deputies:** a station off-screen earns 75% of its income, and its wear grows 0.03 a day. It has a chance of an incident each day (10% + 40% × wear); an incident costs 1.5% of its value in parts, cuts its income by a quarter until you visit, and adds 0.2 wear to a random module. All of it is driven by the company's own seeded dice.
+  - **Market:** two derelicts at a time, refreshed every 2 days and listed for 3. Each is a copy of a shipped scenario's station with 0.1–0.3 extra wear. The price is 30–40% of its value plus four days of the income a headless day's run says it would make.
+  - **Founding:** three orbits (equatorial $50M, inclined $58M, dawn–dusk $64M), each with the first posting's kit, new and unworn.
+  - A bought or founded station's income is estimated by running it headless for a day with failures off.
+  - **Milestones:** 10, from "Every loan paid off" to "A company worth $1B". The company's worth is its cash plus each station's module value (less wear), less its loans.
+  - **Storage:** `stationkeeper.company`, and `stationkeeper.mode` for which mode the title's Continue resumes. Both go in whole-game backups.
+- **UI:**
+  - The title has **Company** beside New station. In company mode they become **Scenarios** (back to the scenario save, or the picker) and **Company** (the sheet).
+  - The pause menu has a **Company** item, and its Restart is left out.
+  - The company sheet (`src/ui/companySheet.ts`) shows the figures, stations (with **Fly there**), what's for sale, launches and milestones, plus a two-tap "Wind up the company and start again". Buying and launching take two taps.
+  - Flying saves and reloads into the other station.
+  - Toasts carry off-screen breakdowns and milestones.
+  - How to play gains a Company mode page.
+- **Endings:**
+  - An evacuation loses that station, and the end sheet offers **Fly to** the next.
+  - Bankruptcy (one shared account) or losing the last station winds the company up, and the sheet offers a new company.
+  - Records aren't kept for company stations.
+
+### Choices made
+- **Slots and file export are scenario-only.** A company station isn't a shipped scenario, so a slot couldn't load it. Company mode is autosaved, and covered by whole-game backups.
+- **A station's own clock pauses while it's off-screen.** Its date is shifted to company time on return, so the eclipse phase jumps a little, which nobody will see. Quarters run on each station's own clock.
+- **The company starts on the first posting, with its $30M loan.** New stations come without loans.
+- **The first listings appear after the first company hour**, so the very first look at the sheet may say nothing is for sale.
+- **Untuned:** the deputy share, incident rates and prices are first guesses. A headless check had founded stations earning $3.5–4.4M a day and derelicts $3–7M a day before deputy losses.
+
 ## Next
 
 The planned slices are done. Candidates for what's next, roughly in order of value:
