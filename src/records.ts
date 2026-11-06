@@ -2,7 +2,8 @@
 // Kept in localStorage beside the save, and outlives it: starting a new station never clears the record.
 import type { Outcome } from './sim/types';
 
-const KEY = 'stationkeeper.records';
+export const RECORDS_KEY = 'stationkeeper.records';
+const KEY = RECORDS_KEY;
 
 export interface ScenarioRecord {
   wins: number;

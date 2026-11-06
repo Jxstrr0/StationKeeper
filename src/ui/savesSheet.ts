@@ -1,4 +1,5 @@
-// Save and load: the current station (always autosaved), three slots, and a file to carry a station to another device.
+// Save and load: the current station (always autosaved), three slots, a file to carry a station to another device,
+// and a backup of the whole game (a code or a text file) in case the browser clears its storage.
 import type { Slot, SlotMeta } from '../slots';
 import { el, setClass } from './dom';
 import { formatDate, money } from './format';
@@ -9,6 +10,14 @@ export interface SavesHandlers {
   onDelete(slot: number): void;
   onExport(): void;
   onImport(file: File): void;
+  /** Copy the backup code. Resolves to the code if it couldn't reach the clipboard, so it can be shown to copy by hand. */
+  onCopyCode(): Promise<string | null>;
+  /** The player copied the code by hand from the box. */
+  onCopiedByHand(): void;
+  onSaveBackupFile(): void;
+  /** A code or a file's text, checked: what it holds, or why it can't be used. */
+  onCheckCode(text: string): { ok: true; summary: string } | { ok: false; reason: string };
+  onRestore(text: string): void;
   onClose(): void;
 }
 
@@ -82,6 +91,13 @@ export class SavesSheet {
   private readonly rows: SlotRow[] = [];
   private readonly file = el('input');
   private readonly exportButton = el('button', 'warn-act', ['Export to a file']);
+  private readonly storageLine = el('p', 'saves-backup-line saves-storage hidden');
+  private readonly lastLine = el('p', 'saves-backup-line');
+  private readonly backupFile = el('input');
+  private readonly codePanel = el('div', 'saves-code hidden');
+  private readonly codeBox = el('textarea', 'saves-code-box');
+  private readonly codeNote = el('p', 'saves-code-note');
+  private readonly restore: TwoTap;
   private open = false;
 
   constructor(parent: HTMLElement, handlers: SavesHandlers) {
@@ -124,6 +140,62 @@ export class SavesSheet {
     importButton.addEventListener('click', () => this.file.click());
     this.exportButton.type = 'button';
     this.exportButton.addEventListener('click', handlers.onExport);
+    // ---- Backup: the whole game as a code or a small text file ----
+    const button = (label: string, onClick: () => void) => {
+      const b = el('button', 'warn-act', [label]);
+      b.type = 'button';
+      b.addEventListener('click', onClick);
+      return b;
+    };
+    this.backupFile.type = 'file';
+    this.backupFile.accept = '.txt,text/plain';
+    this.backupFile.className = 'hidden';
+    this.backupFile.addEventListener('change', () => {
+      const f = this.backupFile.files?.[0];
+      this.backupFile.value = '';
+      if (!f) return;
+      f.text()
+        .then((text) => this.openRestore(text.trim()))
+        .catch(() => this.openRestore(''))
+        .finally(() => {
+          if (this.codeBox.value === '') this.setNote("That file couldn't be read.", true);
+        });
+    });
+    this.codeBox.rows = 3;
+    this.codeBox.spellcheck = false;
+    this.codeBox.autocomplete = 'off';
+    this.codeBox.setAttribute('autocapitalize', 'off');
+    this.codeBox.setAttribute('aria-label', 'Backup code');
+    this.codeBox.addEventListener('input', () => this.check());
+    this.codeBox.addEventListener('copy', () => {
+      if (this.codeBox.readOnly) handlers.onCopiedByHand();
+    });
+    this.restore = new TwoTap(() => handlers.onRestore(this.codeBox.value), 'primary');
+    const cancel = button('Cancel', () => this.closeCode());
+    this.codePanel.append(this.codeBox, this.codeNote, el('div', 'saves-code-actions', [this.restore.button, cancel]));
+    const copy = button('Copy backup code', () => {
+      void handlers.onCopyCode().then((code) => {
+        if (code !== null) this.showCodeToCopy(code);
+      });
+    });
+    this.backupFileButton = button('Save backup file', handlers.onSaveBackupFile);
+    this.copyButton = copy;
+    const backup = el('div', 'saves-backup', [
+      el('p', 'saves-backup-title', ['Backup']),
+      el('p', 'saves-backup-line', ['Every station, slot and setting on this device, as a code or a small file. Keep one somewhere safe.']),
+      this.storageLine,
+      this.lastLine,
+      el('div', 'saves-files', [
+        copy,
+        this.backupFileButton,
+        button('Restore from code', () => this.openRestore('')),
+        button('Load backup file', () => this.backupFile.click()),
+        this.backupFile,
+      ]),
+      this.codePanel,
+    ]);
+    this.checkCode = handlers.onCheckCode;
+
     const done = el('button', 'warn-act primary report-continue', ['Done']);
     done.type = 'button';
     done.addEventListener('click', handlers.onClose);
@@ -134,6 +206,7 @@ export class SavesSheet {
       this.current,
       list,
       el('div', 'saves-files', [this.exportButton, importButton, this.file]),
+      backup,
       done,
     );
     this.card.setAttribute('role', 'dialog');
@@ -147,8 +220,77 @@ export class SavesSheet {
     parent.append(this.root);
   }
 
+  private readonly checkCode: SavesHandlers['onCheckCode'];
+  private readonly copyButton: HTMLButtonElement;
+  private readonly backupFileButton: HTMLButtonElement;
+
   get isOpen(): boolean {
     return this.open;
+  }
+
+  /**
+   * The storage line (null hides it: the browser can't say), when the last backup was made, and whether there's
+   * anything to back up yet.
+   */
+  setBackupStatus(storage: string | null, last: string, canBackUp: boolean): void {
+    this.copyButton.disabled = !canBackUp;
+    this.backupFileButton.disabled = !canBackUp;
+    this.storageLine.textContent = storage ?? '';
+    setClass(this.storageLine, 'hidden', storage === null);
+    this.lastLine.textContent = last;
+  }
+
+  /** The restore box, empty for a paste or filled from a backup file, checked straight away. */
+  openRestore(text: string): void {
+    this.codeBox.readOnly = false;
+    this.codeBox.value = text;
+    this.codeBox.placeholder = 'Paste a backup code here. It starts with SK1:';
+    setClass(this.restore.button, 'hidden', false);
+    setClass(this.codePanel, 'hidden', false);
+    this.check();
+    this.codePanel.scrollIntoView({ block: 'nearest' });
+    if (text === '') this.codeBox.focus();
+  }
+
+  /** The clipboard wasn't available: show the code to select and copy by hand. */
+  private showCodeToCopy(code: string): void {
+    this.codeBox.readOnly = true;
+    this.codeBox.value = code;
+    setClass(this.restore.button, 'hidden', true);
+    setClass(this.codePanel, 'hidden', false);
+    this.codePanel.scrollIntoView({ block: 'nearest' });
+    this.setNote('Copy this code and keep it somewhere safe, like a note or an email to yourself.', false);
+    this.codeBox.focus();
+    this.codeBox.select();
+  }
+
+  /** Shows a problem with the code under the box, e.g. when a restore is refused. */
+  restoreFailed(reason: string): void {
+    this.setNote(reason, true);
+  }
+
+  private closeCode(): void {
+    this.restore.disarm();
+    this.codeBox.value = '';
+    setClass(this.codePanel, 'hidden', true);
+  }
+
+  private setNote(text: string, bad: boolean): void {
+    this.codeNote.textContent = text;
+    setClass(this.codeNote, 'bad', bad);
+  }
+
+  private check(): void {
+    if (this.codeBox.readOnly) return;
+    const text = this.codeBox.value.trim();
+    if (text === '') {
+      this.restore.set('Restore', '', false);
+      this.setNote('Restoring replaces every station on this device with the backup.', false);
+      return;
+    }
+    const result = this.checkCode(text);
+    this.restore.set('Restore', 'Tap to replace everything', result.ok);
+    this.setNote(result.ok ? result.summary : `${result.reason}.`, !result.ok);
   }
 
   /**
@@ -186,6 +328,7 @@ export class SavesSheet {
   }
 
   close(): void {
+    this.closeCode();
     for (const r of this.rows) {
       r.load.disarm();
       r.save.disarm();
