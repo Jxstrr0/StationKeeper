@@ -93,6 +93,8 @@ describe('data files', () => {
     expect(bad({ kind: 'cash', amount: 0 })).toThrow(/goal.amount/);
     expect(bad({ kind: 'contracts', count: 2.5 })).toThrow(/goal.count/);
     expect(bad({ kind: 'repayLoan', days: -1 })).toThrow(/goal.days/);
+    expect(bad({ kind: 'repayLoan', holdDays: 0 })).toThrow(/goal.holdDays/);
+    expect(bad({ kind: 'repayLoan', holdDays: 6, days: 5 })).toThrow(/goal.holdDays/);
     expect(bad({ kind: 'reviews', stars: 6 })).toThrow(/goal.stars/);
     expect(bad({ kind: 'reviews', stars: 3.5 })).toThrow(/goal.stars/);
     expect(parseScenario({ ...(structuredClone(scenarioJson) as object), goal: { kind: 'reviews', stars: 4, days: 8 } }).goal).toEqual({

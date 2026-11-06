@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { GoalSnapshot } from '../src/sim/types';
 import { deadlineText, goalLine, goalProgress } from '../src/ui/goalText';
 
-const snap = (g: Partial<GoalSnapshot>): GoalSnapshot => ({ kind: 'contracts', current: 0, target: 6, progress: 0, deadlineAtMinutes: null, ...g });
+const snap = (g: Partial<GoalSnapshot>): GoalSnapshot => ({ kind: 'contracts', current: 0, target: 6, progress: 0, deadlineAtMinutes: null, holdLeftMinutes: 0, ...g });
 
 describe('goal text', () => {
   it('says what the board wants, with the deadline when there is one', () => {
@@ -16,6 +16,8 @@ describe('goal text', () => {
     expect(goalProgress(snap({ current: 3 }))).toBe('3 of 6 delivered');
     expect(goalProgress(snap({ kind: 'repayLoan', current: 18, target: 0 }))).toBe('$18.0M left to repay');
     expect(goalProgress(snap({ kind: 'repayLoan', current: 0, target: 0 }))).toBe('Paid off');
+    expect(goalProgress(snap({ kind: 'repayLoan', current: 0, target: 0, holdLeftMinutes: 2 * 1440 + 180 }))).toBe('Paid off · 2 d 3 h to go');
+    expect(goalLine({ kind: 'repayLoan', holdDays: 5 })).toBe('Pay off the loan and keep the station running for 5 days.');
     expect(goalProgress(snap({ kind: 'cash', current: -4, target: 90 }))).toBe('$0 of $90.0M');
     expect(goalProgress(snap({ kind: 'reviews', current: 2, target: 4 }))).toBe('Last reviews ★★☆☆☆');
   });
