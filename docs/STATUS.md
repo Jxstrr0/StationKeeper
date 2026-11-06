@@ -1053,6 +1053,8 @@ Play-test feedback: the view felt stretched and out of proportion. The canvas wa
   - Zoom limits are now 14 to 420 m, up from 12 to 170, since everything sits further back.
 - **A smaller HUD on phones held sideways** (landscape at 500 px tall or less). The HUD is scaled to 72% as a whole and the power card is narrower.
 - **The canvas is resized from the frame loop, not only on the window's resize event.** On phones the address bar slides and the screen turns, and the event can fire before layout settles. The browser then stretches a stale drawing buffer to the new shape, which looks like a stretched resolution. `SceneEnv.ensureSize()` compares the laid-out size each frame.
+  - Confirmed from a screen recording on an iPhone. Stars showed as vertical streaks and Earth as a tall, narrow dome: the old build had drawn its frame at half the screen's height, and the browser stretched it to fit. The same thing was reproduced in a test browser, and it no longer happens with this build.
+  - When the screen changes shape, the camera keeps the player's zoom relative to what fits, so the station doesn't shrink after the address bar slides away. A warning line appearing in the HUD recentres the view but leaves the zoom alone.
 - **The portrait lens is tighter: at least 22° across.** On a Pixel 7 that's about 43° up and down, down from 62°. The play-test was on a phone.
 - `__env` is on `window` in dev builds, next to `__sim`, for checking the camera.
 - **Tests:** still 219. This was a view-only change, checked by screenshots on Pixel 7, iPhone 13 (portrait and landscape) and a 1440×900 desktop.
