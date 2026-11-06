@@ -7,6 +7,8 @@ import type { ModuleDef } from './sim/types';
 const KEY = 'stationkeeper.save';
 /** The scenario picked for the next new game, read once on the reload that starts it. */
 const NEXT_KEY = 'stationkeeper.nextScenario';
+/** Set before a reload that should go straight into the game (a loaded slot), skipping the title screen. */
+const SKIP_TITLE_KEY = 'stationkeeper.skipTitle';
 
 export type LoadResult =
   | { kind: 'none' }
@@ -88,5 +90,25 @@ export function takeChosenScenario(): string | null {
     return id;
   } catch {
     return null;
+  }
+}
+
+/** The next load goes straight into the game. */
+export function skipTitleOnce(): void {
+  try {
+    localStorage.setItem(SKIP_TITLE_KEY, '1');
+  } catch {
+    // Then the title shows, which is only one more tap.
+  }
+}
+
+/** Whether this load should skip the title. Cleared as it's read. */
+export function takeSkipTitle(): boolean {
+  try {
+    const on = localStorage.getItem(SKIP_TITLE_KEY) === '1';
+    localStorage.removeItem(SKIP_TITLE_KEY);
+    return on;
+  } catch {
+    return false;
   }
 }

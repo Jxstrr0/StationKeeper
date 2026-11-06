@@ -10,9 +10,11 @@ export function formatDate(ms: number): string {
   return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 }
 
-export function formatTime(ms: number): string {
+export function formatTime(ms: number, h24 = true): string {
   const d = new Date(ms);
-  return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+  const h = d.getUTCHours();
+  if (h24) return `${pad(h)}:${pad(d.getUTCMinutes())}`;
+  return `${h % 12 === 0 ? 12 : h % 12}:${pad(d.getUTCMinutes())} ${h < 12 ? 'am' : 'pm'}`;
 }
 
 export function kw(v: number): string {

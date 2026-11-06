@@ -1,11 +1,13 @@
 // Wires the sim, the 3D view, and the HTML overlay together, and runs the frame loop.
 import './ui/styles.css';
 import './ui/finance.css';
+import './ui/menus.css';
 import * as THREE from 'three';
 import modulesJson from './data/modules.json';
 import { SCENARIOS, scenarioById } from './scenarios';
 import { parseModuleDefs } from './sim/data';
-import { loadGame, saveGame, startNewGame, takeChosenScenario } from './persist';
+import { loadGame, saveGame, startNewGame, takeChosenScenario, takeSkipTitle } from './persist';
+import { loadSettings, saveSettings, UI_ZOOM, type Settings } from './settings';
 import { loadRecords, recordLoss, recordWin } from './records';
 import { forecast } from './sim/forecast';
 import { phaseAt, sunlightAt } from './sim/orbit';
@@ -21,6 +23,11 @@ import { formatDate, money } from './ui/format';
 import { goalLine } from './ui/goalText';
 import { ScenarioPicker } from './ui/scenarioPicker';
 import { Hud } from './ui/hud';
+import { dataUrlToBlob, deliverFile } from './ui/download';
+import { PauseMenu } from './ui/pauseMenu';
+import { PhotoBar } from './ui/photoBar';
+import { SettingsSheet } from './ui/settingsSheet';
+import { TitleScreen } from './ui/titleScreen';
 import { ModuleSheet } from './ui/moduleSheet';
 import { ReportSheet } from './ui/reportSheet';
 import { Toasts } from './ui/toasts';
@@ -43,6 +50,8 @@ async function start(): Promise<void> {
   // Pick up a saved game if there is one; it starts paused so the player can get their bearings.
   const loaded = loadGame(defs);
   const chosen = takeChosenScenario();
+  // A new game or a loaded slot reloads straight into play; any other visit opens on the title screen.
+  const skipTitle = takeSkipTitle() || chosen !== null;
   const scenario = loaded.kind === 'loaded' ? loaded.sim.scenario : (scenarioById(chosen ?? '') ?? SCENARIOS[0]!);
   const sim = loaded.kind === 'loaded' ? loaded.sim : new Simulation(defs, scenario);
   const clock = new Clock();
@@ -76,8 +85,9 @@ async function start(): Promise<void> {
   const hud = new Hud(ui, {
     // The quarterly report holds the game paused until Continue.
     onSpeed: (s) => {
-      if (!report.isOpen && !ending.isOpen && !picker.isOpen && !sim.ended) clock.setSpeed(s);
+      if (!report.isOpen && !ending.isOpen && !picker.isOpen && !menu.isOpen && !title.isOpen && !sim.ended) clock.setSpeed(s);
     },
+    onMenu: () => openMenu(),
     onHeatOverlay: (on) => stationView.setHeatOverlay(on),
     onCrew: () => {
       if (crew.isOpen) return crew.close();
@@ -179,6 +189,134 @@ async function start(): Promise<void> {
     crew.close();
     picker.show();
   };
+
+  // ---- Title screen, pause menu, settings, photo mode ----
+  const closePanels = () => {
+    exitBuild();
+    select(null);
+    warnings.close();
+    finance.close();
+    crew.close();
+  };
+  let started = false; // whether the player has carried on into this station since the page loaded
+  const title = new TitleScreen(ui, {
+    onContinue: () => enterPlay(),
+    onNewStation: () => picker.show(),
+    onLoad: () => toasts.show('Save slots are on their way.', 'ok'),
+    onHelp: () => toasts.show('The guide is on its way.', 'ok'),
+    onSettings: () => settingsSheet.show(),
+  });
+  /** What the title's Continue button carries on with, or null for a station nobody has played yet. */
+  const resumeLine = (): string | null => {
+    if (!started && loaded.kind !== 'loaded') return null;
+    const s = sim.snapshot();
+    return `${scenario.name} · ${formatDate(s.timeMs)} · ${sim.ended ? 'ended' : money(s.economy.cash)}`;
+  };
+  const enterTitle = () => {
+    clock.setSpeed(0);
+    closePanels();
+    ui.classList.add('title-mode');
+    title.show(resumeLine());
+    cam.spin = settings.reducedMotion ? 0 : 0.05;
+    keepingZoom(measureInsets);
+  };
+  const enterPlay = () => {
+    title.hide();
+    ui.classList.remove('title-mode');
+    cam.spin = 0;
+    keepingZoom(measureInsets);
+    if (started) return;
+    started = true;
+    if (sim.ended) {
+      showEnding(sim.snapshot().ending.outcome ?? 'bankrupt');
+    } else if (loaded.kind === 'loaded') {
+      toasts.show(`Welcome back. Your station is as you left it, paused on ${formatDate(snap.timeMs)}. Press play to carry on.`, 'ok');
+    } else {
+      clock.setSpeed(1);
+      toasts.show(`${scenario.name}. ${goalLine(scenario.goal)} The goal is in Finance.`, 'ok');
+    }
+    if (loaded.kind === 'discarded') toasts.show("Your saved station couldn't be loaded after an update, so here's a fresh one.", 'warn');
+  };
+
+  let menuResume: Speed = 1;
+  const openMenu = () => {
+    if (menu.isOpen || title.isOpen || photo.isOpen || report.isOpen || ending.isOpen || picker.isOpen) return;
+    menuResume = clock.speed;
+    clock.setSpeed(0);
+    const s = sim.snapshot();
+    menu.show(`${scenario.name} · day ${Math.floor(s.minutes / 1440) + 1} · ${formatDate(s.timeMs)}`);
+  };
+  const resumeFromMenu = () => {
+    menu.close();
+    if (!sim.ended && !report.isOpen && !ending.isOpen) clock.setSpeed(menuResume);
+  };
+  const menu = new PauseMenu(ui, {
+    onResume: resumeFromMenu,
+    onSaves: () => toasts.show('Save slots are on their way.', 'ok'),
+    onRestart: () => {
+      saving = false;
+      startNewGame(sim.scenario.id);
+      location.reload();
+    },
+    onSettings: () => settingsSheet.show(),
+    onHelp: () => toasts.show('The guide is on its way.', 'ok'),
+    onPhoto: () => {
+      menu.close();
+      closePanels();
+      ui.classList.add('photo-mode');
+      photo.show();
+      keepingZoom(measureInsets);
+    },
+    onQuit: () => {
+      menu.close();
+      autosave(true);
+      enterTitle();
+    },
+  });
+  const exitPhoto = () => {
+    photo.hide();
+    ui.classList.remove('photo-mode');
+    keepingZoom(measureInsets);
+    openMenu();
+  };
+  const photo = new PhotoBar(
+    ui,
+    () => {
+      let url: string;
+      try {
+        url = env.capture();
+      } catch {
+        toasts.show("The camera wouldn't take that one.", 'warn');
+        return;
+      }
+      photo.blink();
+      const day = new Date(snap.timeMs).toISOString().slice(0, 10);
+      deliverFile(dataUrlToBlob(url), `station-keeper-${day}.png`);
+    },
+    exitPhoto,
+  );
+
+  let settings: Settings = loadSettings();
+  const applySettings = () => {
+    ui.style.setProperty('--ui-zoom', String(UI_ZOOM[settings.uiSize]));
+    document.documentElement.classList.toggle('reduce-motion', settings.reducedMotion);
+    env.setQuality(settings.quality);
+    cam.inertia = !settings.reducedMotion;
+    if (title.isOpen) cam.spin = settings.reducedMotion ? 0 : 0.05;
+    hud.setClock24(settings.clock24);
+  };
+  const settingsSheet = new SettingsSheet(
+    ui,
+    settings,
+    (next) => {
+      settings = next;
+      saveSettings(settings);
+      applySettings();
+      keepingZoom(measureInsets);
+    },
+    () => settingsSheet.close(),
+  );
+  applySettings();
 
   // The books close each quarter: pause on the report until the player carries on.
   const report = new ReportSheet(ui);
@@ -331,9 +469,25 @@ async function start(): Promise<void> {
   };
 
   window.addEventListener('keydown', (e) => {
+    if (settingsSheet.isOpen) {
+      if (e.key === 'Escape') settingsSheet.close();
+      return;
+    }
+    if (photo.isOpen) {
+      if (e.key === 'Escape') exitPhoto();
+      return;
+    }
     if (picker.isOpen) {
       e.preventDefault();
       if (e.key === 'Escape') picker.close();
+      return;
+    }
+    if (menu.isOpen) {
+      if (e.key === 'Escape') resumeFromMenu();
+      return;
+    }
+    if (title.isOpen) {
+      if (e.key === 'Enter') title.root.querySelector<HTMLButtonElement>('.title-btn.primary')?.click();
       return;
     }
     if (ending.isOpen) {
@@ -356,7 +510,8 @@ async function start(): Promise<void> {
       else if (warnings.isOpen) warnings.close();
       else if (finance.isOpen) finance.close();
       else if (crew.isOpen) crew.close();
-      else select(null);
+      else if (sheet.openId) select(null);
+      else openMenu();
     } else if (/^[1-4]$/.test(e.key)) {
       clock.setSpeed(SPEEDS[Number(e.key) - 1] as Speed);
     }
@@ -367,6 +522,14 @@ async function start(): Promise<void> {
     const w = window.innerWidth;
     const h = window.innerHeight;
     const crossesMiddle = (r: DOMRect): boolean => r.width > 0 && r.height > 0 && r.left < w * 0.66 && r.right > w * 0.34;
+    if (title.isOpen) {
+      // Portrait: the station sits between the wordmark and the buttons. Landscape: between them side by side, so no insets.
+      if (w > h) return env.setInsets(0, 0);
+      const head = title.head.getBoundingClientRect();
+      const foot = title.foot.getBoundingClientRect();
+      env.setInsets(crossesMiddle(head) ? Math.round(head.bottom) : 0, crossesMiddle(foot) ? Math.round(h - foot.top) : 0);
+      return;
+    }
     let top = 0;
     for (const child of hud.root.children) {
       const r = child.getBoundingClientRect();
@@ -413,16 +576,8 @@ async function start(): Promise<void> {
   });
   window.addEventListener('pagehide', () => autosave(true));
 
-  if (sim.ended) {
-    showEnding(sim.snapshot().ending.outcome ?? 'bankrupt');
-  } else if (loaded.kind === 'loaded') {
-    toasts.show(`Welcome back. Your station is as you left it, paused on ${formatDate(snap.timeMs)}. Press play to carry on.`, 'ok');
-  } else if (loaded.kind === 'none' || loaded.kind === 'discarded') {
-    toasts.show(`${scenario.name}. ${goalLine(scenario.goal)} The goal is in Finance.`, 'ok');
-  }
-  if (loaded.kind === 'discarded') {
-    toasts.show("Your saved station couldn't be loaded after an update, so here's a fresh one.", 'warn');
-  }
+  if (skipTitle) enterPlay();
+  else enterTitle();
 
   // ---- Frame loop ----
   let last = performance.now();

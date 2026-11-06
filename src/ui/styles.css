@@ -1236,7 +1236,12 @@ dd.worn .wear-text {
 }
 
 /* Narrow phones: the clock and the speed buttons must share one row without running off the edge. */
-@media (max-width: 400px) {
+/* Container queries rather than media queries: the interface-size setting zooms the UI, so the HUD's own width is what counts. */
+.hud {
+  container-type: inline-size;
+}
+
+@container (max-width: 400px) {
   .hud-clock {
     padding: 8px 10px;
     gap: 6px;
@@ -1250,10 +1255,22 @@ dd.worn .wear-text {
     min-width: 34px;
     padding: 0 6px;
   }
+
+  .compact-row .stat-line {
+    white-space: nowrap;
+  }
+
+  .compact-row .mini-v {
+    font-size: 14px;
+  }
 }
 
-@media (max-width: 350px) {
+@container (max-width: 350px) {
   .hud-utc {
+    display: none;
+  }
+
+  .hud-date {
     display: none;
   }
 }
