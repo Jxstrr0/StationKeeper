@@ -36,6 +36,29 @@ describe('life support', () => {
     expect(used).toBeCloseTo(expected, 1);
   });
 
+  it('the water run fills the tanks every week and bills operations by the kilo', () => {
+    const sim = makeSim((s) => (s.lifeSupport.resupply = { everyDays: 7, pricePerKg: 0.02 }));
+    const runs: { kg: number; cost: number }[] = [];
+    sim.events.on('waterResupplied', (e) => runs.push(e));
+    sim.run(7 * 24 * 60 - 1);
+    expect(runs).toHaveLength(0);
+    const low = ls(sim).waterKg;
+    const ops = sim.lifetimeLedger.operations;
+    sim.run(1);
+    expect(runs).toHaveLength(1);
+    expect(ls(sim).waterKg).toBe(ls(sim).waterCapacityKg);
+    expect(runs[0]!.kg).toBeGreaterThan(ls(sim).waterCapacityKg - low - 1);
+    expect(runs[0]!.cost).toBeCloseTo(runs[0]!.kg * 0.02, 6);
+    expect(sim.lifetimeLedger.operations).toBeLessThan(ops - runs[0]!.cost + 0.01);
+  });
+
+  it('without a water run, nothing refills the tanks', () => {
+    const sim = makeSim((s) => delete s.lifeSupport.resupply);
+    const start = ls(sim).waterKg;
+    sim.run(8 * 24 * 60);
+    expect(ls(sim).waterKg).toBeLessThan(start - 50);
+  });
+
   it('with the rack off, people use O2 and CO2 builds at the expected rate', () => {
     const sim = makeSim();
     const cfg = sim.scenario.lifeSupport;

@@ -114,6 +114,24 @@ describe('endings', () => {
     expect(goals).toEqual([{ minutes: DAY }]);
   });
 
+  it('with a cash ask, the loan and the hold are not enough until the cash is in hand', () => {
+    const sim = makeSim((s) => {
+      s.economy.startCash = 100;
+      s.goal = { kind: 'repayLoan', holdDays: 0.5, cash: 1000 };
+    });
+    const { goals } = watch(sim);
+    sim.command({ type: 'repayLoan', amount: 1000 });
+    sim.run(DAY);
+    expect(goals).toHaveLength(0);
+    const g = sim.snapshot().ending.goal;
+    expect(g.progress).toBeLessThan(1);
+    expect(g.progress).toBeGreaterThan(0.66);
+    expect(g.cash?.target).toBe(1000);
+    sim.command({ type: 'transfer', amount: 1000 });
+    sim.tick();
+    expect(goals).toHaveLength(1);
+  });
+
   it('an ended game saves and loads as ended', () => {
     const sim = makeSim(broke(-19.5, 20));
     runUntil(sim, () => sim.ended, DAY / 2);

@@ -1,6 +1,8 @@
 // Keeps the company in localStorage beside the scenario save, which it leaves alone. A mode key says which of the two
 // the title screen's Continue goes back to.
 import { parseScenario } from '../sim/data';
+
+const WATER_RUN = { everyDays: 7, pricePerKg: 0.02 };
 import { COMPANY_VERSION, emptyBoard, type CompanyState } from './company';
 
 export const COMPANY_KEY = 'stationkeeper.company';
@@ -25,7 +27,10 @@ export function parseCompany(raw: string): { ok: true; company: CompanyState } |
   try {
     for (const s of c.stations as Record<string, unknown>[]) {
       if (typeof s.id !== 'string' || typeof s.name !== 'string' || typeof s.summary !== 'object' || s.summary === null) throw new Error('bad station');
-      s.scenario = parseScenario(s.scenario);
+      const scenario = parseScenario(s.scenario);
+      // Stations saved before the water run get the standard one, or their tanks would run dry for good.
+      scenario.lifeSupport.resupply ??= { ...WATER_RUN };
+      s.scenario = scenario;
     }
   } catch (err) {
     return { ok: false, reason: err instanceof Error ? err.message : String(err) };
