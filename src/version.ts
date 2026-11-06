@@ -7,4 +7,4 @@
 // - Build: a republish with no change players would notice.
 // Bump it in the pull request that ships the change. (package.json keeps a three-number "version"
 // because npm insists on that; it isn't shown anywhere and doesn't need bumping.)
-export const GAME_VERSION = '0.1.0.0';
+export const GAME_VERSION = '0.1.1.0';
