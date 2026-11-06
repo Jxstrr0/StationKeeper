@@ -20,4 +20,5 @@ Pushes to `main` are tested, built, and deployed to GitHub Pages by `.github/wor
 - `src/view`: Three.js scene that draws sim snapshots.
 - `src/ui`: HTML/CSS overlay.
 - `src/data`: module stats and the starting scenario.
+- `src/backup.ts`: whole-game backups (`SK1:` codes and backup files) for Save and load.
 - `docs/STATUS.md`: what's built, how to test, and what's next.
