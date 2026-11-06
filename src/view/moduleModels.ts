@@ -5,6 +5,8 @@
 // can drop in later without code changes.
 import * as THREE from 'three';
 import type { ModuleDef, Vec3 } from '../sim/types';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { handrails, openTruss, surfaceMaterials, tileUv } from './detail';
 
 export interface ModuleModel {
   root: THREE.Object3D;
@@ -38,6 +40,14 @@ const shared = {
   stripe: new THREE.MeshStandardMaterial({ color: COLORS.purple, roughness: 0.45, metalness: 0.1 }),
   foil: new THREE.MeshStandardMaterial({ color: COLORS.foil, roughness: 0.4, metalness: 0.3 }),
 };
+
+// Textured surfaces are drawn on first use (they need a canvas), then shared by every module.
+let surfaceCache: ReturnType<typeof surfaceMaterials> | null = null;
+function surf(): ReturnType<typeof surfaceMaterials> {
+  return (surfaceCache ??= surfaceMaterials());
+}
+/** Handrails: the muted gold of anodised EVA rails. */
+const railMaterial = new THREE.MeshStandardMaterial({ color: 0xc9a43a, roughness: 0.5, metalness: 0.35 });
 
 let panelMaterial: THREE.MeshStandardMaterial | null = null;
 function getPanelMaterial(): THREE.MeshStandardMaterial {
@@ -121,20 +131,53 @@ function cylinderAlong(radius: number, length: number, mat: THREE.Material, pos:
   return m;
 }
 
+/** A cylinder of plated hull: the panel texture keeps its size in metres whatever the radius and length. */
+function platedAlong(radius: number, length: number, pos: Vec3, dir: Vec3, segments = 32, mat: THREE.Material = surf().plated): THREE.Mesh {
+  const geo = tileUv(new THREE.CylinderGeometry(radius, radius, length, segments), 2 * Math.PI * radius, length);
+  const m = mesh(geo, mat, pos);
+  m.quaternion.setFromUnitVectors(UP, v3(dir).normalize());
+  return m;
+}
+
+const collarRing = new THREE.TorusGeometry(0.8, 0.07, 8, 24);
+const petal = new THREE.BoxGeometry(0.12, 0.34, 0.06);
+
+/** Every port gets a collar, a docking ring and three guide petals, so ports read as ports. */
 function addPortCollars(group: THREE.Group, def: ModuleDef): void {
   for (const p of def.ports) {
-    const d = v3(p.direction);
+    const d = v3(p.direction).normalize();
     const centre = v3(p.position).addScaledVector(d, -0.15);
     group.add(cylinderAlong(0.85, 0.3, shared.slate, [centre.x, centre.y, centre.z], p.direction, 20));
+    const face = new THREE.Group();
+    face.position.copy(v3(p.position)).addScaledVector(d, -0.02);
+    face.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), d);
+    face.add(mesh(collarRing, shared.hull));
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2;
+      const pt = mesh(petal, shared.slate, [Math.cos(a) * 0.62, Math.sin(a) * 0.62, 0.12]);
+      pt.rotation.z = a - Math.PI / 2;
+      pt.rotation.x = 0.35;
+      face.add(pt);
+    }
+    group.add(face);
   }
 }
 
 function buildCore(def: ModuleDef, group: THREE.Group): Partial<ModuleModel> {
   const L = def.greybox.length ?? 8;
   const r = def.greybox.radius ?? 2;
-  group.add(cylinderAlong(r, L - 0.6, shared.hull, [0, 0, 0], [1, 0, 0], 32));
+  group.add(platedAlong(r, L - 0.6, [0, 0, 0], [1, 0, 0]));
   for (const x of [-(L / 2 - 0.3), L / 2 - 0.3]) group.add(cylinderAlong(r * 0.92, 0.6, shared.slate, [x, 0, 0], [1, 0, 0], 32));
   group.add(cylinderAlong(r * 1.015, 0.45, shared.stripe, [-1.2, 0, 0], [1, 0, 0], 32));
+  group.add(handrails(-L / 2 + 0.9, L / 2 - 0.9, r, [0.55, Math.PI - 0.55, Math.PI + 0.55], railMaterial));
+  // A comms mast and dish aft, and a pair of thruster quads on the nadir side.
+  group.add(cylinderAlong(0.05, 1.4, shared.slate, [-L / 2 + 1.2, 0, -(r + 0.7)], [0, 0, 1], 8));
+  group.add(cylinderAlong(0.55, 0.08, shared.hull, [-L / 2 + 1.2, 0, -(r + 1.45)], [0.3, 0, 1], 20));
+  for (const x of [-L / 2 + 1.0, L / 2 - 1.0]) {
+    group.add(mesh(new THREE.BoxGeometry(0.5, 0.35, 0.5), shared.dark, [x, -(r + 0.1), 0]));
+    group.add(cylinderAlong(0.09, 0.2, shared.slate, [x + 0.3, -(r + 0.1), 0], [1, 0, 0], 8));
+    group.add(cylinderAlong(0.09, 0.2, shared.slate, [x - 0.3, -(r + 0.1), 0], [1, 0, 0], 8));
+  }
   group.add(cylinderAlong(r * 1.015, 0.15, shared.stripe, [-0.6, 0, 0], [1, 0, 0], 32));
   // Small radiator panel on top for silhouette.
   group.add(mesh(new THREE.BoxGeometry(3.2, 0.08, 1.4), shared.hull, [1.6, r + 0.5, -0.8]));
@@ -146,21 +189,10 @@ function buildSolar(def: ModuleDef, group: THREE.Group): Partial<ModuleModel> {
   const L = def.greybox.length ?? 11;
   const wingL = def.greybox.wingLength ?? 12;
   const wingW = def.greybox.wingWidth ?? 3.6;
-  // Truss: two rails and cross members, instanced.
-  const rails = new THREE.InstancedMesh(new THREE.BoxGeometry(0.16, 0.16, L), shared.slate, 4);
-  const m = new THREE.Matrix4();
-  [
-    [-0.4, -0.4],
-    [0.4, -0.4],
-    [-0.4, 0.4],
-    [0.4, 0.4],
-  ].forEach(([x, y], i) => rails.setMatrixAt(i, m.makeTranslation(x!, y!, L / 2)));
-  group.add(rails);
-  const braceCount = Math.floor(L / 1.2);
-  const braces = new THREE.InstancedMesh(new THREE.BoxGeometry(0.9, 0.9, 0.08), shared.hull, braceCount);
-  for (let i = 0; i < braceCount; i++) braces.setMatrixAt(i, m.makeTranslation(0, 0, 0.6 + i * 1.2));
-  group.add(braces);
+  group.add(openTruss(L, 1, 0.8, shared.slate, shared.hull));
   group.add(mesh(new THREE.BoxGeometry(1.2, 1.2, 0.9), shared.hull, [0, 0, 0.45]));
+  // Power cable down the truss.
+  group.add(mesh(new THREE.BoxGeometry(0.1, 0.1, L - 1), shared.dark, [0.25, 0.25, L / 2 + 0.3]));
 
   const gimbal = new THREE.Group();
   gimbal.name = 'gimbal';
@@ -168,8 +200,12 @@ function buildSolar(def: ModuleDef, group: THREE.Group): Partial<ModuleModel> {
   gimbal.add(cylinderAlong(0.6, 1.0, shared.slate, [0, 0, 0.5], [0, 0, 1]));
   gimbal.add(mesh(new THREE.BoxGeometry(0.25, wingL * 2 + 1.6, 0.25), shared.slate, [0, 0, 0.5]));
   const wingGeo = new THREE.BoxGeometry(0.06, wingL, wingW);
+  const edge = new THREE.BoxGeometry(0.1, wingL, 0.1);
   for (const s of [1, -1]) {
     gimbal.add(mesh(wingGeo, getPanelMaterial(), [0, s * (0.8 + wingL / 2), 0.5]));
+    // A frame along each long edge and a tension bar at the tip.
+    for (const z of [0.5 + wingW / 2, 0.5 - wingW / 2]) gimbal.add(mesh(edge, shared.slate, [0, s * (0.8 + wingL / 2), z]));
+    gimbal.add(mesh(new THREE.BoxGeometry(0.12, 0.16, wingW + 0.1), shared.slate, [0, s * (0.8 + wingL), 0.5]));
   }
   group.add(gimbal);
   return { gimbal };
@@ -179,7 +215,10 @@ function buildBattery(def: ModuleDef, group: THREE.Group): Partial<ModuleModel> 
   const [sx, sy, sz] = def.greybox.size ?? [2.6, 1.8, 2.6];
   const top = -0.45;
   group.add(cylinderAlong(0.6, 0.45, shared.slate, [0, -0.225, 0], [0, 1, 0]));
-  group.add(mesh(new THREE.BoxGeometry(sx, sy, sz), shared.foil, [0, top - sy / 2, 0]));
+  group.add(mesh(new THREE.BoxGeometry(sx, sy, sz), surf().foil, [0, top - sy / 2, 0]));
+  // Grapple fixture and a cable run on the face.
+  group.add(cylinderAlong(0.18, 0.25, shared.slate, [0, top - sy - 0.12, 0], [0, 1, 0], 12));
+  group.add(mesh(new THREE.BoxGeometry(0.08, sy * 0.8, 0.08), shared.dark, [sx / 2 + 0.04, top - sy / 2, 0.4]));
   group.add(mesh(new THREE.BoxGeometry(sx + 0.06, 0.18, sz + 0.06), shared.stripe, [0, top - 0.25, 0]));
   // Radiator fins: one instanced mesh for all of them.
   const finCount = 7;
@@ -194,10 +233,17 @@ function buildBattery(def: ModuleDef, group: THREE.Group): Partial<ModuleModel> 
   return {};
 }
 
+/**
+ * Inflatable hulls: a quilted blanket on a lathe profile, lying along +X from the mount. The four kinds built on
+ * it get their own silhouettes so they can be told apart at a glance:
+ * - guest habitat: a ring of twelve lit windows;
+ * - crew quarters: two rows of small portholes;
+ * - galley: four windows and a vent stack with a hood;
+ * - guest lounge: a wide panoramic window band.
+ */
 function buildHabitat(def: ModuleDef, group: THREE.Group): Partial<ModuleModel> {
   const L = def.greybox.length ?? 7;
   const r = def.greybox.radius ?? 2.4;
-  // Inflatable-looking hull from a lathe profile, revolved about Y then turned to lie along +X.
   const profile = [
     [0.95, 0],
     [1.5, 0.25],
@@ -208,32 +254,71 @@ function buildHabitat(def: ModuleDef, group: THREE.Group): Partial<ModuleModel> 
     [1.5, L - 0.25],
     [0.95, L],
   ].map(([x, y]) => new THREE.Vector2(x, y));
-  const hull = mesh(new THREE.LatheGeometry(profile, 40), shared.hull);
+  // Lathe UVs run u round the hull and v along the profile, so they tile like a cylinder's.
+  const hull = mesh(tileUv(new THREE.LatheGeometry(profile, 40), 2 * Math.PI * r, L), surf().quilted);
   hull.rotation.z = -Math.PI / 2;
   group.add(hull);
   group.add(cylinderAlong(r * 1.01, 0.35, shared.stripe, [1.25, 0, 0], [1, 0, 0], 40));
   group.add(cylinderAlong(r * 1.01, 0.35, shared.stripe, [L - 1.25, 0, 0], [1, 0, 0], 40));
+  // Rigid end rings where the blanket meets the bulkheads.
+  for (const x of [0.12, L - 0.12]) {
+    const ring = mesh(new THREE.TorusGeometry(1.0, 0.09, 8, 28), shared.slate, [x, 0, 0]);
+    ring.rotation.y = Math.PI / 2;
+    group.add(ring);
+  }
 
-  // Window band; the windows glow while the habitat is powered.
-  const mid = L / 2;
-  group.add(cylinderAlong(r * 1.005, 1.1, shared.dark, [mid, 0, 0], [1, 0, 0], 40));
   const windowMat = new THREE.MeshStandardMaterial({
     color: 0x2a2620,
     emissive: COLORS.window,
     emissiveIntensity: 1.6,
     roughness: 0.2,
   });
-  const count = 12;
-  const windows = new THREE.InstancedMesh(new THREE.BoxGeometry(0.7, 0.08, 0.55), windowMat, count);
+  const mid = L / 2;
   const obj = new THREE.Object3D();
-  for (let i = 0; i < count; i++) {
-    const a = (i / count) * Math.PI * 2;
-    obj.position.set(mid, Math.cos(a) * (r * 1.02), Math.sin(a) * (r * 1.02));
-    obj.rotation.set(a, 0, 0);
-    obj.updateMatrix();
-    windows.setMatrixAt(i, obj.matrix);
+  /** A ring of `count` windows at x, each w wide (along X) and h tall (round the hull), skipping a sector if asked. */
+  const windowRing = (x: number, count: number, w: number, h: number, skipFrom = -1, skipTo = -1) => {
+    const idx: number[] = [];
+    for (let i = 0; i < count; i++) if (i < skipFrom || i > skipTo) idx.push(i);
+    const inst = new THREE.InstancedMesh(new THREE.BoxGeometry(w, 0.08, h), windowMat, idx.length);
+    idx.forEach((i, k) => {
+      const a = (i / count) * Math.PI * 2;
+      obj.position.set(x, Math.cos(a) * (r * 1.02), Math.sin(a) * (r * 1.02));
+      obj.rotation.set(a, 0, 0);
+      obj.updateMatrix();
+      inst.setMatrixAt(k, obj.matrix);
+    });
+    group.add(inst);
+  };
+
+  switch (def.kind) {
+    case 'quarters': {
+      // Bunks need portholes, not a view: two rows of small ones either side of a dark band.
+      group.add(cylinderAlong(r * 1.005, 1.6, shared.dark, [mid, 0, 0], [1, 0, 0], 40));
+      windowRing(mid - 0.4, 16, 0.32, 0.32);
+      windowRing(mid + 0.4, 16, 0.32, 0.32);
+      break;
+    }
+    case 'galley': {
+      group.add(cylinderAlong(r * 1.005, 0.9, shared.dark, [mid, 0, 0], [1, 0, 0], 40));
+      windowRing(mid, 8, 0.55, 0.5, 0, 0);
+      // The extractor: a stack with a hood on top, and a filter box beside it.
+      group.add(cylinderAlong(0.22, 0.9, shared.slate, [mid - 0.5, r + 0.4, 0], [0, 1, 0], 12));
+      group.add(cylinderAlong(0.36, 0.12, shared.hull, [mid - 0.5, r + 0.88, 0], [0, 1, 0], 14));
+      group.add(mesh(new THREE.BoxGeometry(0.7, 0.4, 0.6), surf().foil, [mid + 0.5, r + 0.15, 0.4]));
+      break;
+    }
+    case 'lounge': {
+      // A panoramic band: fewer, much larger panes with slim mullions between them.
+      group.add(cylinderAlong(r * 1.005, 1.9, shared.dark, [mid, 0, 0], [1, 0, 0], 40));
+      windowRing(mid, 10, 1.6, 1.05);
+      break;
+    }
+    default: {
+      group.add(cylinderAlong(r * 1.005, 1.1, shared.dark, [mid, 0, 0], [1, 0, 0], 40));
+      windowRing(mid, 12, 0.7, 0.55);
+    }
   }
-  group.add(windows);
+  group.add(handrails(1.7, L - 1.7, r, [Math.PI / 2, -Math.PI / 2], railMaterial));
   return { glowMaterials: [windowMat] };
 }
 
@@ -243,22 +328,13 @@ function buildRadiator(def: ModuleDef, group: THREE.Group): Partial<ModuleModel>
   const wingL = def.greybox.wingLength ?? 7;
   const wingW = def.greybox.wingWidth ?? 2.2;
   const m = new THREE.Matrix4();
-  const rails = new THREE.InstancedMesh(new THREE.BoxGeometry(0.16, 0.16, L), shared.slate, 4);
-  [
-    [-0.4, -0.4],
-    [0.4, -0.4],
-    [-0.4, 0.4],
-    [0.4, 0.4],
-  ].forEach(([x, y], i) => rails.setMatrixAt(i, m.makeTranslation(x!, y!, -L / 2)));
-  group.add(rails);
-  const braceCount = Math.floor(L / 1.2);
-  const braces = new THREE.InstancedMesh(new THREE.BoxGeometry(0.9, 0.9, 0.08), shared.hull, braceCount);
-  for (let i = 0; i < braceCount; i++) braces.setMatrixAt(i, m.makeTranslation(0, 0, -0.6 - i * 1.2));
-  group.add(braces);
+  group.add(openTruss(L, -1, 0.8, shared.slate, shared.hull));
   group.add(mesh(new THREE.BoxGeometry(1.2, 1.2, 0.9), shared.hull, [0, 0, -0.45]));
+  // Coolant lines, supply and return, down the truss.
+  for (const x of [0.22, -0.22]) group.add(cylinderAlong(0.05, L - 0.8, shared.hull, [x, -0.25, -L / 2 - 0.2], [0, 0, 1], 8));
 
   // Pump box and manifold at the tip, then two wings of three panels each along ±X.
-  group.add(mesh(new THREE.BoxGeometry(1.4, 1.0, 1.0), shared.foil, [0, 0, -L - 0.3]));
+  group.add(mesh(new THREE.BoxGeometry(1.4, 1.0, 1.0), surf().foil, [0, 0, -L - 0.3]));
   group.add(mesh(new THREE.BoxGeometry(wingL * 2 + 1.6, 0.22, 0.22), shared.slate, [0, wingW / 2 + 0.15, -L - 0.3]));
   const segs = 3;
   const segL = (wingL - (segs - 1) * 0.15) / segs;
@@ -279,16 +355,25 @@ function buildLifeSupport(def: ModuleDef, group: THREE.Group): Partial<ModuleMod
   const L = def.greybox.length ?? 4.4;
   const r = def.greybox.radius ?? 1.7;
   const mid = -L / 2;
-  group.add(cylinderAlong(r, L - 0.5, shared.hull, [mid, 0, 0], [1, 0, 0], 32));
+  group.add(platedAlong(r, L - 0.5, [mid, 0, 0], [1, 0, 0]));
   for (const x of [-0.25, -L + 0.25]) group.add(cylinderAlong(r * 0.9, 0.5, shared.slate, [x, 0, 0], [1, 0, 0], 32));
   group.add(cylinderAlong(r * 1.015, 0.3, shared.stripe, [mid + 0.7, 0, 0], [1, 0, 0], 32));
+  group.add(handrails(-L + 0.7, -0.7, r, [-0.5], railMaterial));
+  // Vent nozzle and a sample port on top.
+  group.add(cylinderAlong(0.12, 0.5, shared.slate, [mid - 1.0, r + 0.2, -0.5], [0, 1, 0], 10));
+  group.add(mesh(new THREE.BoxGeometry(0.45, 0.2, 0.35), shared.dark, [mid + 0.4, r + 0.05, -0.6]));
   // O2 spheres either side, a water tank underneath.
   const sphere = new THREE.SphereGeometry(0.62, 20, 14);
   for (const z of [1, -1]) {
     group.add(mesh(sphere, shared.hull, [mid - 0.6, 0.35, z * (r + 0.45)]));
     group.add(mesh(new THREE.BoxGeometry(0.5, 0.12, 0.6), shared.slate, [mid - 0.6, 0.35, z * (r + 0.05)]));
   }
-  group.add(cylinderAlong(0.55, 2.6, shared.dark, [mid, -r - 0.35, 0], [1, 0, 0], 20));
+  group.add(cylinderAlong(0.55, 2.6, surf().foil, [mid, -r - 0.35, 0], [1, 0, 0], 20));
+  for (const x of [mid - 0.9, mid + 0.9]) {
+    const band = mesh(new THREE.TorusGeometry(0.57, 0.04, 6, 20), shared.slate, [x, -r - 0.35, 0]);
+    band.rotation.y = Math.PI / 2;
+    group.add(band);
+  }
   group.add(mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), shared.slate, [mid, -r - 0.05, 0]));
   return {};
 }
@@ -299,7 +384,7 @@ function buildNode(def: ModuleDef, group: THREE.Group): Partial<ModuleModel> {
   const L = def.greybox.length ?? 3;
   const r = def.greybox.radius ?? 1.3;
   const mid = L / 2;
-  group.add(cylinderAlong(r, L - 0.4, shared.hull, [mid, 0, 0], [1, 0, 0], 28));
+  group.add(platedAlong(r, L - 0.4, [mid, 0, 0], [1, 0, 0], 28));
   for (const x of [0.15, L - 0.15]) group.add(cylinderAlong(r * 0.85, 0.3, shared.slate, [x, 0, 0], [1, 0, 0], 28));
   group.add(cylinderAlong(r * 1.015, 0.25, shared.stripe, [mid, 0, 0], [1, 0, 0], 28));
   // Radial collars: a stub of slate tube ending in a ring at each radial port.
@@ -322,7 +407,14 @@ function buildCupola(def: ModuleDef, group: THREE.Group): Partial<ModuleModel> {
   const L = def.greybox.length ?? 2.4;
   const r = def.greybox.radius ?? 1.5;
   const collar = 0.9;
-  group.add(cylinderAlong(r, collar, shared.hull, [collar / 2, 0, 0], [1, 0, 0], 28));
+  group.add(platedAlong(r, collar, [collar / 2, 0, 0], [1, 0, 0], 28));
+  // Shutter petals folded back round the windows.
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 + Math.PI / 6;
+    const sh = mesh(new THREE.BoxGeometry(0.6, 0.05, r * 0.7), shared.hull, [collar + 0.15, Math.cos(a) * r * 1.02, Math.sin(a) * r * 1.02]);
+    sh.rotation.x = a;
+    group.add(sh);
+  }
   group.add(cylinderAlong(r * 1.015, 0.22, shared.stripe, [collar * 0.55, 0, 0], [1, 0, 0], 28));
   const windowMat = new THREE.MeshStandardMaterial({
     color: 0x2a2620,
@@ -347,9 +439,10 @@ function buildLab(def: ModuleDef, group: THREE.Group): Partial<ModuleModel> {
   const L = def.greybox.length ?? 6.5;
   const r = def.greybox.radius ?? 1.6;
   const mid = -L / 2;
-  group.add(cylinderAlong(r, L - 0.5, shared.hull, [mid, 0, 0], [1, 0, 0], 32));
+  group.add(platedAlong(r, L - 0.5, [mid, 0, 0], [1, 0, 0]));
   for (const x of [-0.25, -L + 0.25]) group.add(cylinderAlong(r * 0.9, 0.5, shared.slate, [x, 0, 0], [1, 0, 0], 32));
   group.add(cylinderAlong(r * 1.015, 0.3, shared.stripe, [-1.1, 0, 0], [1, 0, 0], 32));
+  group.add(handrails(-L + 0.8, -0.8, r, [0.6, Math.PI - 0.6], railMaterial));
   group.add(cylinderAlong(r * 1.015, 0.12, shared.stripe, [-1.55, 0, 0], [1, 0, 0], 32));
   group.add(cylinderAlong(r * 1.015, 0.3, shared.stripe, [-L + 1.1, 0, 0], [1, 0, 0], 32));
 
@@ -413,6 +506,44 @@ function addStatusLight(group: THREE.Group, at: Vec3): THREE.Object3D {
   return anchor;
 }
 
+/**
+ * Bake every plain mesh under `parent` into one mesh per material, so a module costs a handful of draw calls
+ * rather than dozens. Instanced meshes, lines and anything under `keep` (the solar gimbal, which turns) are left
+ * as they are.
+ */
+function mergeStatic(parent: THREE.Object3D, keep: THREE.Object3D | null): void {
+  parent.updateMatrixWorld(true);
+  const toLocal = parent.matrixWorld.clone().invert();
+  const buckets = new Map<THREE.Material, THREE.BufferGeometry[]>();
+  const merged: THREE.Mesh[] = [];
+  const under = (o: THREE.Object3D, a: THREE.Object3D | null): boolean => {
+    for (let n: THREE.Object3D | null = o; n; n = n.parent) if (n === a) return true;
+    return false;
+  };
+  parent.traverse((o) => {
+    if (o === parent || !(o instanceof THREE.Mesh) || o instanceof THREE.InstancedMesh || Array.isArray(o.material)) return;
+    if (keep && under(o, keep)) return;
+    const g = o.geometry.clone();
+    for (const name of Object.keys(g.attributes)) if (name !== 'position' && name !== 'normal' && name !== 'uv') g.deleteAttribute(name);
+    if (!g.index) return;
+    g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(toLocal, o.matrixWorld));
+    const list = buckets.get(o.material) ?? [];
+    list.push(g);
+    buckets.set(o.material, list);
+    merged.push(o);
+  });
+  const results: THREE.Mesh[] = [];
+  for (const [mat, geos] of buckets) {
+    if (geos.length < 2) continue;
+    const geo = mergeGeometries(geos, false);
+    if (!geo) continue;
+    results.push(new THREE.Mesh(geo, mat));
+  }
+  const done = new Set(results.map((r) => r.material as THREE.Material));
+  for (const o of merged) if (done.has(o.material as THREE.Material)) o.removeFromParent();
+  for (const r of results) parent.add(r);
+}
+
 export function buildGreybox(def: ModuleDef): ModuleModel {
   const group = new THREE.Group();
   group.name = `greybox:${def.id}`;
@@ -420,6 +551,8 @@ export function buildGreybox(def: ModuleDef): ModuleModel {
   const extra = builder ? builder(def, group) : {};
   if (!builder) group.add(mesh(new THREE.BoxGeometry(2, 2, 2), shared.hull)); // Unknown shape: a crate.
   addPortCollars(group, def);
+  mergeStatic(group, extra.gimbal ?? null);
+  if (extra.gimbal) mergeStatic(extra.gimbal, null);
   const model: ModuleModel = {
     root: group,
     statusLight: addStatusLight(group, def.greybox.light),
