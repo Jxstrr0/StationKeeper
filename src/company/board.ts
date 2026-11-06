@@ -1,12 +1,13 @@
 // The board: now and then it asks something of the whole company, with a bonus if it's done in time. One offer or
 // one task at a time; turning an offer down, or letting it lapse, costs nothing. Missing an accepted task costs only face.
 import { Rng } from '../sim/rng';
-import { companyNetPerDay, type BoardTask, type CompanyNews, type CompanyState } from './company';
+import { companyNetPerDay, FOUND_OPTIONS, type BoardTask, type CompanyNews, type CompanyState } from './company';
 import type { MilestoneView } from './milestones';
 
 const DAY = 1440;
 const OFFER_LIFE = DAY;
 const GAP_AFTER = 1.5 * DAY;
+const STATIONS_DAYS = 6;
 
 /** Where the company stands on a task's measure. */
 export function boardMeasure(task: BoardTask, c: CompanyState, v: MilestoneView): number {
@@ -23,6 +24,8 @@ export function boardMeasure(task: BoardTask, c: CompanyState, v: MilestoneView)
   }
 }
 
+const lowerFirst = (t: string) => t.charAt(0).toLowerCase() + t.slice(1);
+
 export function boardTitle(t: BoardTask): string {
   switch (t.kind) {
     case 'cash':
@@ -38,20 +41,26 @@ export function boardTitle(t: BoardTask): string {
 
 function makeOffer(c: CompanyState, v: MilestoneView, rng: Rng): BoardTask {
   const done = c.board.done;
-  const kinds: BoardTask['kind'][] = ['cash', 'stations', 'income'];
+  const net = Math.max(0, companyNetPerDay(c, v.live));
+  const banked = Math.max(0, v.cash - c.debt);
+  const kinds: BoardTask['kind'][] = ['cash', 'income'];
+  // Another station only when one is within reach: the cheapest for sale, or a launch, on what the company can save in time.
+  const cheapest = Math.min(...c.listings.map((l) => l.price), FOUND_OPTIONS[0]?.price ?? Infinity);
+  if (banked + net * STATIONS_DAYS >= cheapest) kinds.push('stations');
   const best = boardMeasure({ kind: 'stars', target: 0, reward: 0, days: 0, until: 0 }, c, v);
   if (best > 0 && best < 5) kinds.push('stars');
   const kind = kinds[rng.int(0, kinds.length - 1)]!;
   const until = c.minutes + OFFER_LIFE;
   switch (kind) {
     case 'cash':
-      return { kind, target: Math.ceil((Math.max(0, v.cash - c.debt) + 40 + 20 * done) / 10) * 10, reward: 12 + 4 * done, days: 4, until };
+      // A stretch on what the company is saving now: most of four days' income, a little more each time.
+      return { kind, target: Math.ceil((banked + Math.max(8, net * 4 * 0.7) + 5 * done) / 5) * 5, reward: 12 + 3 * done, days: 4, until };
     case 'stations':
-      return { kind, target: c.stations.length + 1, reward: 15 + 3 * done, days: 6, until };
+      return { kind, target: c.stations.length + 1, reward: 15 + 3 * done, days: STATIONS_DAYS, until };
     case 'stars':
       return { kind, target: Math.max(4, best + 1), reward: 18 + 3 * done, days: 5, until };
     case 'income':
-      return { kind, target: Math.max(3, Math.ceil(companyNetPerDay(c, v.live) * 1.4 + 1)), reward: 14 + 4 * done, days: 4, until };
+      return { kind, target: Math.max(2, Math.ceil((net * 1.25 + 0.5) * 2) / 2), reward: 14 + 3 * done, days: 4, until };
   }
 }
 
@@ -72,12 +81,12 @@ export function stepBoard(c: CompanyState, v: MilestoneView): { cash: number; ne
   if (b.active) {
     if (boardMeasure(b.active, c, v) >= b.active.target) {
       cash += b.active.reward;
-      news.push({ text: `The board is pleased: ${boardTitle(b.active).toLowerCase()} — done. A $${b.active.reward}M bonus is in the account.`, kind: 'ok' });
+      news.push({ text: `The board is pleased: ${lowerFirst(boardTitle(b.active))} — done. A $${b.active.reward}M bonus is in the account.`, kind: 'ok' });
       b.done++;
       b.active = null;
       b.nextAt = c.minutes + GAP_AFTER;
     } else if (c.minutes >= b.active.until) {
-      news.push({ text: `The board's deadline passed: ${boardTitle(b.active).toLowerCase()}. No bonus, and a terse email.`, kind: 'warn' });
+      news.push({ text: `The board's deadline passed: ${lowerFirst(boardTitle(b.active))}. No bonus, and a terse email.`, kind: 'warn' });
       b.missed++;
       b.active = null;
       b.nextAt = c.minutes + GAP_AFTER;
@@ -91,7 +100,7 @@ export function stepBoard(c: CompanyState, v: MilestoneView): { cash: number; ne
     const rng = new Rng((c.rng ^ 0x9e3779b9) >>> 0);
     b.offer = makeOffer(c, v, rng);
     c.rng = (c.rng + rng.int(1, 1000)) >>> 0;
-    news.push({ text: `The board has a request: ${boardTitle(b.offer).toLowerCase()} within ${b.offer.days} days, for a $${b.offer.reward}M bonus. It's in Company.`, kind: 'ok' });
+    news.push({ text: `The board has a request: ${lowerFirst(boardTitle(b.offer))} within ${b.offer.days} days, for a $${b.offer.reward}M bonus. It's in Company.`, kind: 'ok' });
   }
   return { cash, news };
 }
