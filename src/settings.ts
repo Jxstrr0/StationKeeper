@@ -14,15 +14,18 @@ export interface Settings {
   /** Master volume, 0 to 1. */
   volume: number;
   muted: boolean;
+  /** Real time of the last backup (a code copied or a backup file saved), or null if never. Not a preference: kept here so it stays per device. */
+  lastBackupMs: number | null;
 }
 
-const KEY = 'stationkeeper.settings';
+export const SETTINGS_KEY = 'stationkeeper.settings';
+const KEY = SETTINGS_KEY;
 const QUALITIES: readonly Quality[] = ['auto', 'low', 'high'];
 const SIZES: readonly UiSize[] = ['small', 'normal', 'large'];
 export const UI_ZOOM: Record<UiSize, number> = { small: 0.88, normal: 1, large: 1.15 };
 
 export function defaultSettings(prefersReducedMotion = false): Settings {
-  return { quality: 'auto', reducedMotion: prefersReducedMotion, uiSize: 'normal', clock24: true, volume: 0.7, muted: false };
+  return { quality: 'auto', reducedMotion: prefersReducedMotion, uiSize: 'normal', clock24: true, volume: 0.7, muted: false, lastBackupMs: null };
 }
 
 /** Whatever is stored, cleaned up: unknown fields dropped, bad values replaced by the defaults. Never throws. */
@@ -46,6 +49,7 @@ export function parseSettings(raw: string | null, fallback: Settings = defaultSe
     clock24: bool(s.clock24, fallback.clock24),
     volume,
     muted: bool(s.muted, fallback.muted),
+    lastBackupMs: typeof s.lastBackupMs === 'number' && Number.isFinite(s.lastBackupMs) && s.lastBackupMs >= 0 ? s.lastBackupMs : fallback.lastBackupMs,
   };
 }
 

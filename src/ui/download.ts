@@ -13,18 +13,24 @@ export function dataUrlToBlob(url: string): Blob {
 /**
  * Phones get the share sheet (Save Image, Files, Messages), which is where a picture is wanted; desktops get a
  * plain download. Falls back to the download if sharing isn't offered or is refused.
+ * Resolves to false if the player cancelled the share sheet (so nothing was saved), true otherwise.
  */
-export function deliverFile(blob: Blob, name: string): void {
+export function deliverFile(blob: Blob, name: string): Promise<boolean> {
   const file = new File([blob], name, { type: blob.type });
   const touch = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
   if (touch && typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
-    navigator.share({ files: [file] }).catch((err: unknown) => {
-      // Cancelling the sheet is a choice, not a failure; anything else falls back to a download.
-      if (!(err instanceof DOMException && err.name === 'AbortError')) download(blob, name);
-    });
-    return;
+    return navigator.share({ files: [file] }).then(
+      () => true,
+      (err: unknown) => {
+        // Cancelling the sheet is a choice, not a failure; anything else falls back to a download.
+        if (err instanceof DOMException && err.name === 'AbortError') return false;
+        download(blob, name);
+        return true;
+      },
+    );
   }
   download(blob, name);
+  return Promise.resolve(true);
 }
 
 function download(blob: Blob, name: string): void {
