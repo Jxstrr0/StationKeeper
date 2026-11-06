@@ -1239,6 +1239,28 @@ An endless mode beside the scenarios, picked by the user from pop-ups: one stati
 - **The first listings appear after the first company hour**, so the very first look at the sheet may say nothing is for sale.
 - **Untuned:** the deputy share, incident rates and prices are first guesses. A headless check had founded stations earning $3.5–4.4M a day and derelicts $3–7M a day before deputy losses.
 
+## Session 32: company depth
+
+The user picked all four "what next" options: company depth, a balance pass, visual wear and life, and a first-time tutorial. The balance pass and the visuals went to two helper agents in their own worktrees; this session is the company depth.
+
+### What was built
+- **Selling:** any station but the one you're on sells for 40% of its modules' worth, less its loan. A test checks that nothing bought (a launch or a derelict) can be sold straight back for a profit; at the first guess of 60%, a $50M launch sold for $57M.
+- **Seasoned deputies:** per station, for $0.4M a day. They keep 90% of the income instead of 75%, and have half as many incidents. They pay for themselves from about $2.7M a day of income, before counting the incidents they prevent.
+- **The board** (`src/company/board.ts`): one request at a time, starting on day 1 and then 1.5 days after each one ends. An offer stands for a day; accept it from the sheet. The kinds are:
+  - cash in the bank, not counting credit;
+  - own one more station;
+  - n-star reviews at any station (only offered once a station has reviews);
+  - company income per day.
+  Bonuses run $12–18M and grow with each one done. Missing a task costs nothing but a terse email.
+- **Credit line:** borrow $20M at a time, up to 40% of the company's worth (before debt), at 3% a day (the station loans' rate). Interest comes out hourly with the deputies' money. Repay $20M at a time from cash. The company's worth subtracts the debt, and the $100M milestone and the board's cash requests count cash net of debt, so borrowing can't meet them.
+- The sheet has new sections for the board and credit, plus Sell / Hire-a-seasoned-deputy buttons on each station.
+- Older companies load with no debt and an empty board, so `COMPANY_VERSION` stays 1.
+- How to play's Company page gains a line on all of this.
+
+### Choices made
+- Selling the station you're on isn't allowed: fly elsewhere first. That keeps the live sim and the company consistent.
+- The board's "own one more station" request could be met by buying and reselling, but the resale loss (a station sells for far less than it was bought for) is bigger than the bonus.
+
 ## Next
 
 The planned slices are done. Candidates for what's next, roughly in order of value:

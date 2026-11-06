@@ -10,8 +10,20 @@ const DAY = 1440;
 
 /** The core has no price (it can't be bought on its own), but it's worth something when the station is valued. */
 const CORE_VALUE = 30;
-/** A deputy keeps a station ticking over, a little less well than the player would. */
-export const DEPUTY_SHARE = 0.75;
+/** A deputy keeps a station ticking over, a little less well than the player would. A seasoned one costs wages and does better. */
+export type DeputyKind = 'standard' | 'seasoned';
+export const DEPUTIES: Readonly<Record<DeputyKind, { share: number; incidents: number; wagesPerDay: number }>> = {
+  standard: { share: 0.75, incidents: 1, wagesPerDay: 0 },
+  seasoned: { share: 0.9, incidents: 0.5, wagesPerDay: 0.4 },
+};
+export const DEPUTY_SHARE = DEPUTIES.standard.share;
+const deputyOf = (s: CompanyStation) => DEPUTIES[s.deputy ?? 'standard'];
+/** The company's own credit line: interest per day (the same 3% the banks charge a station per quarter-day), and how much of its worth it can borrow against. */
+export const CREDIT_RATE_PER_DAY = 0.03;
+const CREDIT_SHARE = 0.4;
+export const CREDIT_STEP = 20;
+/** A station sells for this share of what its modules are worth, less its loan. */
+const SALE_SHARE = 0.4;
 /** Wear a deputy-run module picks up per day away; the player finds it waiting on their return. */
 const AWAY_WEAR_PER_DAY = 0.03;
 /** An incident knocks this much off a station's income until the player visits, and this share of its value in parts. */
@@ -51,6 +63,8 @@ export interface CompanyStation {
   incidents: number;
   /** Income left after incidents, as a share of the summary's, 0..1. */
   incomeFactor: number;
+  /** Who runs it while the player is away. Absent in companies saved before deputies could be hired: standard. */
+  deputy?: DeputyKind;
 }
 
 export interface Listing {
@@ -94,7 +108,30 @@ export interface CompanyState {
   milestones: string[];
   lost: LostStation[];
   nextNo: number;
+  /** Owed on the company's credit line. */
+  debt: number;
+  board: BoardState;
 }
+
+/** Something the board asks of the whole company, for a bonus. */
+export interface BoardTask {
+  kind: 'cash' | 'stations' | 'stars' | 'income';
+  target: number;
+  reward: number;
+  days: number;
+  /** An offer lapses at this company minute; an accepted task is due then. */
+  until: number;
+}
+
+export interface BoardState {
+  offer: BoardTask | null;
+  active: BoardTask | null;
+  nextAt: number;
+  done: number;
+  missed: number;
+}
+
+export const emptyBoard = (): BoardState => ({ offer: null, active: null, nextAt: DAY, done: 0, missed: 0 });
 
 /** Orbits a new station can be founded in. Higher beta means shorter eclipses, and a bigger launch bill. */
 export interface FoundOption {
@@ -199,6 +236,8 @@ export function newCompany(first: ScenarioDef, defs: ReadonlyMap<string, ModuleD
     milestones: [],
     lost: [],
     nextNo: 2,
+    debt: 0,
+    board: emptyBoard(),
   };
   return company;
 }
@@ -239,11 +278,13 @@ export function stepCompany(c: CompanyState, minutes: number, templates: readonl
   const days = minutes / DAY;
   const news: CompanyNews[] = [];
   let cash = 0;
+  cash -= c.debt * CREDIT_RATE_PER_DAY * days;
   for (const s of c.stations) {
     if (s.id === c.activeId) continue;
-    cash += s.summary.netPerDay * DEPUTY_SHARE * s.incomeFactor * days;
-    // A worn station has more to go wrong with it.
-    if (rng.chance(Math.min(0.9, (0.1 + 0.4 * s.summary.wear) * days))) {
+    const d = deputyOf(s);
+    cash += (s.summary.netPerDay * d.share * s.incomeFactor - d.wagesPerDay) * days;
+    // A worn station has more to go wrong with it; a seasoned deputy catches more of it.
+    if (rng.chance(Math.min(0.9, (0.1 + 0.4 * s.summary.wear) * d.incidents * days))) {
       s.incidents++;
       s.incomeFactor = Math.max(0.25, s.incomeFactor * INCIDENT_INCOME_HIT);
       const cost = s.summary.value * INCIDENT_COST_SHARE;
@@ -388,13 +429,59 @@ export function companyValue(c: CompanyState, cash: number, live?: StationSummar
   return c.stations.reduce((sum, s) => {
     const sum2 = s.id === c.activeId && live ? live : s.summary;
     return sum + sum2.value - sum2.loan;
-  }, cash);
+  }, cash - c.debt);
 }
 
-/** Income across the company per day, as things stand: the live station in full, the rest at the deputies' share. */
+/** What a station off-screen brings in per day, after its deputy's share and wages. */
+export function deputyNetPerDay(s: CompanyStation): number {
+  const d = deputyOf(s);
+  return s.summary.netPerDay * d.share * s.incomeFactor - d.wagesPerDay;
+}
+
+/** Income across the company per day, as things stand: the live station in full, the rest at the deputies' share, less credit interest. */
 export function companyNetPerDay(c: CompanyState, live?: StationSummary): number {
-  return c.stations.reduce((sum, s) => {
-    if (s.id === c.activeId) return sum + (live ?? s.summary).netPerDay;
-    return sum + s.summary.netPerDay * DEPUTY_SHARE * s.incomeFactor;
-  }, 0);
+  return c.stations.reduce((sum, s) => sum + (s.id === c.activeId ? (live ?? s.summary).netPerDay : deputyNetPerDay(s)), -c.debt * CREDIT_RATE_PER_DAY);
+}
+
+export function setDeputy(c: CompanyState, id: string, kind: DeputyKind): boolean {
+  const s = c.stations.find((x) => x.id === id);
+  if (!s) return false;
+  s.deputy = kind;
+  return true;
+}
+
+/** What a station would fetch: its modules' worth at a dealer's share, less the loan the buyer takes on. Never below zero. */
+export function salePrice(s: CompanyStation, live?: StationSummary): number {
+  const sum = live ?? s.summary;
+  return Math.max(0, Math.round(sum.value * SALE_SHARE - sum.loan));
+}
+
+/** Sell a station the player isn't at. The caller books the price into the live station. */
+export function sellStation(c: CompanyState, id: string): { ok: true; price: number; name: string } | { ok: false; reason: string } {
+  const s = c.stations.find((x) => x.id === id);
+  if (!s) return { ok: false, reason: 'No such station' };
+  if (id === c.activeId) return { ok: false, reason: 'Fly somewhere else before selling the station you are on' };
+  const price = salePrice(s);
+  removeStation(c, id, 'sold');
+  return { ok: true, price, name: s.name };
+}
+
+/** How much more the company can borrow: a share of its worth (before debt), in whole steps, less what it already owes. */
+export function creditLeft(c: CompanyState, cash: number, live?: StationSummary): number {
+  const worth = companyValue(c, cash, live) + c.debt;
+  return Math.max(0, Math.floor((worth * CREDIT_SHARE - c.debt) / CREDIT_STEP) * CREDIT_STEP);
+}
+
+/** Borrow one step on the credit line. Returns the amount, for the caller to book into the live station, or 0 if refused. */
+export function borrow(c: CompanyState, cash: number, live?: StationSummary): number {
+  if (creditLeft(c, cash, live) < CREDIT_STEP) return 0;
+  c.debt += CREDIT_STEP;
+  return CREDIT_STEP;
+}
+
+/** Pay back up to `amount` of the credit line from `cash`. Returns what was paid, for the caller to take out. */
+export function repayCredit(c: CompanyState, amount: number, cash: number): number {
+  const paid = Math.max(0, Math.min(amount, c.debt, cash));
+  c.debt -= paid;
+  return paid;
 }
