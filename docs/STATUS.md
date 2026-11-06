@@ -1369,6 +1369,21 @@ A throwaway headless probe ran 40-day companies from Longlight One: a hands-off 
 - **Deputy breakdowns** happen at 0.05 + 0.25 × wear a day, down from 0.1 + 0.4 × wear. Each one now costs 15% of the income rather than 25%, and the floor is 40% rather than 25%. That comes to one every 5–7 days at the derelicts' usual wear. Visiting a station still resets it.
 - **Fixed:** the board's news lowercased the whole title, which printed "$3.5m".
 
+## Session 35: the water run, and a longer first posting
+
+The user asked for Longlight One to be "stretched a bit": a small cash target alongside repaying, so it lasts about 15–20 days.
+
+### A bug found on the way
+A hands-off Longlight run was evacuated on days 21–26 every time: the water tanks ran dry. Session 3 noted "Resupply comes with traffic", but nothing ever refilled the tanks, so every game, company mode included, ended within about four weeks.
+- **The water run:** every 7 days a cargo flight fills the tanks to the brim, at $0.02M a kilo, booked to operations. A week's top-up is about 75 kg, roughly $1.5M. The toast says so.
+- It's set per scenario (`lifeSupport.resupply`), and all five have it. Company stations saved before this get the same run when they load.
+- How to play's life support page says water lasts about a week between runs.
+
+### Longlight One
+- The goal is now: pay off the loan with $30M left over, and keep the station running for 5 days. Before, repaying at once won on day 5.
+- A hands-off owner who repays at once and repairs breakdowns reaches it on days 12, 16 and 18 (three seeds), and the station now lasts the full 30-day probe.
+- Progress reads "Paid off · $12.3M of $30.0M in hand" once the loan is gone.
+
 ## Next
 
 The planned slices are done. Candidates for what's next, roughly in order of value:

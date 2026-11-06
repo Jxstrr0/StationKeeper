@@ -166,6 +166,8 @@ export interface LifeSupportConfig {
   /** Low alarms on tank fractions. */
   o2Low: Band;
   waterLow: Band;
+  /** A cargo run that tops the water tanks up every few days, billed to operations. Without it, nothing refills them. */
+  resupply?: { everyDays: number; pricePerKg: number };
   health: {
     /** Condition lost per hour for each mmHg of CO2 above the danger level. */
     co2PerMmHgHour: number;
@@ -284,7 +286,8 @@ export interface ScenarioDef {
  */
 export type GoalDef =
   /** With `holdDays`, the station must also have run that long, so paying off the loan on day one isn't a win by itself. */
-  | { kind: 'repayLoan'; days?: number; holdDays?: number }
+  /** With `cash`, the bank also wants that much left in hand once the loan is gone. */
+  | { kind: 'repayLoan'; days?: number; holdDays?: number; cash?: number }
   | { kind: 'cash'; amount: number; days?: number }
   | { kind: 'contracts'; count: number; days?: number }
   /** Guests post reviews of at least this many stars at a quarter's close. */
@@ -440,6 +443,8 @@ export interface GoalSnapshot {
   deadlineAtMinutes: number | null;
   /** Minutes the station must still run before the goal can count (a repayLoan goal's `holdDays`); 0 when nothing is owed. */
   holdLeftMinutes: number;
+  /** A repayLoan goal's cash in hand and what the bank wants, when it asks for some. */
+  cash?: { current: number; target: number };
 }
 
 export interface EndingSnapshot {

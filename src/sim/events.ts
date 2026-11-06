@@ -46,6 +46,8 @@ export interface SimEvents {
   guestReviews: GuestReview;
   /** The goal is reached. Fires once; play carries on. */
   goalReached: { minutes: number };
+  /** The water run docked and filled the tanks. */
+  waterResupplied: { kg: number; cost: number };
   /** The game is lost. The sim stops ticking after this. */
   gameOver: { outcome: Outcome; minutes: number };
 }

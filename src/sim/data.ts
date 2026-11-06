@@ -260,6 +260,15 @@ function thermalConfig(v: unknown): ThermalConfig {
   };
 }
 
+function resupplyConfig(v: unknown): NonNullable<LifeSupportConfig['resupply']> {
+  const o = obj(v, 'lifeSupport.resupply');
+  const everyDays = num(o.everyDays, 'lifeSupport.resupply.everyDays');
+  if (!(everyDays > 0)) fail('lifeSupport.resupply.everyDays', 'must be more than 0');
+  const pricePerKg = num(o.pricePerKg, 'lifeSupport.resupply.pricePerKg');
+  if (pricePerKg < 0) fail('lifeSupport.resupply.pricePerKg', 'must not be negative');
+  return { everyDays, pricePerKg };
+}
+
 function lifeSupportConfig(v: unknown): LifeSupportConfig {
   const o = obj(v, 'lifeSupport');
   const pp = obj(o.perPerson, 'lifeSupport.perPerson');
@@ -280,6 +289,7 @@ function lifeSupportConfig(v: unknown): LifeSupportConfig {
     co2Danger: band(o.co2Danger, 'lifeSupport.co2Danger'),
     o2Low: band(o.o2Low, 'lifeSupport.o2Low'),
     waterLow: band(o.waterLow, 'lifeSupport.waterLow'),
+    ...(o.resupply === undefined ? {} : { resupply: resupplyConfig(o.resupply) }),
     health: {
       co2PerMmHgHour: num(h.co2PerMmHgHour, 'lifeSupport.health.co2PerMmHgHour'),
       hypoxiaPerHour: num(h.hypoxiaPerHour, 'lifeSupport.health.hypoxiaPerHour'),
@@ -496,7 +506,10 @@ function goalDef(raw: unknown): GoalDef {
       const holdDays = num(o.holdDays, 'goal.holdDays');
       if (!(holdDays > 0)) fail('goal.holdDays', 'must be more than 0');
       if (days !== undefined && holdDays > days) fail('goal.holdDays', 'must not be longer than "days"');
-      return withDays({ kind, holdDays });
+      if (o.cash === undefined) return withDays({ kind, holdDays });
+      const cash = num(o.cash, 'goal.cash');
+      if (!(cash > 0)) fail('goal.cash', 'must be more than 0');
+      return withDays({ kind, holdDays, cash });
     }
     case 'none':
       return { kind };
