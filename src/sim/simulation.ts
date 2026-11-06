@@ -767,16 +767,22 @@ export class Simulation {
       case 'repayLoan': {
         const principal = this.scenario.economy.loan.principal;
         const left = this.economy.loan;
-        return { kind: g.kind, current: left, target: 0, progress: principal > 0 ? clamp(1 - left / principal) : 1, deadlineAtMinutes };
+        const repaid = principal > 0 ? clamp(1 - left / principal) : 1;
+        if (g.holdDays === undefined) return { kind: g.kind, current: left, target: 0, progress: repaid, deadlineAtMinutes, holdLeftMinutes: 0 };
+        // Both halves count: the loan cleared, and the station kept running for the hold. Either can come first.
+        const holdMinutes = g.holdDays * 1440;
+        const holdLeftMinutes = Math.max(0, holdMinutes - this.minutes);
+        const progress = left > 0 || holdLeftMinutes > 0 ? Math.min(0.999, (repaid + clamp(this.minutes / holdMinutes)) / 2) : 1;
+        return { kind: g.kind, current: left, target: 0, progress, deadlineAtMinutes, holdLeftMinutes };
       }
       case 'cash':
-        return { kind: g.kind, current: this.economy.cash, target: g.amount, progress: clamp(this.economy.cash / g.amount), deadlineAtMinutes };
+        return { kind: g.kind, current: this.economy.cash, target: g.amount, progress: clamp(this.economy.cash / g.amount), deadlineAtMinutes, holdLeftMinutes: 0 };
       case 'contracts':
-        return { kind: g.kind, current: this.ending.contractsDone, target: g.count, progress: clamp(this.ending.contractsDone / g.count), deadlineAtMinutes };
+        return { kind: g.kind, current: this.ending.contractsDone, target: g.count, progress: clamp(this.ending.contractsDone / g.count), deadlineAtMinutes, holdLeftMinutes: 0 };
       case 'reviews': {
         // Before any reviews are posted, the station stands where its reputation starts.
         const posted = this.economy.lastReport?.reviews?.stars ?? stars(this.scenario.guests.start);
-        return { kind: g.kind, current: posted, target: g.stars, progress: posted >= g.stars ? 1 : clamp((posted - 1) / (g.stars - 1)), deadlineAtMinutes };
+        return { kind: g.kind, current: posted, target: g.stars, progress: posted >= g.stars ? 1 : clamp((posted - 1) / (g.stars - 1)), deadlineAtMinutes, holdLeftMinutes: 0 };
       }
     }
   }

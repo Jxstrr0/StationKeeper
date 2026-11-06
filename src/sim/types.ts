@@ -283,7 +283,8 @@ export interface ScenarioDef {
  * without, there's no rush.
  */
 export type GoalDef =
-  | { kind: 'repayLoan'; days?: number }
+  /** With `holdDays`, the station must also have run that long, so paying off the loan on day one isn't a win by itself. */
+  | { kind: 'repayLoan'; days?: number; holdDays?: number }
   | { kind: 'cash'; amount: number; days?: number }
   | { kind: 'contracts'; count: number; days?: number }
   /** Guests post reviews of at least this many stars at a quarter's close. */
@@ -435,6 +436,8 @@ export interface GoalSnapshot {
   progress: number;
   /** The board's deadline, or null if there isn't one. */
   deadlineAtMinutes: number | null;
+  /** Minutes the station must still run before the goal can count (a repayLoan goal's `holdDays`); 0 when nothing is owed. */
+  holdLeftMinutes: number;
 }
 
 export interface EndingSnapshot {

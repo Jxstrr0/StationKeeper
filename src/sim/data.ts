@@ -491,8 +491,13 @@ function goalDef(raw: unknown): GoalDef {
   }
   const withDays = <T extends object>(g: T) => (days === undefined ? g : { ...g, days });
   switch (kind) {
-    case 'repayLoan':
-      return withDays({ kind });
+    case 'repayLoan': {
+      if (o.holdDays === undefined) return withDays({ kind });
+      const holdDays = num(o.holdDays, 'goal.holdDays');
+      if (!(holdDays > 0)) fail('goal.holdDays', 'must be more than 0');
+      if (days !== undefined && holdDays > days) fail('goal.holdDays', 'must not be longer than "days"');
+      return withDays({ kind, holdDays });
+    }
     case 'cash': {
       const amount = num(o.amount, 'goal.amount');
       if (!(amount > 0)) fail('goal.amount', 'must be more than 0');
