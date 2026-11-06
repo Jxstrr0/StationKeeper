@@ -69,7 +69,8 @@ async function start(): Promise<void> {
   await stationView.sync(snap);
   const frame = stationView.bounds();
   cam.target.copy(frame.center);
-  cam.setDistance(env.fitDistance(frame.radius));
+  let fitRadius = frame.radius;
+  cam.setDistance(env.fitDistance(fitRadius));
 
   // ---- UI ----
   const hud = new Hud(ui, {
@@ -379,10 +380,17 @@ async function start(): Promise<void> {
     }
     env.setInsets(Math.round(top), Math.round(bottom));
   };
-  window.addEventListener('resize', measureInsets); // the canvas itself is resized in the frame loop
-  new ResizeObserver(measureInsets).observe(hud.root);
+  // When the screen changes shape, keep the player's zoom relative to what fits.
+  const keepingZoom = (change: () => void): void => {
+    const before = env.fitDistance(fitRadius);
+    change();
+    const after = env.fitDistance(fitRadius);
+    if (Math.abs(after - before) > 0.5) cam.setDistance(cam.distance * (after / before));
+  };
+  window.addEventListener('resize', () => keepingZoom(measureInsets)); // the canvas itself is resized in the frame loop
+  new ResizeObserver(measureInsets).observe(hud.root); // a warning line in the HUD recentres the view but leaves the zoom alone
   measureInsets();
-  cam.setDistance(env.fitDistance(frame.radius));
+  cam.setDistance(env.fitDistance(fitRadius));
 
   // ---- Saving: every few seconds while the clock runs, and whenever the page is hidden or closed ----
   const SAVE_EVERY_MS = 5000;
@@ -422,7 +430,9 @@ async function start(): Promise<void> {
     const dt = Math.min(0.1, (now - last) / 1000);
     const realDt = (now - last) / 1000;
     last = now;
-    if (env.ensureSize()) measureInsets();
+    keepingZoom(() => {
+      if (env.ensureSize()) measureInsets();
+    });
 
     const ticks = clock.advance(realDt);
     if (ticks > 0) {
@@ -435,6 +445,7 @@ async function start(): Promise<void> {
       snap = sim.snapshot(); // fresh: a module can dock outside a tick (the dev console's deliverAll)
       void stationView.sync(snap).then(() => {
         const b = stationView.bounds();
+        fitRadius = b.radius;
         cam.focus(b.center, Math.max(cam.distance, env.fitDistance(b.radius)));
       });
     }
