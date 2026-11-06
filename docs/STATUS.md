@@ -1085,6 +1085,40 @@ From the iPhone screen recording and a pass over every sheet at 320–440 px wid
 
 - **Folded is the phone default.** The full card is one tap away, and the station gets the screen. If play-testing shows players missing the coolant gauge or the Heat button, flip the default in `initialCompact()` in `src/ui/hud.ts`.
 
+## Session 25: procedural module art
+
+Every grey-box module got surface detail and parts, all still drawn in code: no image or model files.
+
+### What was built
+
+- **Canvas textures with bump maps** (`src/view/detail.ts`), drawn once at startup and shared:
+  - plated hull: panel seams, fastener rows, faded panels, a hatch outline;
+  - quilted blanket for the inflatable modules: diamond stitching and load straps;
+  - crinkled gold foil: battery, radiator pump box, galley filter, life support water tank.
+- **Textures stay the same size on every module.** `tileUv()` scales a part's UVs so one repeat covers 6 m, however big the cylinder. The number of repeats round the hull is rounded so the wrap seam lines up.
+- **Open lattice trusses** for the solar and radiator booms: four longerons, a frame every 1.2 m bay and alternating diagonals, instead of solid square plates.
+- **Docking ports:** every port now has a ring and three guide petals.
+- **Gold handrails** on the core, habitats, life support and lab.
+- **Fittings:**
+  - core: comms dish, thruster quads;
+  - solar: wing edge frames and tip bars, a cable down the truss;
+  - radiator: coolant lines;
+  - battery: grapple fixture;
+  - life support: vent, sample port, tank bands;
+  - cupola: window shutters.
+- **The four inflatable kinds now look different:**
+  - guest habitat: a ring of twelve windows;
+  - crew quarters: two rows of small portholes;
+  - galley: vent stack with a hood, and a filter box;
+  - guest lounge: a wide panoramic band of ten large panes.
+- **Draw calls are lower than before, despite the detail.** `mergeStatic()` bakes each module's plain meshes into one mesh per material. The solar gimbal is merged separately, since it turns. A 10-module station went from 101 draw calls to 93; without merging it would have been 226.
+- **Tests:** still 219 (view only). Checked by close-up screenshots in sunlight and eclipse and in placement mode, with no console errors.
+
+### Choices made
+
+- **Textures over geometry for fine detail.** Seams, rivets and quilting are texture and bump, not polygons, so the triangle count rose about 15% while the station looks far busier up close.
+- A `.glb` named in a module's `model` field still replaces its grey-box entirely, as before.
+
 ## Next
 
 The planned slices are done. Candidates for what's next, roughly in order of value:
@@ -1092,4 +1126,4 @@ The planned slices are done. Candidates for what's next, roughly in order of val
 1. **Play-testing on a real phone**, to tune pace, readability, the first ten minutes, and now how often illness and exhaustion bite.
 2. **More scenarios**, perhaps with their own modules or prices. Saltglass and Velvet Reach use the reviews goal; a crew-heavy posting where morale is the problem is another idea.
 3. **More for guests to want**: perhaps a choice of fare level, or a second amenity to stack with the lounge.
-4. **Art**: Blender models replacing the grey-boxes (the loader already prefers them).
+4. **Art**: the grey-boxes now carry procedural detail (session 25). Blender models can still replace any of them; the loader prefers a `.glb`.
