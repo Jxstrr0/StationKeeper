@@ -15,14 +15,16 @@ export function goalLine(g: GoalDef): string {
         : g.kind === 'contracts'
           ? `Deliver ${g.count} research contracts`
           : `Earn ${g.stars}-star guest reviews`;
-  return g.days === undefined ? `${what}.` : `${what} within ${days(g.days)}.`;
+  const hold = g.kind === 'repayLoan' && g.holdDays !== undefined ? ` and keep the station running for ${days(g.holdDays)}` : '';
+  return g.days === undefined ? `${what}${hold}.` : `${what}${hold} within ${days(g.days)}.`;
 }
 
 /** "3 of 6 delivered", "$18.0M left to repay", "Last reviews ★★☆☆☆". */
 export function goalProgress(g: GoalSnapshot): string {
   switch (g.kind) {
     case 'repayLoan':
-      return g.current > 0 ? `${money(g.current)} left to repay` : 'Paid off';
+      if (g.current > 0) return `${money(g.current)} left to repay`;
+      return g.holdLeftMinutes > 0 ? `Paid off · ${durationText(g.holdLeftMinutes)} to go` : 'Paid off';
     case 'cash':
       return `${money(Math.max(0, g.current))} of ${money(g.target)}`;
     case 'contracts':

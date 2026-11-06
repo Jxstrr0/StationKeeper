@@ -71,7 +71,10 @@ describe('endings', () => {
   });
 
   it('paying off the loan reaches the goal once, and play carries on', () => {
-    const sim = makeSim((s) => (s.economy.startCash = 100));
+    const sim = makeSim((s) => {
+      s.economy.startCash = 100;
+      s.goal = { kind: 'repayLoan' };
+    });
     const { goals, over } = watch(sim);
     sim.run(30);
     expect(sim.command({ type: 'repayLoan', amount: 1000 }).ok).toBe(true);
@@ -81,6 +84,34 @@ describe('endings', () => {
     expect(goals).toHaveLength(1);
     expect(over).toHaveLength(0);
     expect(sim.elapsedMinutes).toBe(30 + DAY);
+  });
+
+  it('with a hold, paying off early is not a win until the station has run that long', () => {
+    const sim = makeSim((s) => {
+      s.economy.startCash = 100;
+      s.goal = { kind: 'repayLoan', holdDays: 0.5 };
+    });
+    const { goals } = watch(sim);
+    sim.command({ type: 'repayLoan', amount: 1000 });
+    expect(goals).toHaveLength(0);
+    expect(sim.snapshot().ending.goal).toMatchObject({ current: 0, holdLeftMinutes: DAY / 2 });
+    expect(sim.snapshot().ending.goal.progress).toBeCloseTo(0.5, 5);
+    sim.run(DAY);
+    expect(goals).toEqual([{ minutes: DAY / 2 }]);
+    expect(sim.snapshot().ending.goal).toMatchObject({ holdLeftMinutes: 0, progress: 1 });
+  });
+
+  it('with a hold, outlasting it is not a win until the loan is paid', () => {
+    const sim = makeSim((s) => {
+      s.economy.startCash = 100;
+      s.goal = { kind: 'repayLoan', holdDays: 0.5 };
+    });
+    const { goals } = watch(sim);
+    sim.run(DAY);
+    expect(goals).toHaveLength(0);
+    expect(sim.snapshot().ending.goal.progress).toBeLessThan(1);
+    sim.command({ type: 'repayLoan', amount: 1000 });
+    expect(goals).toEqual([{ minutes: DAY }]);
   });
 
   it('an ended game saves and loads as ended', () => {
