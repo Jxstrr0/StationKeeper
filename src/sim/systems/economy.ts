@@ -44,7 +44,7 @@ export interface EconomyState {
   stats: { contractsDone: number; contractsFailed: number; guestMinutes: number; guestMinutesPossible: number; failures: number };
 }
 
-const emptyLedger = (): Ledger => ({ guests: 0, contracts: 0, wages: 0, operations: 0, interest: 0, construction: 0, repairs: 0, penalties: 0 });
+export const emptyLedger = (): Ledger => ({ guests: 0, contracts: 0, fleet: 0, wages: 0, operations: 0, interest: 0, construction: 0, repairs: 0, penalties: 0 });
 const emptyStats = (): EconomyState['stats'] => ({ contractsDone: 0, contractsFailed: 0, guestMinutes: 0, guestMinutesPossible: 0, failures: 0 });
 
 export function createEconomyState(cfg: EconomyConfig, rng: Rng): EconomyState {

@@ -35,6 +35,7 @@ const CONFIRM_MS = 4000;
 const LEDGER_ORDER: readonly { key: LedgerCategory; label: string }[] = [
   { key: 'guests', label: 'Guests' },
   { key: 'contracts', label: 'Research contracts' },
+  { key: 'fleet', label: 'Other stations' },
   { key: 'wages', label: 'Crew wages' },
   { key: 'operations', label: 'Operations' },
   { key: 'interest', label: 'Loan interest' },
@@ -201,6 +202,7 @@ export class FinancePanel {
       el('div', 'fin-goal-bar', [this.goalFill]),
       this.goalState,
     ]);
+    goalSection.hidden = goal.kind === 'none';
     const quarterSection = el('div', 'fin-section', [el('div', 'fin-h-row', [el('h3', 'fin-h', ['This quarter']), this.quarter]), this.ledger]);
     const contractsSection = el('div', hasContracts ? 'fin-section' : 'fin-section hidden', [el('h3', 'fin-h', ['Research contracts']), this.contracts]);
     this.deliveriesSection.append(el('h3', 'fin-h', ['Deliveries']), this.deliveries);

@@ -24,7 +24,7 @@ export interface SavesHandlers {
 const CONFIRM_MS = 3500;
 
 /** A button that does its job on the second tap: the first one asks. */
-class TwoTap {
+export class TwoTap {
   readonly button = el('button', 'warn-act');
   private timer: ReturnType<typeof setTimeout> | null = null;
   private label = '';

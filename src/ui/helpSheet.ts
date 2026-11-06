@@ -106,6 +106,16 @@ const ART = {
     <circle class="ha-ivory" cx="210" cy="56" r="16"/>
     <path class="ha-ivory" d="M210 46v10l7 4"/>
     <text class="ha-text ha-mid" x="210" y="94">6 h</text>`),
+  company: svg(`
+    <path class="ha-ivory ha-dash" d="M64 60h40M136 60h40"/>
+    <circle class="ha-lilac ha-pulse" cx="120" cy="60" r="20"/>
+    <circle class="ha-lilac" cx="120" cy="60" r="12"/>
+    <circle class="ha-fill-lilac" cx="120" cy="60" r="4"/>
+    <circle class="ha-ivory" cx="48" cy="60" r="12"/>
+    <circle class="ha-ivory" cx="192" cy="60" r="12"/>
+    <text class="ha-text ha-mid" x="120" y="104">you</text>
+    <text class="ha-text ha-mid" x="48" y="94">deputy</text>
+    <text class="ha-text ha-mid" x="192" y="94">deputy</text>`),
 };
 
 export const HELP_PAGES: readonly HelpPage[] = [
@@ -163,6 +173,14 @@ export const HELP_PAGES: readonly HelpPage[] = [
     text: [
       'Tap *Build*, pick a module, then tap a glowing port. The preview shows how the next two orbits change; *Order* pays now, and it docks six hours later.',
       'Drag to orbit the view, pinch or scroll to zoom, and tap a module for its details. *Space* pauses and *1*–*4* set the speed. The menu button, or *Esc*, has saves, settings and photo mode.',
+    ],
+  },
+  {
+    title: 'Company mode',
+    art: ART.company,
+    text: [
+      '*Company* on the title screen starts a company: no board and no goal, just stations and one bank account they all share.',
+      'You run one station at a time. Deputies keep the rest going at three quarters of their income, and they let wear build up and the odd breakdown slip. Buy run-down stations cheap or launch new ones from *Company* in the menu, then *Fly there* to take one over.',
     ],
   },
 ];

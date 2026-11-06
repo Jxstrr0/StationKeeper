@@ -288,7 +288,9 @@ export type GoalDef =
   | { kind: 'cash'; amount: number; days?: number }
   | { kind: 'contracts'; count: number; days?: number }
   /** Guests post reviews of at least this many stars at a quarter's close. */
-  | { kind: 'reviews'; stars: number; days?: number };
+  | { kind: 'reviews'; stars: number; days?: number }
+  /** No goal: a company station, run for its own sake. */
+  | { kind: 'none'; days?: never };
 
 export type GoalKind = GoalDef['kind'];
 
@@ -496,7 +498,8 @@ export interface ContractDef {
   stable?: boolean;
 }
 
-export type LedgerCategory = 'guests' | 'contracts' | 'wages' | 'operations' | 'interest' | 'construction' | 'repairs' | 'penalties';
+/** `fleet` is money moved in from (or out to) the company's other stations. */
+export type LedgerCategory = 'guests' | 'contracts' | 'fleet' | 'wages' | 'operations' | 'interest' | 'construction' | 'repairs' | 'penalties';
 export type Ledger = Record<LedgerCategory, number>;
 
 export interface ContractSnapshot {
