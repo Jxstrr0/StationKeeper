@@ -182,8 +182,8 @@ the repo's code says on 7 November 2026. Order is Kelbo's own ranking.
 | --- | --- | --- | --- | --- | --- | --- |
 | Prairie Engine Works | Released | 1.76.78.0 | Engine builder, dyno, ten race events, race-team career | Prairie engine shop (Saskatoon) | Phone, both ways; desktop layout | Classic JS + `build.js`, three r128 (CDN) |
 | Lombard | In development (site); repo shipped 1.0.0.0 on 6 Nov | 1.0.0.0 | First-person pawn shop sim: inspect, appraise, haggle; a crime layer | Mostograd, a 2010s Russian river city | Portrait first | TypeScript, Vite, three 0.187 (npm) |
-| Escapement | Prototype | 1.0.2.1 | Watchmaking career: build, regulate, certify, sell | The Haldis, Velmark (alpine, 2000–2030) | Portrait (side by side in landscape) | Classic JS + `build.js` (PEW stack), three r128 |
-| Scrapline | In development | 0.1.15.2 | Combat-robot builder, arena fights, career | Velmark and the Haldis (shared with Escapement) | Portrait (side by side in landscape) | Classic JS + `build.js` (PEW stack), three r128 |
+| Escapement | Prototype | 1.0.2.3 | Watchmaking career: build, regulate, certify, sell | The Haldis, Velmark (alpine, 2000–2030) | Portrait (side by side in landscape) | Classic JS + `build.js` (PEW stack), three r128 |
+| Scrapline | In development | 0.1.16.2 | Combat-robot builder, arena fights, career | Velmark and the Haldis (shared with Escapement) | Portrait (side by side in landscape) | Classic JS + `build.js` (PEW stack), three r128 |
 | Ink | Prototype | 0.1.15.1 | Tattoo artist career: consult, design, tattoo, heal, see it age | Mostograd (shared with Lombard), 2000–2030 | Portrait (landscape layout too) | Classic JS + `build.js` (PEW stack), three r128 |
 | Station Keeper | In development | 0.1.2.0 | Space-station tycoon, cascading systems | Real low Earth orbit, 2041–2045 | Any | TypeScript, Vite, three 0.187 |
 | Season Ticket | Released | 1.1.2.0 | Football club owner/GM with live tactics | Valmere, a fictional northern republic | **Landscape** | TypeScript, Vite, three 0.186 |
@@ -337,7 +337,7 @@ are as of this snapshot.
   - Calendar: the Haldis Valley Fair, the Kessel Peak Trial against 5 rivals, two auction nights, the 2015–18 smartwatch slump.
   - R&D: 17 projects, up to 4 calibres.
   - Time: act, then Close week. New game offers Repair bench 2000, Skip ahead 2008, or a Sandbox.
-- **Setting and tone:** the Haldis, a watchmaking valley in northern Velmark, an invented alpine country (shared with Scrapline). The city is Velm. 2000–2030. Money: the thaler, `Th 4,850` (100 pfennig). Quiet, warm, gently wry.
+- **Setting and tone:** the Haldis, a watchmaking valley in northern Velmark, an invented alpine country (shared with Scrapline). The city is Velm. 2000–2030. Money: euros, `€4,850` (whole amounts; Kelbo, November 2026). Quiet, warm, gently wry.
 - **Look:** dark felt, brass and steel, with a 3D movement, a dial view and a workshop that grows by stage. Fonts: Space Grotesk + JetBrains Mono (Google Fonts).
   - Dark: felt `#121815` / `#0c110f`, panels `#19201c` / `#212a25`, chalk `#f2efe6`, muted `#b3bab4`, brass `#c9a45c` / `#e0c07e`, steel `#9fa8ad`. Status colours: good `#6cc08f`, warn `#e2b24a`, crit `#e0625a`, info `#7fa9d6`.
   - Light ("pale workshop"): felt `#f3efe6`, panel `#fffdf8`, text `#18201b`, brass text `#7a5c1c`.
@@ -384,7 +384,7 @@ are as of this snapshot.
   - Build: part slots and a layout grid; six bench tests.
   - Fight: a deterministic 60 Hz fight sim shown in 3D, in 1v1, rumble, tag team and minibot formats. A 60-second pit window, a post-mortem and a replay.
   - Career: 52-week seasons over 4 acts.
-- **Setting and tone:** the present day from 2026, in Velmark and the Haldis, **the same world as Escapement**. Money is the thaler. Venues: Haldis Gemeindehalle, Stahlbrück, Eisenau, Grauwald, the Eisenhalle. German-flavoured alpine names.
+- **Setting and tone:** the present day from 2026, in Velmark and the Haldis, **the same world as Escapement**. Money is euros (`€4,850`). Venues: Haldis Gemeindehalle, Stahlbrück, Eisenau, Grauwald, the Eisenhalle. German-flavoured alpine names.
 - **Look:** uses the Longlight palette as its own look. Fonts: Space Grotesk + JetBrains Mono (Google Fonts).
   - Dark: base `#141413`, surface `#1C1B19`, card `#1F1E1B`, ink `#F2EFE8`, muted `#ABA79E`, clay `#D97757` (light-theme text `#A8482A`), lilac `#B48CE8` / purple `#6A33AD`. Status colours: good `#4CC38A`, warn `#E2A93B`, crit `#E5484D` (text `#F06A6E`).
   - Light: base `#FAF9F5`, surface `#F1EEE7`, card `#FFFFFF`, ink `#1C1B19`.
@@ -732,7 +732,7 @@ noted, so a repeated name reads as a mistake.
 
 | World | Games |
 | --- | --- |
-| Velmark, an alpine country; the Haldis valley; the thaler (100 pfennig) | Escapement, Scrapline (one shared world on purpose) |
+| Velmark, an alpine country; the Haldis valley (money in euros) | Escapement, Scrapline (one shared world on purpose) |
 | Mostograd, a fictional 2010s Russian river city; rubles | Lombard, Ink (one shared world on purpose) |
 | The prairie, Saskatoon | Prairie Engine Works, the studio site's sky |
 | Valmere (Valmeran dollar), Kestrel Football League | Season Ticket |
@@ -787,8 +787,7 @@ date or institution.
     event). It fires from 2010, but Lombard's player only takes the shop over
     in 2014, so keep it vague (no owner's name) or move it.
 - **Velmark and the Haldis** (Escapement owns it): Escapement
-  `docs/DESIGN.md`, the **Setting** and **Money** lines (the thaler, 100
-  pfennig; Kessel Peak; the Haldis Chronometry Bureau). Scrapline borrowed the
+  `docs/DESIGN.md`, the **Setting** and **Money** lines (euros; Kessel Peak; the Haldis Chronometry Bureau). Scrapline borrowed the
   names only: its `CLAUDE.md` says not to read or follow the Escapement repo
   for anything else, and that rule wins inside Scrapline.
 
