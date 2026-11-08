@@ -3,7 +3,8 @@
 Station Keeper is a commercial space station tycoon by Longlight Interactive. Build a station module by
 module in low Earth orbit and keep it alive, solvent and full of paying guests. Power, thermal, life support,
 structure, crew, traffic and money share one resource network, so failures cascade. Phone-first, free, live at
-https://jxstrr0.github.io/StationKeeper/ (repo https://github.com/Jxstrr0/StationKeeper).
+https://stationkeeper.longlight.games/ (repo https://github.com/Jxstrr0/StationKeeper; the old
+jxstrr0.github.io/StationKeeper/ address forwards there).
 
 Read this file first, then `docs/STATUS.md` (every session's build notes, choices and the "Next" list at the
 end; it's long, so grep the session you need). `README.md` is the short public guide.
@@ -33,8 +34,8 @@ npm run preview     # serve dist/ locally
 - `.github/workflows/deploy.yml` ("Test and deploy") runs on every pull request and every push to `main`:
   checkout with LFS, `npm ci`, typecheck, lint, tests, build. On `main` it then publishes `dist/` to GitHub
   Pages. On a pull request it stops after the build, so the green check on a PR is that `build` job.
-- `vite.config.ts` sets `base: './'` (relative), so the same build works under the GitHub Pages sub-path
-  (`/StationKeeper/`) and at the root of its own domain (`stationkeeper.longlight.games`, later). Asset URLs for
+- `vite.config.ts` sets `base: './'` (relative), so the same build works at the root of its own domain
+  (`stationkeeper.longlight.games`, the Pages custom domain) and under any sub-path. Asset URLs for
   `public/` files are built from `import.meta.env.BASE_URL` (`./` at runtime), never a hard-coded `/StationKeeper/`.
 - The game version is `GAME_VERSION` in `src/version.ts` (now 0.1.2.1), shown small on the title screen. Four
   numbers, Major.Minor.Patch.Build: Major = overhaul, Minor = feature batch, Patch = tweak or fix, Build =
@@ -57,8 +58,10 @@ npm run preview     # serve dist/ locally
   checks the whole code before writing. A new key that holds progress must go into `BACKUP_KEYS` there. When
   the save shape changes, old saves must keep loading or be refused cleanly (`tests/save.test.ts`,
   `tests/slots.test.ts`, `tests/backup.test.ts`).
-- **Shared origin.** Every Longlight game lives on `jxstrr0.github.io`, so they share one localStorage and
-  one Cache Storage. Use only the `stationkeeper.` prefix and never clear anything outside it.
+- **Own origin, same prefix rule.** Since November 2026 the game has its own origin
+  (`stationkeeper.longlight.games`), so its own localStorage, Cache Storage and quota; saves from before the
+  move stay on `jxstrr0.github.io`. Still use only the `stationkeeper.` prefix and never clear anything
+  outside it.
 - **Phone-first.** Touch first (drag to orbit, pinch to zoom, tap a module, swipe sheets down), safe areas,
   portrait and landscape, Reduce Motion respected. Pixel ratio is capped at 2 and steps down when frames
   are slow.
@@ -115,7 +118,7 @@ screen, and any link back to the studio site.
 
 - **Logo:** the horizon lockup, a half-set clay sun on a long horizon line
   with LONGLIGHT above INTERACTIVE. Use the official files from the studio
-  site's press kit (https://jxstrr0.github.io/Kelbo.Website/press.html; the
+  site's press kit (https://longlight.games/press.html; the
   files are `assets/press/longlight-logo-dark` and `longlight-logo-light`,
   SVG plus 2x PNG, in `Jxstrr0/Kelbo.Website`). Copy them into this repo;
   never hotlink, redraw or recolour them, or swap the letters for live text.
@@ -127,12 +130,12 @@ screen, and any link back to the studio site.
 - **Name:** always "Longlight Interactive" in full. Credit line:
   "© year Kelbo / Longlight Interactive" (the studio isn't a registered
   business yet). Never Kelbo's real name or initials.
-- **Studio site:** https://jxstrr0.github.io/Kelbo.Website/
+- **Studio site:** https://longlight.games/
 
 ## Studio catalogue
 
 `LONGLIGHT-STUDIO.md` (repo root) covers every Longlight game: looks, names
-already taken, storage and cache prefixes on the shared origin, a reuse map and
+already taken, storage and cache prefixes (kept from the shared-origin days), a reuse map and
 improvement ideas. Read it before pitching new ideas, names or looks, and
 before building a system another Longlight game may already have. This file
 wins where the two disagree. Don't edit the copy here: the master is

@@ -1413,6 +1413,13 @@ A hands-off Longlight run was evacuated on days 21–26 every time: the water ta
 - The domain switch itself (DNS, the Pages custom domain, links that name the old address) comes later.
 - Checked: `npm run check`; `dist/` served under `/StationKeeper/` and at `/` in Chromium, with no console errors and no 404s either way.
 
+## New addresses (docs only, November 2026)
+
+- Station Keeper now lives at https://stationkeeper.longlight.games/, and the old `jxstrr0.github.io/StationKeeper/` address forwards there. The studio site is https://longlight.games/ (press kit: https://longlight.games/press.html).
+- CLAUDE.md, the README, the `vite.config.ts` and `src/storageCare.ts` comments now give the new addresses and no longer say every game shares one origin: the game has its own storage now. Saves made at the old address stay there. The `stationkeeper.` prefix rule is kept.
+- `LONGLIGHT-STUDIO.md` recopied from the master. No version bump: nothing players see changed.
+- Checked: `npm run check`.
+
 ## Next
 
 The planned slices are done. Candidates for what's next, roughly in order of value:
