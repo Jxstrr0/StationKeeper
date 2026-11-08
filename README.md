@@ -4,7 +4,7 @@ A commercial space station tycoon by Longlight Interactive. Build a station modu
 alive, solvent, and full of paying customers. Power, thermal, life support, structure, crew, traffic, and
 economy share one resource network, so failures cascade.
 
-**Play:** https://jxstrr0.github.io/StationKeeper/ (built for phones: drag to orbit, pinch to zoom, tap a module).
+**Play:** https://stationkeeper.longlight.games/ (built for phones: drag to orbit, pinch to zoom, tap a module).
 
 ## Develop
 
