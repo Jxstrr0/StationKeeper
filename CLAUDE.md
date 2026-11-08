@@ -33,8 +33,10 @@ npm run preview     # serve dist/ locally
 - `.github/workflows/deploy.yml` ("Test and deploy") runs on every pull request and every push to `main`:
   checkout with LFS, `npm ci`, typecheck, lint, tests, build. On `main` it then publishes `dist/` to GitHub
   Pages. On a pull request it stops after the build, so the green check on a PR is that `build` job.
-- `vite.config.ts` sets `base: '/StationKeeper/'`; asset URLs need that prefix.
-- The game version is `GAME_VERSION` in `src/version.ts` (now 0.1.2.0), shown small on the title screen. Four
+- `vite.config.ts` sets `base: './'` (relative), so the same build works under the GitHub Pages sub-path
+  (`/StationKeeper/`) and at the root of its own domain (`stationkeeper.longlight.games`, later). Asset URLs for
+  `public/` files are built from `import.meta.env.BASE_URL` (`./` at runtime), never a hard-coded `/StationKeeper/`.
+- The game version is `GAME_VERSION` in `src/version.ts` (now 0.1.2.1), shown small on the title screen. Four
   numbers, Major.Minor.Patch.Build: Major = overhaul, Minor = feature batch, Patch = tweak or fix, Build =
   republish. Bump it in the pull request that ships the change. `package.json` keeps npm's three-number
   `version`; leave it alone.
@@ -94,7 +96,7 @@ npm run preview     # serve dist/ locally
 - Commits: author `Jxstrr0 <322161611+Jxstrr0@users.noreply.github.com>` (never a real email address), and
   keep the Co-Authored-By trailer for Claude.
 
-## Current status (0.1.2.0, November 2026)
+## Current status (0.1.2.1, November 2026)
 
 - Built and live: power with eclipses and load shedding, thermal, life support with water resupply, crew,
   guests and reviews, money and loans, reliability and repairs, build mode, five scenarios (Longlight One,
