@@ -5,7 +5,7 @@
 ### What was built
 
 - **Scaffold:** Vite + TypeScript (strict, ESLint bans `any`) + Three.js + Vitest. `npm run check` runs typecheck, lint, tests, and build.
-- **Deploy:** `.github/workflows/deploy.yml` checks out with LFS, runs typecheck, lint, tests, build, then deploys `dist/` to GitHub Pages on pushes to `main` (PRs build and test only). Vite `base` is `/StationKeeper/`.
+- **Deploy:** `.github/workflows/deploy.yml` checks out with LFS, runs typecheck, lint, tests, build, then deploys `dist/` to GitHub Pages on pushes to `main` (PRs build and test only). Vite `base` is `./` (relative, since 0.1.2.1), so the build works under `/StationKeeper/` and at a domain's root.
 - **Sim (`src/sim`, pure TS, lint-enforced no DOM/Three.js):**
   - `orbit.ts`: circular 420 km orbit with real constants (period ≈ 92.6 min) and a cylindrical Earth shadow. At beta 0 that gives ≈ 36 min of eclipse per orbit (≈ 39%). A short soft edge avoids a hard light switch.
   - `station.ts`: module graph built from the scenario layout, with port validation (unknown ports, double-used ports, multiple roots).
@@ -1405,6 +1405,13 @@ A hands-off Longlight run was evacuated on days 21–26 every time: the water ta
 - If the game can't start, the bar gives way to the reason and a Reload button. A small script in the `<head>` catches the game's code failing to download (a dropped connection) and shows the same.
 - Phone-first: safe areas, a smaller wordmark in landscape, and with Reduce Motion on the bar holds still instead of sweeping.
 - To test: open the live site on a phone. The loading screen shows the wordmark and a bar that sweeps, then fills, then fades into the title. On a slow connection (or with the phone in flight mode after the page starts) you should see it longer, or the error with Reload.
+
+## Relative base (0.1.2.1)
+
+- The games are moving later from `jxstrr0.github.io/StationKeeper/` to their own subdomain (`stationkeeper.longlight.games`), where the game sits at the root of the address. Vite's `base` was `/StationKeeper/`, which would break there, so it is now `./` (relative): every path in `dist/` is relative to `index.html`, and `import.meta.env.BASE_URL` is `./` at runtime. The same build works at both addresses, so it ships now, before the switch. Nothing changes for players.
+- Nothing else needed changing: the manifest's `start_url` and `scope` were already `./`, the module loader builds `.glb` URLs from `BASE_URL`, and there is no service worker.
+- The domain switch itself (DNS, the Pages custom domain, links that name the old address) comes later.
+- Checked: `npm run check`; `dist/` served under `/StationKeeper/` and at `/` in Chromium, with no console errors and no 404s either way.
 
 ## Next
 
