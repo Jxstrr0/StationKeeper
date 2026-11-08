@@ -47,21 +47,22 @@ can do three jobs:
 ## 2. How to look at the other repos
 
 Every game is a public repo under **github.com/Jxstrr0**, served by GitHub Pages
-at **https://jxstrr0.github.io/<Repo>/**.
+on its own subdomain of **longlight.games** (November 2026; the old
+`https://jxstrr0.github.io/<Repo>/` addresses forward there).
 
 | Game | Repo | Live |
 | --- | --- | --- |
-| Prairie Engine Works | [Jxstrr0/350Chev](https://github.com/Jxstrr0/350Chev) | https://jxstrr0.github.io/350Chev/ |
-| Lombard | [Jxstrr0/Lombard](https://github.com/Jxstrr0/Lombard) | https://jxstrr0.github.io/Lombard/ |
-| Escapement | [Jxstrr0/Escapement](https://github.com/Jxstrr0/Escapement) | https://jxstrr0.github.io/Escapement/ |
-| Scrapline | [Jxstrr0/Scrapline](https://github.com/Jxstrr0/Scrapline) | https://jxstrr0.github.io/Scrapline/ |
-| Ink | [Jxstrr0/Ink](https://github.com/Jxstrr0/Ink) | https://jxstrr0.github.io/Ink/ |
-| Station Keeper | [Jxstrr0/StationKeeper](https://github.com/Jxstrr0/StationKeeper) | https://jxstrr0.github.io/StationKeeper/ |
-| Season Ticket | [Jxstrr0/SeasonTicket](https://github.com/Jxstrr0/SeasonTicket) | https://jxstrr0.github.io/SeasonTicket/ |
-| Frontier Lab | [Jxstrr0/FrontierLab](https://github.com/Jxstrr0/FrontierLab) | https://jxstrr0.github.io/FrontierLab/ |
-| The Whip | [Jxstrr0/The-Whip](https://github.com/Jxstrr0/The-Whip) | https://jxstrr0.github.io/The-Whip/ |
-| Red Skies | [Jxstrr0/RedSkies](https://github.com/Jxstrr0/RedSkies) | https://jxstrr0.github.io/RedSkies/ |
-| Studio site | [Jxstrr0/Kelbo.Website](https://github.com/Jxstrr0/Kelbo.Website) | https://jxstrr0.github.io/Kelbo.Website/ |
+| Prairie Engine Works | [Jxstrr0/350Chev](https://github.com/Jxstrr0/350Chev) | https://pew.longlight.games/ |
+| Lombard | [Jxstrr0/Lombard](https://github.com/Jxstrr0/Lombard) | https://lombard.longlight.games/ |
+| Escapement | [Jxstrr0/Escapement](https://github.com/Jxstrr0/Escapement) | https://escapement.longlight.games/ |
+| Scrapline | [Jxstrr0/Scrapline](https://github.com/Jxstrr0/Scrapline) | https://scrapline.longlight.games/ |
+| Ink | [Jxstrr0/Ink](https://github.com/Jxstrr0/Ink) | https://ink.longlight.games/ |
+| Station Keeper | [Jxstrr0/StationKeeper](https://github.com/Jxstrr0/StationKeeper) | https://stationkeeper.longlight.games/ |
+| Season Ticket | [Jxstrr0/SeasonTicket](https://github.com/Jxstrr0/SeasonTicket) | https://seasonticket.longlight.games/ |
+| Frontier Lab | [Jxstrr0/FrontierLab](https://github.com/Jxstrr0/FrontierLab) | https://frontierlab.longlight.games/ |
+| The Whip | [Jxstrr0/The-Whip](https://github.com/Jxstrr0/The-Whip) | https://thewhip.longlight.games/ |
+| Red Skies | [Jxstrr0/RedSkies](https://github.com/Jxstrr0/RedSkies) | https://redskies.longlight.games/ |
+| Studio site | [Jxstrr0/Kelbo.Website](https://github.com/Jxstrr0/Kelbo.Website) | https://longlight.games/ |
 
 Kelbo's private and parked repos are not covered here (section 11).
 
@@ -88,12 +89,12 @@ block on a credits or about screen, and any link back to the studio site.
 
 | Piece | Rule |
 | --- | --- |
-| Logo | The horizon lockup: a half-set clay sun on a long horizon line, LONGLIGHT above INTERACTIVE. Use the official files from `Jxstrr0/Kelbo.Website` `assets/press/longlight-logo-dark` and `longlight-logo-light` (SVG, plus 2x PNG); press kit at https://jxstrr0.github.io/Kelbo.Website/press.html. Copy them in. Never hotlink, redraw, recolour or swap the letters for live text. |
+| Logo | The horizon lockup: a half-set clay sun on a long horizon line, LONGLIGHT above INTERACTIVE. Use the official files from `Jxstrr0/Kelbo.Website` `assets/press/longlight-logo-dark` and `longlight-logo-light` (SVG, plus 2x PNG); press kit at https://longlight.games/press.html. Copy them in. Never hotlink, redraw, recolour or swap the letters for live text. |
 | Colours | Clay `#D97757`, Purple `#7B3FC4`, Slate `#141413`, Ivory `#FAF9F5`, Lilac `#B48CE8`. Nothing else in the logo or studio block. |
 | Font | Space Grotesk 500/700. Self-host it in a studio piece; no new font host. |
 | Name | Always "Longlight Interactive" in full. |
 | Credit line | `© <year> Kelbo / Longlight Interactive` (the studio isn't a registered business yet). |
-| Studio link | https://jxstrr0.github.io/Kelbo.Website/ |
+| Studio link | https://longlight.games/ |
 
 Some games chose the Longlight colours as their own in-game look too (Prairie
 Engine Works, Scrapline, Station Keeper, Lombard's menus). That's their
@@ -139,18 +140,20 @@ choice, not a rule.
 
 ---
 
-## 5. The shared origin: storage and cache names already taken
+## 5. Storage and cache names already taken
 
-Every game and the studio site live on **one origin, `jxstrr0.github.io`**.
-That means one localStorage, one Cache Storage, one IndexedDB space and one
-storage quota for all of them.
+Since November 2026 every game has its own address (`<game>.longlight.games`,
+the studio site `longlight.games`), so each has its own localStorage, Cache
+Storage, IndexedDB and quota. Before that they all shared one origin,
+`jxstrr0.github.io`, and old saves stay there. Keep the prefixes anyway: they
+cost nothing, keep old copies apart, and let a game move again safely.
 
 - Use **your own prefix** for every localStorage key, IndexedDB database and
   cache name.
 - **Never clear or delete anything outside your own prefix.** No
   `localStorage.clear()`; a service worker deletes only caches that start with
   its own prefix.
-- One `persist()` grant covers every game on the origin.
+- Each game asks for `persist()` itself; a grant covers only its own address.
 
 | Game | localStorage | Caches | Save code |
 | --- | --- | --- | --- |
