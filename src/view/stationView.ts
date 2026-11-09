@@ -9,6 +9,7 @@ import { emberPulse, failFlicker, guestOccupancy, sparkBurst, wearLookInto, wind
 import type { ModuleModel, ModuleModelSource } from './moduleModels';
 import { ALTITUDE, viewQuality } from './scene';
 import { makeSparks, setSparkTime } from './sparks';
+import { setSurfaceDetail, stationMaterials, type StationMaterials } from './stationMaterials';
 import { applyWear, type WearUniforms } from './wear';
 
 const STATUS_COLORS: Record<ModuleStatus, number> = {
@@ -26,6 +27,8 @@ interface Entry {
   def: ModuleDef;
   object: THREE.Group;
   model: ModuleModel;
+  /** Whether its textured materials carry their normal and roughness maps (off on Low graphics). */
+  detail: boolean;
   lightCore: THREE.Mesh;
   halo: THREE.Sprite;
   status: ModuleStatus | null;
@@ -94,6 +97,8 @@ export class StationView {
   private selectedId: string | null = null;
   private blink = 0;
   private heatOverlay = false;
+  private materials: StationMaterials | null = null;
+  private materialsAsked = false;
   private readonly look: WearLook = { grime: 0, scorch: 0, ember: 0 };
   private readonly cargo = new CargoTraffic(
     (id, port, position, direction) => this.portInto(id, port, position, direction),
@@ -201,6 +206,7 @@ export class StationView {
       def,
       object,
       model,
+      detail: true,
       lightCore,
       halo,
       status: null,
@@ -330,6 +336,7 @@ export class StationView {
     const reduceMotion = document.documentElement.classList.contains('reduce-motion');
     const sparksOk = !reduceMotion && viewQuality() !== 'low';
     const occupancy = guestOccupancy(snap.guests.places, snap.guests.booked);
+    const detail = viewQuality() !== 'low';
     setSparkTime(this.blink);
     for (const m of snap.modules) {
       const e = this.entries.get(m.id);
@@ -341,6 +348,7 @@ export class StationView {
         (e.halo.material as THREE.SpriteMaterial).color.setHex(color);
       }
       this.updateLife(e, m, occupancy, reduceMotion, sparksOk);
+      if (e.detail !== detail && !this.heatOverlay) this.setDetail(e, detail);
       if (this.heatOverlay) {
         const [r, g, b] = heatRgb(m.tempC);
         e.heatMaterial.color.setRGB(r, g, b, THREE.SRGBColorSpace);
@@ -360,6 +368,19 @@ export class StationView {
     }
     if (!this.cargo.root.parent && this.root.parent) this.root.parent.add(this.cargo.root); // outside root, so it's not in bounds()
     this.cargo.update(snap.economy.deliveries, dt, reduceMotion);
+  }
+
+  /** Low graphics draws the baked surfaces without their normal and roughness maps. No-op for grey-box modules. */
+  private setDetail(e: Entry, on: boolean): void {
+    if (!this.materials) {
+      if (!this.materialsAsked) {
+        this.materialsAsked = true;
+        void stationMaterials().then((lib) => (this.materials = lib));
+      }
+      return;
+    }
+    setSurfaceDetail(e.model.root, this.materials, on);
+    e.detail = on;
   }
 
   /** Wear on the hull, lit windows by guests aboard, and the flicker and sparks of a failed module. */

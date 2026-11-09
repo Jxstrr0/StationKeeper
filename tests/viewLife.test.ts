@@ -6,10 +6,12 @@ import {
   emberPulse,
   failFlicker,
   guestOccupancy,
+  paneOrder,
   scatterOrder,
   wearLook,
   wearLookInto,
   windowLights,
+  windowNode,
 } from '../src/view/lifeMath';
 
 describe('wearLook', () => {
@@ -129,6 +131,24 @@ describe('windows', () => {
     expect(windowLights(12, 1, true).intensity).toBeGreaterThan(windowLights(12, 0.25, true).intensity);
     expect(windowLights(12, 1, false)).toEqual({ shown: 12, intensity: 0.02 });
     expect(windowLights(0, 1, true).shown).toBe(0);
+  });
+
+  it('reads a pane\'s ring and slot from its node name in a model file', () => {
+    expect(windowNode('win_main_7')).toEqual({ ring: 'main', slot: 7 });
+    expect(windowNode('win_b2_0')).toEqual({ ring: 'b2', slot: 0 });
+    expect(windowNode('window')).toBeNull();
+    expect(windowNode('win_main')).toBeNull();
+    expect(windowNode('status_light')).toBeNull();
+  });
+
+  it('orders the panes a ring holds like the scatter of their slots', () => {
+    const slots = [0, 1, 2, 4, 5, 7];
+    const o = paneOrder(slots, 8);
+    expect([...o].sort((a, b) => a - b)).toEqual(slots);
+    expect(paneOrder(slots, 8)).toEqual(o);
+    const full = [...Array(12).keys()];
+    expect(paneOrder(full, 12)).toEqual(scatterOrder(12, 12));
+    expect(paneOrder([], 8)).toEqual([]);
   });
 
   it('reads occupancy from the guest snapshot', () => {
