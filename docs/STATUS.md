@@ -1390,7 +1390,7 @@ The user asked for a "world blender run": better station parts, and a better Ear
 
 ### Earth
 - The planet is now NASA's Blue Marble by day and Black Marble by night (both public domain), with city lights that come up as the ground goes dark. The 2k maps load first; the 4k ones replace them unless graphics are set to Low.
-- Clouds are still made in the shader, in 3D noise so there is no seam, and they drift. Reduce motion and Low graphics leave them still.
+- Clouds are made in the shader, in 3D noise so there is no seam. They drift with game time, once round in about twelve days, so they stop when the game is paused. Low graphics drops the finest detail in ground and cloud.
 - The atmosphere is a thin shell, blue by day and red along the line where day meets night.
 - Until the maps arrive, and if they never do, Earth is a plain ocean blue rather than a black disc.
 
