@@ -1155,7 +1155,7 @@ async function start(): Promise<void> {
     const alarmNow = snap.warnings.some((w) => w.severity === 'alarm');
     if (alarmNow && !alarmBefore) sound.play('alarm');
     alarmBefore = alarmNow;
-    env.earth.setCloudShift(t * 0.0006);
+    env.earth.setTime(t);
 
     stationView.update(snap, env.sunDir, dt);
     buildView.update(dt, env.camera);
