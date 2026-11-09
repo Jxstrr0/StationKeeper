@@ -1384,6 +1384,31 @@ A hands-off Longlight run was evacuated on days 21–26 every time: the water ta
 - A hands-off owner who repays at once and repairs breakdowns reaches it on days 12, 16 and 18 (three seeds), and the station now lasts the full 30-day probe.
 - Progress reads "Paid off · $12.3M of $30.0M in hand" once the loan is gone.
 
+## Session 36: the world outside
+
+The user asked for a "world blender run": better station parts, and a better Earth and universe.
+
+### Earth
+- The planet is now NASA's Blue Marble by day and Black Marble by night (both public domain), with city lights that come up as the ground goes dark. The 2k maps load first; the 4k ones replace them unless graphics are set to Low.
+- Clouds are still made in the shader, in 3D noise so there is no seam, and they drift. Reduce motion and Low graphics leave them still.
+- The atmosphere is a thin shell, blue by day and red along the line where day meets night.
+- Until the maps arrive, and if they never do, Earth is a plain ocean blue rather than a black disc.
+
+### Sky
+- About 26,000 stars with their own sizes and colours, counted out the way real ones are: a few bright, most faint.
+- The Milky Way is NASA's all-sky map used as a soft glow, with another 22,000 faint stars scattered where it is bright.
+- A Moon, a little larger than life so it reads on a phone. It lights from the same sun as everything else.
+- In sunlight the faint stars dim, as they do for eyes and cameras; in eclipse they all come out.
+
+### Light on the station
+- The hulls now pick up a little light from Earth and sky (an environment map), stronger in sunlight than in eclipse. Shadowed sides are no longer flat black.
+
+### Choices made without asking
+- **Textures are in the repo as plain files**, about 1.6 MB in all. Sources and what was done to each are in `public/textures/space/README.md`.
+- **The night map had its moonlit land removed**, so only the lights remain. Otherwise the dark side glowed grey.
+- **The Milky Way is cooler than the map.** Its dust lanes are a strong brown that read as a stain behind the station.
+- **Not yet checked:** frame rate on a real phone, and the Moon up close.
+
 ## Next
 
 The planned slices are done. Candidates for what's next, roughly in order of value:
