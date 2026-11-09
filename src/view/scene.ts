@@ -1,8 +1,8 @@
 // Renderer, camera, Earth, starfield, and the sun. Everything here is view-only.
 import * as THREE from 'three';
-import { Rng } from '../sim/rng';
 import type { OrbitSnapshot } from '../sim/types';
 import { createEarth, type Earth } from './earth';
+import { createSky } from './sky';
 
 /** View scale: 1 unit = 1 metre around the station; Earth is shrunk but keeps the real altitude ratio. */
 export const EARTH_RADIUS = 900;
@@ -45,41 +45,57 @@ export interface SceneEnv {
 }
 
 function makeSunTexture(): THREE.Texture {
-  const size = 128;
+  const size = 256;
   const c = document.createElement('canvas');
   c.width = c.height = size;
   const g = c.getContext('2d')!;
   const grad = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
   grad.addColorStop(0, 'rgba(255,255,250,1)');
-  grad.addColorStop(0.12, 'rgba(255,250,235,1)');
-  grad.addColorStop(0.25, 'rgba(255,225,180,0.45)');
+  grad.addColorStop(0.1, 'rgba(255,251,238,1)');
+  grad.addColorStop(0.16, 'rgba(255,236,200,0.5)');
+  grad.addColorStop(0.34, 'rgba(255,214,165,0.14)');
   grad.addColorStop(1, 'rgba(255,200,150,0)');
   g.fillStyle = grad;
   g.fillRect(0, 0, size, size);
+  // Faint spikes, the kind a lens makes of anything this bright.
+  g.globalCompositeOperation = 'lighter';
+  for (const [w, h, a] of [[size, 3, 0.2], [3, size, 0.2], [size * 0.6, 7, 0.07], [7, size * 0.6, 0.07]] as const) {
+    const streak = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, Math.max(w, h) / 2);
+    streak.addColorStop(0, `rgba(255,240,215,${a})`);
+    streak.addColorStop(1, 'rgba(255,240,215,0)');
+    g.fillStyle = streak;
+    g.fillRect((size - w) / 2, (size - h) / 2, w, h);
+  }
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
 
-function makeStars(count: number, radius: number): THREE.Points {
-  const rng = new Rng(9001);
-  const positions = new Float32Array(count * 3);
-  const colors = new Float32Array(count * 3);
-  for (let i = 0; i < count; i++) {
-    // Uniform on a sphere.
-    const z = rng.range(-1, 1);
-    const t = rng.range(0, Math.PI * 2);
-    const r = Math.sqrt(1 - z * z);
-    positions.set([radius * r * Math.cos(t), radius * r * Math.sin(t), radius * z], i * 3);
-    const b = 0.35 + 0.65 * rng.next() ** 3;
-    const warm = rng.range(-0.08, 0.08);
-    colors.set([b * (1 + warm), b, b * (1 - warm)], i * 3);
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  const mat = new THREE.PointsMaterial({ size: 1.6, sizeAttenuation: false, vertexColors: true, depthWrite: false });
-  return new THREE.Points(geo, mat);
+/**
+ * A tiny picture of the station's surroundings for shiny parts to reflect: black sky above, the glow of Earth
+ * below. No sun in it: the sun is a real light and makes its own highlights.
+ */
+function makeSurroundings(renderer: THREE.WebGLRenderer): THREE.Texture {
+  const c = document.createElement('canvas');
+  c.width = 64;
+  c.height = 32;
+  const g = c.getContext('2d')!;
+  const grad = g.createLinearGradient(0, 0, 0, c.height);
+  grad.addColorStop(0, '#05060a');
+  grad.addColorStop(0.42, '#070910');
+  grad.addColorStop(0.5, '#6f9be0');
+  grad.addColorStop(0.58, '#3f6fb4');
+  grad.addColorStop(1, '#27507f');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, c.width, c.height);
+  const flat = new THREE.CanvasTexture(c);
+  flat.colorSpace = THREE.SRGBColorSpace;
+  flat.mapping = THREE.EquirectangularReflectionMapping;
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const env = pmrem.fromEquirectangular(flat).texture;
+  flat.dispose();
+  pmrem.dispose();
+  return env;
 }
 
 let currentQuality: 'auto' | 'low' | 'high' = 'auto';
@@ -99,17 +115,25 @@ export function createScene(canvas: HTMLCanvasElement): SceneEnv {
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(50, 1, 0.5, 8000);
 
-  const earth = createEarth(EARTH_RADIUS);
+  const earth = createEarth(EARTH_RADIUS, renderer.capabilities.getMaxAnisotropy());
   earth.pivot.position.set(0, -(EARTH_RADIUS + ALTITUDE), 0);
   scene.add(earth.pivot);
 
-  const stars = makeStars(1800, 4000);
-  scene.add(stars);
+  const sky = createSky(4000);
+  sky.setPixelRatio(pixelRatio);
+  scene.add(sky.group);
+  const base = import.meta.env.BASE_URL;
+  earth.load(base, () => currentQuality !== 'low' && renderer.capabilities.maxTextureSize >= 4096);
+  sky.load(base);
+
+  // Earthshine and sky for the hulls to reflect. Low graphics goes without.
+  const surroundings = makeSurroundings(renderer);
+  scene.environment = surroundings;
 
   const sunSprite = new THREE.Sprite(
     new THREE.SpriteMaterial({ map: makeSunTexture(), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }),
   );
-  sunSprite.scale.setScalar(520);
+  sunSprite.scale.setScalar(SUN_SCALE);
   scene.add(sunSprite);
 
   const sunLight = new THREE.DirectionalLight(0xfff4e6, 2.8);
@@ -180,10 +204,13 @@ export function createScene(canvas: HTMLCanvasElement): SceneEnv {
   function setQuality(q: 'auto' | 'low' | 'high'): void {
     quality = q;
     currentQuality = q;
+    scene.environment = q === 'low' ? null : surroundings;
+    earth.setDetail(q !== 'low');
     const next = q === 'low' ? MIN_PIXEL_RATIO : screenRatio();
     if (next !== pixelRatio) {
       pixelRatio = next;
       renderer.setPixelRatio(pixelRatio);
+      sky.setPixelRatio(pixelRatio);
       resize();
     }
   }
@@ -203,11 +230,13 @@ export function createScene(canvas: HTMLCanvasElement): SceneEnv {
     if (slowTime > 2 && pixelRatio > MIN_PIXEL_RATIO) {
       pixelRatio = Math.max(MIN_PIXEL_RATIO, pixelRatio - 0.25);
       renderer.setPixelRatio(pixelRatio);
+      sky.setPixelRatio(pixelRatio);
       resize();
       slowTime = 0;
     } else if (fastTime > 10 && pixelRatio < screenRatio()) {
       pixelRatio = Math.min(pixelRatio + 0.25, MAX_PIXEL_RATIO);
       renderer.setPixelRatio(pixelRatio);
+      sky.setPixelRatio(pixelRatio);
       resize();
       fastTime = 0;
     }
@@ -223,11 +252,15 @@ export function createScene(canvas: HTMLCanvasElement): SceneEnv {
     // Fill light is strongest in eclipse, so the station still reads on a phone at normal brightness.
     // In sunlight the sun carries the scene and the fill drops back to keep the shading.
     hemi.intensity = 2 - 1.35 * sunlight + 0.2 * sunlight * Math.max(0, sunDir.y);
+    // What the hulls reflect is mostly Earth, and Earth is dark when the station is.
+    scene.environmentIntensity = 0.12 + 0.75 * sunlight;
     sunSprite.position.copy(sunDir).multiplyScalar(3600);
-    earth.setSun(sunDir);
     // Inertial things (Earth's surface, stars) turn once per orbit in the station's frame.
     earth.pivot.rotation.z = phase;
-    stars.rotation.z = phase;
+    sky.group.rotation.z = phase;
+    earth.setSun(sunDir);
+    sky.setSun(sunDir);
+    sky.setDark(1 - sunlight);
   }
 
   function capture(): string {
