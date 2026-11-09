@@ -121,6 +121,20 @@ export function approachOffset(t: number, plan: ApproachPlan): { along: number; 
 
 // ---- Windows ----
 
+/** A window pane's ring and slot from its node name in a model file ("win_<ring>_<slot>"), or null for any other node. */
+export function windowNode(name: string): { ring: string; slot: number } | null {
+  const m = /^win_([a-z0-9]+)_(\d+)$/i.exec(name);
+  return m ? { ring: m[1]!, slot: Number(m[2]) } : null;
+}
+
+/**
+ * The order to draw a ring's panes in, given which of its `count` slots round the hull hold a pane: scattered, so
+ * lighting the first few (by occupancy) doesn't light one side only.
+ */
+export function paneOrder(slots: readonly number[], count: number): number[] {
+  return scatterOrder(slots.length, count).map((k) => slots[k]!);
+}
+
 /** A fixed shuffle of 0..n-1, so the windows that light first are scattered round the hull rather than in a row. */
 export function scatterOrder(n: number, seed = 1): number[] {
   const out = Array.from({ length: n }, (_, i) => i);
