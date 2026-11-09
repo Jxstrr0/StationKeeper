@@ -7,17 +7,213 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Station Keeper" />
     <meta name="description" content="Station Keeper: build and run a commercial space station in Earth orbit. A Longlight Interactive game." />
     <title>Station Keeper</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- PNG fallback for browsers without SVG favicons, then the home-screen icon and the app manifest. -->
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <!-- The loading screen's styles live here, not in src/, so it is styled on the very first frame. -->
+    <style>
+      #boot {
+        position: fixed;
+        inset: 0;
+        z-index: 10;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        padding: calc(env(safe-area-inset-top, 0px) + 24px) calc(env(safe-area-inset-right, 0px) + 24px)
+          calc(env(safe-area-inset-bottom, 0px) + 24px) calc(env(safe-area-inset-left, 0px) + 24px);
+        overflow: hidden;
+        /* A faint Earth limb along the bottom and a few stars, drawn with gradients so nothing downloads. */
+        background:
+          radial-gradient(1px 1px at 12% 18%, rgba(250, 249, 245, 0.7), transparent),
+          radial-gradient(1px 1px at 78% 12%, rgba(250, 249, 245, 0.55), transparent),
+          radial-gradient(1.5px 1.5px at 64% 30%, rgba(250, 249, 245, 0.6), transparent),
+          radial-gradient(1px 1px at 30% 40%, rgba(250, 249, 245, 0.4), transparent),
+          radial-gradient(1px 1px at 88% 46%, rgba(250, 249, 245, 0.45), transparent),
+          radial-gradient(1.5px 1.5px at 22% 64%, rgba(250, 249, 245, 0.35), transparent),
+          radial-gradient(160% 60% at 50% 128%, #0b1430 0 58%, rgba(124, 150, 255, 0.35) 61%, rgba(180, 140, 232, 0.12) 64%, transparent 72%),
+          #141413;
+        color: #faf9f5;
+        font-family: 'Space Grotesk', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        text-align: center;
+        transition: opacity 0.5s ease;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      #boot.done {
+        opacity: 0;
+        pointer-events: none;
+      }
+      .boot-mark {
+        margin: 0;
+        font-size: clamp(44px, 13vw, 76px);
+        line-height: 0.92;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        text-transform: uppercase;
+        text-shadow: 0 4px 30px rgba(0, 0, 0, 0.6);
+      }
+      .boot-line {
+        margin: 0;
+        min-height: 1.3em;
+        font-size: 15px;
+        color: #a8a49b;
+      }
+      .boot-bar {
+        position: relative;
+        width: min(260px, 64vw);
+        height: 4px;
+        border-radius: 2px;
+        background: #2e2c28;
+        overflow: hidden;
+      }
+      .boot-bar > span {
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        background: #b48ce8;
+        transform-origin: left center;
+        transform: scaleX(var(--boot-p, 0));
+        transition: transform 0.3s ease;
+      }
+      /* Before the game's code has run there is nothing to measure, so the bar sweeps instead. */
+      #boot.wait .boot-bar > span {
+        width: 35%;
+        transform: none;
+        animation: boot-sweep 1.4s ease-in-out infinite;
+      }
+      @keyframes boot-sweep {
+        from {
+          translate: -100% 0;
+        }
+        to {
+          translate: 290% 0;
+        }
+      }
+      .boot-credit {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
+        margin: 0;
+        font-size: 11px;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: #a8a49b;
+      }
+      .boot-msg,
+      .boot-reload {
+        display: none;
+      }
+      #boot.error .boot-bar {
+        display: none;
+      }
+      #boot.error .boot-line {
+        color: #d97757;
+      }
+      #boot.error .boot-msg {
+        display: block;
+        max-width: 420px;
+        margin: 0;
+        font-size: 13px;
+        line-height: 1.4;
+        color: #a8a49b;
+        overflow-wrap: anywhere;
+        user-select: text;
+        -webkit-user-select: text;
+      }
+      #boot.error .boot-reload {
+        display: block;
+        min-width: 160px;
+        min-height: 48px;
+        padding: 8px 20px;
+        border: 1px solid #7b3fc4;
+        border-radius: 14px;
+        background: #7b3fc4;
+        color: #faf9f5;
+        font-size: 16px;
+        font-weight: 600;
+        font-family: inherit;
+        cursor: pointer;
+      }
+      .boot-reload:focus-visible {
+        outline: 2px solid #b48ce8;
+        outline-offset: 3px;
+      }
+      /* Landscape phones: a smaller wordmark so everything fits the short screen. */
+      @media (orientation: landscape) and (max-height: 500px) {
+        #boot {
+          gap: 12px;
+        }
+        .boot-mark {
+          font-size: 44px;
+        }
+        .boot-credit {
+          bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #boot,
+        .boot-bar > span {
+          transition: none;
+        }
+        /* No sweeping: a steady half-lit bar says "working" without movement. */
+        #boot.wait .boot-bar > span {
+          width: 100%;
+          opacity: 0.45;
+          animation: none;
+        }
+      }
+    </style>
+    <script>
+      // If the game's code itself fails to download (a dropped connection), show the error and the Reload
+      // button rather than leaving the bar sweeping forever. Errors inside the game are handled in src/main.ts.
+      // This sits in the head so it is listening before the game's script starts downloading.
+      (function () {
+        var failed = false;
+        function show() {
+          var boot = document.getElementById('boot');
+          if (!failed || !boot) return;
+          boot.className = 'error';
+          boot.querySelector('.boot-line').textContent = 'Station Keeper could not start';
+          boot.querySelector('.boot-msg').textContent = 'The game did not download. Check your connection and reload.';
+        }
+        addEventListener(
+          'error',
+          function (e) {
+            var t = e.target;
+            if (t && t.tagName === 'SCRIPT') {
+              failed = true;
+              show();
+            }
+          },
+          true,
+        );
+        document.addEventListener('DOMContentLoaded', show);
+      })();
+    </script>
   </head>
   <body>
     <canvas id="scene" aria-label="Station view"></canvas>
     <div id="ui"></div>
-    <div id="boot">Station Keeper</div>
+    <!-- The loading screen. It paints before any script runs; src/ui/bootScreen.ts fills the bar as the game loads. -->
+    <div id="boot" class="wait">
+      <h1 class="boot-mark">Station<br />Keeper</h1>
+      <p class="boot-line" role="status" aria-live="polite">Loading the station</p>
+      <div class="boot-bar" role="progressbar" aria-label="Loading" aria-valuemin="0" aria-valuemax="100"><span></span></div>
+      <p class="boot-msg"></p>
+      <button type="button" class="boot-reload" onclick="location.reload()">Reload</button>
+      <p class="boot-credit">A Longlight Interactive game</p>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

@@ -1,8 +1,10 @@
 import { defineConfig } from 'vitest/config';
 
-// GitHub Pages serves the site from /StationKeeper/, so every asset URL needs that prefix.
+// A relative base ('./') keeps every built path relative to index.html, so the same dist/ works
+// at the root of its own domain (stationkeeper.longlight.games, the live address) and under any
+// sub-path. At runtime import.meta.env.BASE_URL is './'.
 export default defineConfig({
-  base: '/StationKeeper/',
+  base: './',
   build: {
     target: 'es2022',
     chunkSizeWarningLimit: 900,
