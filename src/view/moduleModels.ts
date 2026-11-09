@@ -7,7 +7,8 @@ import * as THREE from 'three';
 import type { ModuleDef, Vec3 } from '../sim/types';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { handrails, openTruss, surfaceMaterials, tileUv } from './detail';
-import { scatterOrder } from './lifeMath';
+import { paneOrder, windowNode } from './lifeMath';
+import { stationMaterials, type StationMaterials } from './stationMaterials';
 
 export interface ModuleModel {
   root: THREE.Object3D;
@@ -284,7 +285,7 @@ function buildHabitat(def: ModuleDef, group: THREE.Group): Partial<ModuleModel> 
     const ring: number[] = [];
     for (let i = 0; i < count; i++) if (i < skipFrom || i > skipTo) ring.push(i);
     // Scattered, so lighting the first few (by occupancy) doesn't light one side only.
-    const idx = scatterOrder(ring.length, count).map((k) => ring[k]!);
+    const idx = paneOrder(ring, count);
     const inst = new THREE.InstancedMesh(new THREE.BoxGeometry(w, 0.08, h), windowMat, idx.length);
     idx.forEach((i, k) => {
       const a = (i / count) * Math.PI * 2;
@@ -506,7 +507,7 @@ const BUILDERS: Record<string, (def: ModuleDef, group: THREE.Group) => Partial<M
   cupola: buildCupola,
 };
 
-function addStatusLight(group: THREE.Group, at: Vec3): THREE.Object3D {
+function addStatusLight(group: THREE.Object3D, at: Vec3): THREE.Object3D {
   const anchor = new THREE.Object3D();
   anchor.name = 'status_light';
   anchor.position.set(at[0], at[1], at[2]);
@@ -571,34 +572,102 @@ export function buildGreybox(def: ModuleDef): ModuleModel {
   return model;
 }
 
+/** One parsed .glb, ready to be cloned for each module that uses it. */
+interface Template {
+  scene: THREE.Object3D;
+  /** Rings of window panes lit by occupancy: one pane's geometry and where each pane goes, in lighting order. */
+  rings: { geometry: THREE.BufferGeometry; matrices: THREE.Matrix4[] }[];
+  lib: StationMaterials;
+}
+
+/**
+ * Turn a loaded glTF scene into a template: library materials in place of the file's own (matched by name), and
+ * the `win_<ring>_<slot>` pane nodes gathered into rings and taken out of the scene.
+ */
+function makeTemplate(scene: THREE.Object3D, lib: StationMaterials): Template {
+  const panes = new Map<string, { slot: number; slots: number; mesh: THREE.Mesh }[]>();
+  scene.updateMatrixWorld(true);
+  scene.traverse((o) => {
+    if (!(o instanceof THREE.Mesh)) return;
+    const name = Array.isArray(o.material) ? '' : (o.material as THREE.Material).name;
+    const pane = windowNode(o.name);
+    if (pane) {
+      const list = panes.get(pane.ring) ?? [];
+      const slots = (o.userData as { slots?: unknown }).slots;
+      list.push({ slot: pane.slot, slots: typeof slots === 'number' ? slots : 0, mesh: o });
+      panes.set(pane.ring, list);
+    } else if (name === 'window') {
+      o.material = lib.window;
+    } else if (name in lib.byName) {
+      o.material = lib.byName[name as keyof StationMaterials['byName']];
+    }
+  });
+  const rings: Template['rings'] = [];
+  for (const list of panes.values()) {
+    const bySlot = new Map(list.map((p) => [p.slot, p]));
+    const count = Math.max(list[0]!.slots, ...list.map((p) => p.slot + 1));
+    const order = paneOrder([...bySlot.keys()].sort((a, b) => a - b), count);
+    rings.push({ geometry: list[0]!.mesh.geometry, matrices: order.map((slot) => bySlot.get(slot)!.mesh.matrixWorld.clone()) });
+    for (const p of list) p.mesh.removeFromParent();
+  }
+  return { scene, rings, lib };
+}
+
+/** A module's own copy of a template: shared geometry and hull materials, its own window glass. */
+function instantiate(t: Template, def: ModuleDef): ModuleModel {
+  const root = t.scene.clone(true);
+  root.name = `model:${def.id}`;
+  const glass = t.lib.window.clone();
+  let glows = t.rings.length > 0;
+  root.traverse((o) => {
+    if (o instanceof THREE.Mesh && o.material === t.lib.window) {
+      o.material = glass;
+      glows = true;
+    }
+  });
+  const windows = t.rings.map((ring) => {
+    const inst = new THREE.InstancedMesh(ring.geometry, glass, ring.matrices.length);
+    ring.matrices.forEach((m, i) => inst.setMatrixAt(i, m));
+    root.add(inst);
+    return inst;
+  });
+  const model: ModuleModel = {
+    root,
+    statusLight: root.getObjectByName('status_light') ?? addStatusLight(root, def.greybox.light),
+    glowMaterials: glows ? [glass] : [],
+  };
+  const gimbal = root.getObjectByName('gimbal');
+  if (gimbal) model.gimbal = gimbal;
+  if (windows.length) model.windows = windows;
+  return model;
+}
+
 /** Loads .glb models when a module names one; falls back to grey-box. */
 export class ModuleModelLoader implements ModuleModelSource {
   private gltfLoader: Promise<{ loadAsync(url: string): Promise<{ scene: THREE.Group }> }> | null = null;
+  /** Each file is fetched and parsed once; every module of that type is a clone. */
+  private readonly templates = new Map<string, Promise<Template | null>>();
 
   async load(def: ModuleDef): Promise<ModuleModel> {
     if (!def.model) return buildGreybox(def);
+    let template = this.templates.get(def.model);
+    if (!template) {
+      template = this.fetch(def.model);
+      this.templates.set(def.model, template);
+    }
+    const t = await template;
+    return t ? instantiate(t, def) : buildGreybox(def);
+  }
+
+  private async fetch(path: string): Promise<Template | null> {
     try {
       // Only pull in the glTF loader once a module actually uses a model.
       this.gltfLoader ??= import('three/examples/jsm/loaders/GLTFLoader.js').then((m) => new m.GLTFLoader());
-      const gltf = await (await this.gltfLoader).loadAsync(`${import.meta.env.BASE_URL}${def.model}`);
-      const root = gltf.scene;
-      const glowMaterials: THREE.MeshStandardMaterial[] = [];
-      root.traverse((o) => {
-        if (o instanceof THREE.Mesh && o.material instanceof THREE.MeshStandardMaterial && o.name.startsWith('glow')) {
-          glowMaterials.push(o.material);
-        }
-      });
-      const model: ModuleModel = {
-        root,
-        statusLight: root.getObjectByName('status_light') ?? addStatusLight(root, def.greybox.light),
-        glowMaterials,
-      };
-      const gimbal = root.getObjectByName('gimbal');
-      if (gimbal) model.gimbal = gimbal;
-      return model;
+      const [gltf, lib] = await Promise.all([(await this.gltfLoader).loadAsync(`${import.meta.env.BASE_URL}${path}`), stationMaterials()]);
+      return makeTemplate(gltf.scene, lib);
     } catch (err) {
-      console.warn(`Could not load ${def.model}; using grey-box instead.`, err);
-      return buildGreybox(def);
+      console.warn(`Could not load ${path}; using grey-box instead.`, err);
+      return null;
     }
   }
 }
