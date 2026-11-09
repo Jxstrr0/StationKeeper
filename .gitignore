@@ -5,3 +5,4 @@ dist/
 .vite/
 coverage/
 .claude/worktrees/
+__pycache__/
