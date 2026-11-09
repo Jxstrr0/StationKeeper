@@ -648,7 +648,20 @@ export class ModuleModelLoader implements ModuleModelSource {
   /** Each file is fetched and parsed once; every module of that type is a clone. */
   private readonly templates = new Map<string, Promise<Template | null>>();
 
+  /** Every module build (and any .glb file and its textures) is counted on `manager`, which feeds the loading bar. */
+  constructor(private readonly manager: THREE.LoadingManager = THREE.DefaultLoadingManager) {}
+
   async load(def: ModuleDef): Promise<ModuleModel> {
+    const item = `module:${def.id}`;
+    this.manager.itemStart(item);
+    try {
+      return await this.build(def);
+    } finally {
+      this.manager.itemEnd(item);
+    }
+  }
+
+  private async build(def: ModuleDef): Promise<ModuleModel> {
     if (!def.model) return buildGreybox(def);
     let template = this.templates.get(def.model);
     if (!template) {
@@ -662,7 +675,7 @@ export class ModuleModelLoader implements ModuleModelSource {
   private async fetch(path: string): Promise<Template | null> {
     try {
       // Only pull in the glTF loader once a module actually uses a model.
-      this.gltfLoader ??= import('three/examples/jsm/loaders/GLTFLoader.js').then((m) => new m.GLTFLoader());
+      this.gltfLoader ??= import('three/examples/jsm/loaders/GLTFLoader.js').then((m) => new m.GLTFLoader(this.manager));
       const [gltf, lib] = await Promise.all([(await this.gltfLoader).loadAsync(`${import.meta.env.BASE_URL}${path}`), stationMaterials()]);
       return makeTemplate(gltf.scene, lib);
     } catch (err) {

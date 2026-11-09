@@ -1,5 +1,5 @@
-// Asks the browser to keep this site's storage when the phone runs low on space. Every Longlight game shares one site
-// (and one storage), so without this the browser may clear all of it at once. Fails quietly where it isn't offered.
+// Asks the browser to keep this site's storage when the phone runs low on space; without this the browser may
+// clear it all at once. Fails quietly where it isn't offered.
 
 let asked = false;
 

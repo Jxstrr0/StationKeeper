@@ -5,7 +5,7 @@
 ### What was built
 
 - **Scaffold:** Vite + TypeScript (strict, ESLint bans `any`) + Three.js + Vitest. `npm run check` runs typecheck, lint, tests, and build.
-- **Deploy:** `.github/workflows/deploy.yml` checks out with LFS, runs typecheck, lint, tests, build, then deploys `dist/` to GitHub Pages on pushes to `main` (PRs build and test only). Vite `base` is `/StationKeeper/`.
+- **Deploy:** `.github/workflows/deploy.yml` checks out with LFS, runs typecheck, lint, tests, build, then deploys `dist/` to GitHub Pages on pushes to `main` (PRs build and test only). Vite `base` is `./` (relative, since 0.1.2.1), so the build works under `/StationKeeper/` and at a domain's root.
 - **Sim (`src/sim`, pure TS, lint-enforced no DOM/Three.js):**
   - `orbit.ts`: circular 420 km orbit with real constants (period ≈ 92.6 min) and a cylindrical Earth shadow. At beta 0 that gives ≈ 36 min of eclipse per orbit (≈ 39%). A short soft edge avoids a hard light switch.
   - `station.ts`: module graph built from the scenario layout, with port validation (unknown ports, double-used ports, multiple roots).
@@ -1384,7 +1384,43 @@ A hands-off Longlight run was evacuated on days 21–26 every time: the water ta
 - A hands-off owner who repays at once and repairs breakdowns reaches it on days 12, 16 and 18 (three seeds), and the station now lasts the full 30-day probe.
 - Progress reads "Paid off · $12.3M of $30.0M in hand" once the loan is gone.
 
-## Session 36: the world outside
+## Version numbers
+
+- **Decision (2026-11-06):** versions use four numbers, Major.Minor.Patch.Build, Kelbo's call, same across all Longlight games. 0.1.0 rolled over to 0.1.0.0.
+- `src/version.ts` holds `GAME_VERSION`, the one place to change it. The title screen shows it small under the tagline ("v0.1.0.0").
+- Bump rule: Major = overhaul, Minor = feature batch, Patch = tweak or fix, Build = republish.
+- `package.json` keeps `"version": "0.1.0"`, because npm only accepts three numbers there. It isn't shown in the game.
+
+## Home screen icon (0.1.1.0)
+
+- "Add to Home Screen" on an iPhone now shows a proper icon instead of a screenshot of the page. The icon is the favicon's station (purple mast, lilac panel, ivory module) over the blue curve of Earth on slate, redrawn for a big tile.
+- Files: `public/icons/apple-touch-icon.png` (180, iPhone), `icon-192.png` and `icon-512.png` (Android and the PNG favicon fallback), `icon-512-maskable.png` (the art inside the middle 80%, so Android can crop it to a circle or squircle), and `public/manifest.webmanifest` (name, standalone, any orientation, slate colours). `index.html` links them and sets the home-screen title.
+- To test: on an iPhone open the live site in Safari, Share, Add to Home Screen. The preview should show the station icon and "Station Keeper". Opening it from the home screen starts full screen.
+
+## Loading screen (0.1.2.0)
+
+- The loading screen is now a real screen instead of the name in plain text: the STATION KEEPER wordmark (as on the title), a line saying what's loading, a lilac progress bar, a faint Earth limb and stars, and "A Longlight Interactive game" along the bottom. It lives inline in `index.html` (markup and its own `<style>`), so it paints on the first frame.
+- The bar is driven by the real boot (`src/ui/bootScreen.ts`, called from `start()` in `src/main.ts`): it sweeps while the game's code downloads, then fills through "Reading the logbook", "Lighting up the Earth", "Docking the modules" (a `THREE.LoadingManager` counts each module and any `.glb` file and texture), "Warming up the shaders" and "Opening the hatch", then fades out as before.
+- New: the shaders are compiled behind the loading screen (`renderer.compileAsync`, at most 4 s), so the first frames on the title don't stutter.
+- If the game can't start, the bar gives way to the reason and a Reload button. A small script in the `<head>` catches the game's code failing to download (a dropped connection) and shows the same.
+- Phone-first: safe areas, a smaller wordmark in landscape, and with Reduce Motion on the bar holds still instead of sweeping.
+- To test: open the live site on a phone. The loading screen shows the wordmark and a bar that sweeps, then fills, then fades into the title. On a slow connection (or with the phone in flight mode after the page starts) you should see it longer, or the error with Reload.
+
+## Relative base (0.1.2.1)
+
+- The games are moving later from `jxstrr0.github.io/StationKeeper/` to their own subdomain (`stationkeeper.longlight.games`), where the game sits at the root of the address. Vite's `base` was `/StationKeeper/`, which would break there, so it is now `./` (relative): every path in `dist/` is relative to `index.html`, and `import.meta.env.BASE_URL` is `./` at runtime. The same build works at both addresses, so it ships now, before the switch. Nothing changes for players.
+- Nothing else needed changing: the manifest's `start_url` and `scope` were already `./`, the module loader builds `.glb` URLs from `BASE_URL`, and there is no service worker.
+- The domain switch itself (DNS, the Pages custom domain, links that name the old address) comes later.
+- Checked: `npm run check`; `dist/` served under `/StationKeeper/` and at `/` in Chromium, with no console errors and no 404s either way.
+
+## New addresses (docs only, November 2026)
+
+- Station Keeper now lives at https://stationkeeper.longlight.games/, and the old `jxstrr0.github.io/StationKeeper/` address forwards there. The studio site is https://longlight.games/ (press kit: https://longlight.games/press.html).
+- CLAUDE.md, the README, the `vite.config.ts` and `src/storageCare.ts` comments now give the new addresses and no longer say every game shares one origin: the game has its own storage now. Saves made at the old address stay there. The `stationkeeper.` prefix rule is kept.
+- `LONGLIGHT-STUDIO.md` recopied from the master. No version bump: nothing players see changed.
+- Checked: `npm run check`.
+
+## Session 36: the world outside (0.2.0.0)
 
 The user asked for a "world blender run": better station parts, and a better Earth and universe.
 
@@ -1412,7 +1448,7 @@ All 12 modules are now drawn from Blender models, generated by the scripts in `t
 - **Rules for a new model.** Stay inside `greybox.size`, ports at most 0.17 m proud, and use the fixed material and node names listed in `public/models/README.md`.
 
 ### Choices made without asking
-- **Models are plain files, not Git LFS.** GitHub Pages does not serve LFS files. `.blend` files would still go to LFS, but none are committed: the scripts are the source.
+- **Models are plain files, not Git LFS.** They are small, and a plain clone then runs without LFS set up. `.blend` files would still go to LFS, but none are committed: the scripts are the source.
 - **No mesh compression.** Draco and meshopt were not available in this Blender build.
 - **Low graphics drops the hull normal and roughness maps.** The benefit is unmeasured on a real phone.
 - **Lit windows are flat cream panes** with nothing behind them. Fine at game distance, plain in a close-up.
@@ -1420,6 +1456,8 @@ All 12 modules are now drawn from Blender models, generated by the scripts in `t
 - **The night map had its moonlit land removed**, so only the lights remain. Otherwise the dark side glowed grey.
 - **The Milky Way is cooler than the map.** Its dust lanes are a strong brown that read as a stain behind the station.
 - **Not yet checked:** frame rate on a real phone, the Moon up close, and a build ghost over the new models (fit was tested, the ghost was not screenshotted).
+- **Version 0.2.0.0.** A minor bump: new art throughout counts as a feature batch.
+- **The loading bar counts the models.** Module files load through the loading screen's manager. The Earth and sky maps do not: they arrive after the game opens, as before.
 
 ## Next
 
