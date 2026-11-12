@@ -6,3 +6,8 @@ dist/
 coverage/
 .claude/worktrees/
 __pycache__/
+
+# Key files never go in the repo
+.env
+.env.*
+!.env.example

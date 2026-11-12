@@ -1,0 +1,18 @@
+# Dependabot: one grouped pull request a month for minor and patch updates.
+# Major versions and three.js are skipped: those get done by hand.
+# Security alerts are separate and still arrive for everything.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "three"
+      - dependency-name: "@types/three"
