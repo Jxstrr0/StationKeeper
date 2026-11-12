@@ -191,6 +191,8 @@
           'error',
           function (e) {
             var t = e.target;
+            // The visit counter is optional: an ad blocker may stop it.
+            if (t && t.hasAttribute && t.hasAttribute('data-cf-beacon')) return;
             if (t && t.tagName === 'SCRIPT') {
               failed = true;
               show();
@@ -215,5 +217,7 @@
       <p class="boot-credit">A Longlight Interactive game</p>
     </div>
     <script type="module" src="/src/main.ts"></script>
+    <!-- Cloudflare Web Analytics: cookieless visit counts for Longlight (no personal data). -->
+    <script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "7525bb05a7c34a358d0339d4c02bf3f1"}'></script>
   </body>
 </html>

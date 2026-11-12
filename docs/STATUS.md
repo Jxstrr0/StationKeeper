@@ -1467,6 +1467,10 @@ From the studio security cycle. Nothing in the game changes.
 - `.gitignore` covers `.env` files, so a key file can never be committed by accident.
 - `.github/dependabot.yml`: one grouped pull request a month for minor and patch package updates. Major versions and three.js are skipped and get done by hand.
 
+## Visit counts (0.2.0.1, 12 November 2026)
+
+Kelbo asked for Cloudflare Web Analytics on every Longlight game. The cookieless beacon is the last script in `index.html`: page views and load speed, nothing about the player or the station. The loading screen's failed-file check skips it, so an ad blocker can't show Reload.
+
 ## Next
 
 The planned slices are done. Candidates for what's next, roughly in order of value:
