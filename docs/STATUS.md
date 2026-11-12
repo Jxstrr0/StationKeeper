@@ -1471,6 +1471,10 @@ From the studio security cycle. Nothing in the game changes.
 
 Kelbo asked for Cloudflare Web Analytics on every Longlight game. The cookieless beacon is the last script in `index.html`: page views and load speed, nothing about the player or the station. The loading screen's failed-file check skips it, so an ad blocker can't show Reload.
 
+## Kept out of search (0.2.0.2, 12 November 2026)
+
+Kelbo asked for the hidden games to stay out of search results. A robots noindex tag in the page head asks search engines not to list the game. The game still loads and plays at its own address, and nothing about saves or play changes. Remove the tag when the game goes on the studio site.
+
 ## Next
 
 The planned slices are done. Candidates for what's next, roughly in order of value:
